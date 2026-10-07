@@ -111,7 +111,7 @@ def parse_snapshot(fund, config, raw, captured_at=None):
         raise ValueError('Unsupported issuer')
     if len(positions)<5: raise ValueError('Incomplete holdings file')
     total=sum(p['weight'] for p in positions)
-    if not .98 <= total <= 1.02: raise ValueError(f'Unexpected weight sum: {total:.4%}')
+    if not .98 <= total <= 1.02 and not config.get('allowPartialAllocation'): raise ValueError(f'Unexpected weight sum: {total:.4%}')
     if as_of > (dt.datetime.now(dt.timezone.utc).date()+dt.timedelta(days=1)).isoformat(): raise ValueError('Future holdings date')
     # Multiple lots of the same security are retained; the engine aggregates weights.
     return dict(schemaVersion=1,fund=fund,name=config['name'],asOf=as_of,currency=config['currency'],

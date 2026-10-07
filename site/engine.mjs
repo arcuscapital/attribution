@@ -168,7 +168,7 @@ export function compare(input, options) {
   const history = [];
   let from = prior;
   for (const to of dates) {
-    if (!da.has(to) || !db.has(to)) issues.push(`Fund price missing on ${to}.`);
+    if (!levelReturn(prices, portfolio, from, to, currency) || !levelReturn(prices, benchmark, from, to, currency)) issues.push(`Fund price missing on ${to}.`);
     const sa = opening(portfolio, from),
       sb = opening(benchmark, from);
     if (!sa || !sb) {
@@ -191,16 +191,16 @@ export function compare(input, options) {
   }
   if (issues.length) {
     const onlyPriceGaps = issues.every((issue) =>
-      issue.startsWith("Incomplete return coverage"),
+      issue.startsWith("Incomplete return coverage") || (options.allowPartialReturns && issue.startsWith("Fund price missing")),
     );
     if (
       onlyPriceGaps &&
       history.length === dates.length &&
-      history.every(
+      (options.allowPartialReturns || history.every(
         (d) =>
           Math.abs(d.a.weight - 1) <= 0.005 &&
           Math.abs(d.b.weight - 1) <= 0.005,
-      )
+      ))
     ) {
       const partial = partialComparison(
         prices,
@@ -336,13 +336,17 @@ function partialComparison(prices, history, options, baseline, missing) {
   const rows = new Map();
   let wealthA = 1,
     wealthB = 1;
+  const referenceA = history.every(d => levelReturn(prices, portfolio, d.from, d.to, currency));
+  const referenceB = history.every(d => levelReturn(prices, benchmark, d.from, d.to, currency));
+  if ((!referenceA || !referenceB) && !options.allowPartialReturns) return null;
+  // Use one common linking basis for both sides, so their difference stays comparable.
+  const linked = referenceA && referenceB;
   for (const day of history) {
     const fundA = levelReturn(prices, portfolio, day.from, day.to, currency);
     const fundB = levelReturn(prices, benchmark, day.from, day.to, currency);
-    if (!fundA || !fundB) return null;
     for (const side of ["A", "B"]) {
       const snap = day["snapshot" + side],
-        wealth = side === "A" ? wealthA : wealthB;
+        wealth = linked ? (side === "A" ? wealthA : wealthB) : 1;
       for (const p of snap.positions) {
         if (Math.abs(p.weight) < EPS) continue;
         const row = rows.get(p.id) || {
@@ -363,8 +367,8 @@ function partialComparison(prices, history, options, baseline, missing) {
         rows.set(p.id, row);
       }
     }
-    wealthA *= 1 + fundA.value;
-    wealthB *= 1 + fundB.value;
+    if (referenceA) wealthA *= 1 + fundA.value;
+    if (referenceB) wealthB *= 1 + fundB.value;
   }
   const end = history.at(-1).to;
   const results = [...rows.values()].map((r) => ({
@@ -383,13 +387,14 @@ function partialComparison(prices, history, options, baseline, missing) {
     baseline,
     currency,
     days: history.length,
-    returnA: wealthA - 1,
-    returnB: wealthB - 1,
-    activeReturn: wealthA - wealthB,
-    fundReturnA: wealthA - 1,
-    fundReturnB: wealthB - 1,
-    residualA: wealthA - 1 - explainedA,
-    residualB: wealthB - 1 - explainedB,
+    returnA: referenceA ? wealthA - 1 : null,
+    returnB: referenceB ? wealthB - 1 : null,
+    activeReturn: linked ? wealthA - wealthB : null,
+    fundReturnA: referenceA ? wealthA - 1 : null,
+    fundReturnB: referenceB ? wealthB - 1 : null,
+    residualA: linked ? wealthA - 1 - explainedA : null,
+    residualB: linked ? wealthB - 1 - explainedB : null,
+    contributionMethod: linked ? 'reference-linked' : 'arithmetic-daily',
     knownContributionA: explainedA,
     knownContributionB: explainedB,
     coverage: {
@@ -401,8 +406,9 @@ function partialComparison(prices, history, options, baseline, missing) {
     missing,
     issues: [],
     notes: [
-      "PARTIAL ANALYSIS. Headline returns are the observed fund reference returns, not a complete holdings calculation.",
-      "Known security contributions use opening weights and are linked with observed reference-fund wealth. A missing return makes that security’s period contribution unavailable, not zero.",
+      "PARTIAL ANALYSIS. Available headline returns are observed fund reference returns; unavailable figures stay blank. Known contributions are not a complete portfolio return.",
+      linked ? "Known contributions are linked with observed reference-fund wealth." : "Without complete reference returns on both sides, contributions on BOTH sides are arithmetic sums of daily opening-weight × return. They are not compounded period returns; no reconciliation residual is claimed.",
+      "A missing held-day return makes that security’s period contribution unavailable, not zero. Source weights are preserved, including cash, short positions and incomplete allocations; they are never scaled to 100%.",
       "The unexplained residual includes unavailable contributions, expenses, trading effects, cash income and valuation differences. It must not be attributed entirely to the missing securities.",
       "Sector allocation/selection effects are withheld until all held securities have complete return data.",
       "Reference returns use verified imported levels when available, otherwise vendor-adjusted ETF market prices. Market-price return is not NAV return.",

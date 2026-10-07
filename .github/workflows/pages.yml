@@ -23,7 +23,7 @@ jobs:
       - run: python -m unittest discover -s tests -p 'test_*.py'
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: public-redirect
   deploy:
     needs: test
     runs-on: ubuntu-latest

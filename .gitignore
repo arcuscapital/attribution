@@ -10,3 +10,6 @@ private/
 .clasp.json
 settings.local.json
 site/demo.json
+.wrangler/
+.dev.vars*
+.env*

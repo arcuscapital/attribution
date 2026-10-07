@@ -59,6 +59,7 @@ def collect(db,home,funds):
     issues=[]
     rawdir=home/'archive';rawdir.mkdir(exist_ok=True)
     for fund,config in funds.items():
+        if config.get('provider')=='portfolio' or config.get('manualOnly'):continue
         try:
             if config.get('datedDownload'):
                 raw=None
@@ -134,7 +135,7 @@ def update_prices(db,funds):
     if not snaps:return []
     baseline=(dt.date.fromisoformat(min(s['asOf'] for s in snaps))-dt.timedelta(days=10)).isoformat()
     ids={p['symbol'] for s in snaps for p in s['positions'] if p.get('symbol')}
-    ids.update(funds);ids.update(('USDZAR=X','SPY'))
+    ids.update(id for id,c in funds.items() if c.get('provider')!='portfolio');ids.update(('USDZAR=X','SPY'))
     today=dt.datetime.now(dt.timezone.utc).date().isoformat()
     issues=[]
     fx_cache={}
@@ -258,7 +259,12 @@ def main():
         elif args.command in ('update','collect'):
             settings=args.home/'settings.json'
             if settings.exists():
-                archive=json.loads(settings.read_text()).get('archiveFolder')
+                config=json.loads(settings.read_text())
+                from .portfolios import read_archive
+                portfolio_snaps,errors=read_archive(args.home,config)
+                issues.extend(errors)
+                for snap in portfolio_snaps:store(db,snap)
+                archive=config.get('archiveFolder')
                 if archive:
                     if Path(archive).is_dir():_,errors=import_archive(db,Path(archive),funds);issues.extend(errors)
                     else:issues.append('Configured Google archive folder is unavailable; current download cannot recover missing past holdings')

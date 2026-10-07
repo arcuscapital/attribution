@@ -193,3 +193,27 @@ test("missing both fund dates cannot hide a session present in the reference cal
   );
   assert.equal(compare(d, options).status, "incomplete");
 });
+
+test('research comparison keeps contributions when portfolio has no reference series',()=>{
+ const d=fixture();d.levels=d.levels.filter(l=>l.id!=='A');
+ d.levels=d.levels.filter(l=>l.id!=='Y');
+ const r=compare(d,{...options,allowPartialReturns:true});
+ assert.equal(r.status,'partial');assert.equal(r.returnA,null);close(r.returnB,.05);
+ assert.equal(r.activeReturn,null);assert.equal(r.residualB,null);
+ assert.equal(r.contributionMethod,'arithmetic-daily');
+ close(r.rows.find(x=>x.id==='X').ctrA,0);assert.equal(r.rows.find(x=>x.id==='Y').ctrA,null);
+});
+test('partial source allocations are not silently rescaled',()=>{
+ const d=fixture();d.snapshots.forEach(s=>s.positions[0].weight=.2);
+ const r=compare(d,{...options,allowPartialReturns:true});
+ assert.equal(r.status,'partial');close(r.rows.find(x=>x.id==='X').weightA,.2);
+});
+
+test('IBKR portfolio cannot inherit the IBKR listed stock return',()=>{
+ const d=fixture();
+ d.snapshots.filter(s=>s.fund==='A').forEach(s=>s.fund='PORTFOLIO:IBKR');
+ d.levels.filter(l=>l.id==='A').forEach(l=>l.id='IBKR');
+ const r=compare(d,{...options,portfolio:'PORTFOLIO:IBKR',allowPartialReturns:true});
+ assert.equal(r.status,'partial');assert.equal(r.returnA,null);
+ assert.equal(r.fundReturnA,null);assert.ok(Number.isFinite(r.knownContributionA));
+});

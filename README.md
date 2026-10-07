@@ -1,10 +1,10 @@
 # Arcus Attribution
 
-Independent desktop research project. GitHub Pages hosts only the interface. Holdings, prices, archives and the database stay private. There are **no calls to Arcus, Cloudflare, its queues, live refresh loops or trading endpoints**.
+Independent desktop research project. A password-protected Worker in the separate Attribution Cloudflare account hosts only the interface. Financial data stays on the PC/private Drive. One read-only desktop query imports existing Arcus portfolio snapshots; it triggers no collection, queues, trades or live refresh loops. Calculations run in the browser.
 
 ## What works
 
-* Dated issuer snapshots for 44 configured ETFs, retaining private/unmapped positions and cash. Eight further sources are recorded in `config/pending-sources.json` with their blockers.
+* Dated snapshots for 47 ETFs plus EasyAI, EasyGE, IBKR and Marlow. WCLD/WTAI currently use dated manual issuer downloads. Five other ETF sources remain unavailable; source limitations are recorded in `config/pending-sources.json`. No Arcus themes are included.
 * Google Apps Script collector with three small daily runs, immutable checksummed archives, retry-safe filenames and a status file.
 * Standard-library Python updater, local SQLite history, snapshot revision handling, completed database backups and month-partitioned exports.
 * Desktop web interface: folder/file import, fund/date/currency comparison, security/sector grouping, sortable contributions, Brinson–Fachler sector effects with Carino linking, and Excel-compatible CSV export.
@@ -37,7 +37,7 @@ Run `desktop/update.ps1`. Private files go to `%LOCALAPPDATA%/ArcusAttribution`,
 
 Run `desktop/install-task.ps1` to install the current-user **Arcus Attribution Update** scheduled task at 09:30 SAST and user sign-in. It launches the Python updater directly without a console window or PowerShell-policy changes. It does not run as administrator, overlap itself or require storing a password. Windows does not run it while powered off. Google's collector covers that interval once authorised and verified.
 
-Open https://arcuscapital.github.io/attribution/ for daily use. Double-clicking `site/index.html` as a `file://` URL is not supported: browsers restrict its JavaScript modules and calculation worker. For local development, serve that same site folder with the local server command below.
+Open https://arcus-attribution.arcus-attribution.workers.dev/ for daily use. The former GitHub Pages address is a redirect only after the private deployment is verified. Double-clicking `site/index.html` as a `file://` URL is not supported: browsers restrict its JavaScript modules and calculation worker. For local development, serve that same site folder with the local server command below.
 
 Controls include Portfolio, Benchmark, Currency, Classification (None / Sector), date presets and explicit dates. One Day uses the latest completed price date in the archive. Last Week/Month/3 Months/Year select completed calendar periods. Missing history is reported, not silently truncated to the dates available.
 
@@ -71,7 +71,7 @@ Do not label market prices as verified dividend-inclusive returns. FX conversion
 * `python -m unittest discover -s tests -p 'test_*.py'`
 * `python -m http.server 8765 --bind 127.0.0.1 --directory site`
 
-GitHub Actions publishes **only `site/`** after tests on `main`. No data or credentials belong in this repository. Local settings, SQLite files and archive data are ignored. Google script changes require rebuilding the bundle and an explicit update in its editor; a Pages deployment does not change the collector.
+GitHub Actions publishes **only `public-redirect/`** after tests on `main`. The protected site is deployed separately with `wrangler deploy` using the isolated Attribution login. No data or credentials belong in this repository. Local settings, SQLite files and archive data are ignored. Google script changes require rebuilding the bundle and an explicit update in its editor; a Pages deployment does not change the collector.
 
 ## Not yet proven by a one-day setup
 
@@ -87,4 +87,13 @@ The UI prioritises useful approximate holdings analysis. Every report includes a
 
 Weights missing on minor Invesco/Vanguard lines are estimated from the reported market value and the median fund-net-assets denominator implied by the issuer's other weighted positions. This is research estimation, not audited accounting. All such positions are retained. Other incomplete sources stay pending.
 
-Daily price downloads are deduplicated by security and use at most three parallel requests on the PC. The Google run has a four-minute work budget and resumes its remaining fund cursor on the next scheduled run. No work goes through Arcus or Cloudflare.
+Daily price downloads are deduplicated by security and use at most three parallel requests on the PC. The Google run has a four-minute work budget and resumes its remaining fund cursor on the next scheduled run. Attribution calculations and daily price downloads do not run on Cloudflare. The hosted sign-in/static requests use the separate account; the desktop portfolio import reads the existing Arcus cache once per updater run.
+
+
+## Protected deployment and portfolio operation
+
+See `docs/PRIVATE-HOSTING.md`. Portfolio IDs are namespaced (`PORTFOLIO:IBKR`, etc.) so a brokerage portfolio cannot accidentally use Interactive Brokers stock's return. Official portfolio return series are intentionally not inferred from account-value histories. Missing headline returns stay blank, while available holding contributions remain usable.
+
+The PC updater imports four current portfolios from the existing private Arcus cache using existing local Wrangler authorization. EasyAI/EasyGE can additionally recover available opening records retained there for 14 days. This does **not** provide complete PC-off holdings capture for IBKR/Marlow. Longer absences or missing source records remain dated gaps/proxies; do not claim uninterrupted historical capture. All existing Arcus services and code remain unchanged.
+
+When either side lacks a complete reference-return series, both sides use arithmetic daily contribution sums, clearly labelled, without a claimed compounded reconciliation. Signed source weights and incomplete allocations are preserved without rescaling; average weights still include every opening day. Complete cases retain the original linked method. Missing individual returns remain blank in both screen and CSV.

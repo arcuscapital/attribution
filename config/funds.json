@@ -316,5 +316,47 @@
     "provider": "generic",
     "sourceFormat": "csv",
     "datedDownload": true
+  },
+  "WCLD": {
+    "name": "WisdomTree Cloud Computing Fund",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.wisdomtree.com/us/products/megatrends/wcld"
+  },
+  "WTAI": {
+    "name": "WisdomTree Artificial Intelligence and Innovation Fund",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.wisdomtree.com/us/products/megatrends/wtai"
+  },
+  "FFLS": {
+    "name": "The Future Fund Long/Short ETF",
+    "currency": "USD",
+    "url": "https://futurefundetf.com/modules/mod_csvtables_copy/cron/holdings.csv",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "allowPartialAllocation": true
+  },
+  "PORTFOLIO:EASYAI": {
+    "name": "EasyAI",
+    "provider": "portfolio",
+    "currency": "USD"
+  },
+  "PORTFOLIO:EASYGE": {
+    "name": "EasyGE",
+    "provider": "portfolio",
+    "currency": "USD"
+  },
+  "PORTFOLIO:IBKR": {
+    "name": "IBKR",
+    "provider": "portfolio",
+    "currency": "USD"
+  },
+  "PORTFOLIO:MARLOW": {
+    "name": "Marlow",
+    "provider": "portfolio",
+    "currency": "USD"
   }
 }

@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="dark light" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; worker-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'self'; script-src 'self'; worker-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'"
     />
     <title>Arcus Attribution</title>
     <link rel="stylesheet" href="style.css" />
@@ -16,6 +16,7 @@
       <a class="brand" href="./"
         >A<span>ARCUS <small>ATTRIBUTION</small></span></a
       ><span class="private">Local analysis · private data</span>
+      <form action="/logout" method="post"><button type="submit">Sign out</button></form>
     </header>
     <main>
       <section class="intro">
@@ -140,8 +141,8 @@
         </p>
       </details>
       <footer>
-        Independent of Arcus Watchlists. No analytics, accounts, portfolio
-        uploads or Cloudflare calls.<br />Personal research estimates. Preserve
+        Separate from Arcus Watchlists. Imported financial data stays in your browser;
+        the hosted page uses a private sign-in.<br />Personal research estimates. Preserve
         source dates and investigate unexplained differences.
       </footer>
     </main>

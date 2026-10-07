@@ -1,5 +1,18 @@
 import { dateRange } from './ranges.mjs';
 const $ = (id) => document.getElementById(id);
+document.querySelector('form[action="/logout"]')?.addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector('button');
+  button.disabled = true;
+  try {
+    const response = await fetch('/logout', {method:'POST', credentials:'same-origin'});
+    if (!response.ok) throw Error('Sign out failed');
+    location.replace('/');
+  } catch {
+    button.disabled = false;
+    message('Could not sign out. Please try again.');
+  }
+});
 let folder = null,
   dataset = null,
   manifest = null,
@@ -33,7 +46,7 @@ function setup(m) {
   for (const id of ["portfolio", "benchmark"]) {
     $(id).replaceChildren(
       ...m.funds.map((f) => {
-        const o = text("option", `${f.id} · ${f.name}`);
+        const o = text("option", f.id.startsWith('PORTFOLIO:') ? `${f.name} · My portfolio` : `${f.id} · ${f.name}`);
         o.value = f.id;
         return o;
       }),
@@ -55,7 +68,7 @@ function setup(m) {
     new Date(m.generatedAt).toLocaleString() +
     ". Nothing is uploaded." + (m.validationNotice ? ' ' + m.validationNotice : '');
   renderArchiveInfo();
-  $('source-status').textContent = `${m.funds.length} funds in this archive.` + ((m.pendingSources || []).length ? ' Not yet collecting: '+m.pendingSources.map(f=>f.id+' ('+f.reason+')').join('; ')+'.' : '');
+  $('source-status').textContent = `${m.funds.length} funds in this archive.` + ((m.pendingSources || []).length ? ' Source limitations: '+m.pendingSources.map(f=>f.id+' ('+f.reason+')').join('; ')+'.' : '');
   $("message").replaceChildren();
 }
 function renderArchiveInfo() {
@@ -63,7 +76,7 @@ function renderArchiveInfo() {
     ...manifest.funds.filter(f=>[$('portfolio').value,$('benchmark').value].includes(f.id)).map((f) => {
       const card = text("article", "", "archive-card");
       card.append(
-        text("strong", f.id),
+        text("strong", f.id.startsWith('PORTFOLIO:') ? f.name : f.id),
         text(
           "p",
           `${f.positions} positions · latest holdings ${f.latest || "not collected"} · ${f.dates.length} saved dates`,
@@ -169,6 +182,7 @@ $("controls").addEventListener("submit", async (e) => {
       ]),
     );
     options.allowApproximateHoldings = true;
+    options.allowPartialReturns = true;
     const data = await loadRange(options.start, options.end);
     const response = await new Promise((resolve, reject) => {
       const worker = new Worker(new URL("./worker.mjs?v=research-20261007", import.meta.url), {
@@ -222,7 +236,7 @@ $("controls").addEventListener("submit", async (e) => {
     if (result.status === "partial") {
       const missingNames = [...new Set(result.missing.map((m) => m.name))];
       message(
-        `Research estimate. Headline figures are fund reference returns. Return coverage: ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. ${missingNames.length} holdings have missing returns; details below.`,
+        `Research estimate. Missing figures stay blank. Return coverage (absolute source weight): ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. ${missingNames.length} holdings have missing returns. ${result.contributionMethod === 'arithmetic-daily' ? 'Contributions sum daily estimates; they are not compounded returns.' : 'Contributions use reference-return linking.'}`,
       );
     }
     $("empty").hidden = true;
@@ -255,7 +269,7 @@ $("controls").addEventListener("submit", async (e) => {
       text('strong','Research estimate — use for ideas, not exact accounting.'),
       text('p','Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
       ...(result.holdingsWarnings || []).map(n => text('p',n)),
-      ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. Missing returns stay blank; the headline figures are fund reference returns, not these subtotals.`)] : []),
+      ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. Missing returns stay blank; available headline figures are fund reference returns, not these subtotals. ${result.contributionMethod === 'arithmetic-daily' ? 'Both contribution columns use arithmetic daily sums because a complete reference series is unavailable.' : ''}`)] : []),
       ...(result.missing?.length ? [text('p','Missing returns: '+[...new Set(result.missing.map(p=>p.name))].join('; '))] : []),
     );
   } catch (error) {
@@ -410,6 +424,7 @@ $("download").addEventListener("click", () => {
     ["Values below are percent / percentage points"],
     ['Holdings method', result.approximateHoldings ? 'Approximate dated holdings proxies' : 'Opening dated holdings'],
     ...(result.holdingsWarnings || []).map(n => ['Holdings warning',n]),
+    ...(result.notes || []).map(n => ['Method / disclaimer', n]),
     columns.map((c) => c[1]),
     ...displayedRows().map((r) =>
       columns.map(([key]) =>

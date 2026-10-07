@@ -109,7 +109,7 @@ globalThis.ArcusSources = (() => {
     if(!result.asOf || result.positions.length<5)throw Error('Incomplete dated holdings');
     if(result.positions.some(p=>!p.name||typeof p.weight!=='number'||!Number.isFinite(p.weight)))throw Error('Invalid holding or missing weight');
     const sum=result.positions.reduce((s,p)=>s+p.weight,0);
-    if(sum<98||sum>102)throw Error('Incomplete allocation: '+sum.toFixed(3)+'%');
+    if((sum<98||sum>102)&&!config.allowPartialAllocation)throw Error('Incomplete allocation: '+sum.toFixed(3)+'%');
     return result;
   }
   function canonical(result) {

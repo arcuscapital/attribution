@@ -5,7 +5,7 @@
     "url": "https://futurefundetf.com/modules/mod_csvtables_copy/cron/holdings.csv",
     "provider": "generic",
     "sourceFormat": "csv",
-    "reason": "Error: Incomplete allocation: 90.430%"
+    "reason": "Signed issuer weights retained without scaling; net allocation can differ from 100%. Missing returns stay blank."
   },
   "UFO": {
     "name": "Procure Space ETF",
@@ -21,7 +21,7 @@
     "url": "https://www.wisdomtree.com/api/fund-holdings/3813179",
     "provider": "generic",
     "sourceFormat": "wisdom",
-    "reason": "HTTP Error 403: Forbidden"
+    "reason": "Holdings imported from issuer, dated 2026-10-05. Automated refresh still blocked by issuer; manual refresh required."
   },
   "WTAI": {
     "name": "WisdomTree Artificial Intelligence and Innovation Fund",
@@ -29,7 +29,7 @@
     "url": "https://www.wisdomtree.com/api/fund-holdings/30084865",
     "provider": "generic",
     "sourceFormat": "wisdom",
-    "reason": "HTTP Error 403: Forbidden"
+    "reason": "Holdings imported from issuer, dated 2026-10-05. Automated refresh still blocked by issuer; manual refresh required."
   },
   "TIME": {
     "name": "Clockwise U.S. Core Equity ETF",
