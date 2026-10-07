@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+data/
+private/
+*.sqlite*
+*.db
+*.zip
+*.log
+.clasp.json
+settings.local.json
+site/demo.json

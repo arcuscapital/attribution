@@ -1,0 +1,14 @@
+{
+  "BAI": {
+    "name": "iShares A.I. Innovation and Tech Active ETF",
+    "provider": "ishares",
+    "url": "https://www.ishares.com/us/products/339081/ishares-a-i-innovation-and-tech-active-etf/latest-holdings.csv",
+    "currency": "USD"
+  },
+  "ARKK": {
+    "name": "ARK Innovation ETF",
+    "provider": "ark",
+    "url": "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_INNOVATION_ETF_ARKK_HOLDINGS.csv",
+    "currency": "USD"
+  }
+}

@@ -1,0 +1,22 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {compare} from '../site/engine.mjs';
+function fixture(){
+ const positions=[{id:'X',ticker:'X',name:'First',sector:'Technology',weight:.6},{id:'Y',ticker:'Y',name:'Second',sector:'Health',weight:.4}];
+ const snapshots=['2026-10-01','2026-10-02'].flatMap(asOf=>['A','B'].map(fund=>({fund,asOf,positions:positions.map((p,i)=>({...p,weight:fund==='B'?.5:p.weight}))})));
+ const levels=[];for(const [id,values]of Object.entries({X:[100,110,99],Y:[100,100,110],A:[100,106,103.88],B:[100,105,105],'USDZAR=X':[17,17.17,17.34]}))['2026-10-01','2026-10-02','2026-10-05'].forEach((date,i)=>levels.push({id,date,value:values[i],currency:id==='USDZAR=X'?'ZAR':'USD',basis:id==='USDZAR=X'?'fx':'verified-total-return'}));
+ return {manifest:{schemaVersion:1},snapshots,levels};
+}
+const options={portfolio:'A',benchmark:'B',start:'2026-10-02',end:'2026-10-05',currency:'USD'};
+const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-10,`${a} != ${b}`);
+test('multi-day linked contributions reconcile to compounded return',()=>{const r=compare(fixture(),options);assert.equal(r.status,'complete');close(r.returnA,.0388);close(r.returnB,.05);close(r.rows.reduce((a,r)=>a+r.ctrA,0),r.returnA);close(r.rows.reduce((a,r)=>a+r.activeCtr,0),r.activeReturn);close(r.sectors.reduce((a,r)=>a+r.allocation+r.selection+r.interaction,0),r.activeReturn);});
+test('missing private holding return blocks full result, never zero',()=>{const d=fixture();d.snapshots[0].positions[0].id='PRIVATE';const r=compare(d,options);assert.equal(r.status,'incomplete');assert.equal(r.returnA,undefined);assert.ok(r.missing.some(m=>m.id==='PRIVATE'));});
+test('missing daily holdings are not silently forward-filled',()=>{const d=fixture();d.snapshots=d.snapshots.filter(s=>!(s.fund==='A'&&s.asOf==='2026-10-02'));const r=compare(d,options);assert.equal(r.status,'incomplete');assert.ok(r.issues.some(x=>x.includes('Opening holdings missing')));});
+test('weights change and removed securities retain their contribution',()=>{const d=fixture();d.snapshots.find(s=>s.fund==='A'&&s.asOf==='2026-10-02').positions=[{id:'Y',ticker:'Y',name:'Second',sector:'Health',weight:1}];const r=compare(d,options);assert.equal(r.status,'complete');close(r.returnA,.166);close(r.rows.find(r=>r.id==='X').weightA,.3);});
+test('FX converts returns multiplicatively and does not double count',()=>{const r=compare(fixture(),{...options,currency:'ZAR'});assert.equal(r.status,'complete');close(r.returnA,1.0388*1.02-1);});
+test('one-day attribution and equal portfolio returns are stable',()=>{const d=fixture();d.snapshots.forEach(s=>s.positions.forEach(p=>p.weight=.5));const r=compare(d,{...options,end:'2026-10-02'});assert.equal(r.status,'complete');close(r.activeReturn,0);close(r.sectors.reduce((a,r)=>a+r.allocation+r.selection+r.interaction,0),0);});
+test('mixed return bases cannot be joined into a fabricated return',()=>{const d=fixture();d.levels.find(l=>l.id==='X'&&l.date==='2026-10-02').basis='vendor-adjusted';assert.equal(compare(d,options).status,'incomplete');});
+test('future date range and empty archives stay unavailable',()=>{assert.equal(compare(fixture(),{...options,start:'2027-01-01',end:'2027-01-04'}).status,'unavailable');});
+test('malformed numeric inputs rejected',()=>{const d=fixture();d.snapshots[0].positions[0].weight=NaN;assert.throws(()=>compare(d,options));});
+test('10 repeated refreshes produce deterministic results without mutation',()=>{const d=fixture(),before=JSON.stringify(d),expected=compare(d,options);for(let i=0;i<10;i++)assert.deepEqual(compare(d,options),expected);assert.equal(JSON.stringify(d),before);});
+export {fixture};
