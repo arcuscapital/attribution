@@ -31,6 +31,8 @@ For sector effects, calculate daily Brinson–Fachler allocation, selection and 
 
 No observed price calendar is a guarantee against all data outages. The updater includes SPY as a US reference calendar and comparisons cross-check both fund series. A range extending past available prices is rejected. Earlier inception/missing dates are not fabricated.
 
+When all opening holdings exist but a security return is missing, the interface can show a **partial contribution report**. Headline numbers switch explicitly to observed fund reference returns. Known contributions link using reference-fund wealth, and any security missing a held-day return has a blank full-period contribution. The difference between reference return and known contributions remains unexplained; it includes more than just missing securities. Allocation/selection effects are withheld. Missing portfolio snapshots still block the report entirely.
+
 ## Troubleshooting
 
 * `collector-status.json`: latest per-fund collection result. Compare its check time with the issuer dates. An unchanged source is not a new dated holding.

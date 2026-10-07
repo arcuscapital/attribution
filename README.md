@@ -8,7 +8,7 @@ Independent desktop research project. GitHub Pages hosts only the interface. Hol
 * Google Apps Script collector with three small daily runs, immutable checksummed archives, retry-safe filenames and a status file.
 * Standard-library Python updater, local SQLite history, snapshot revision handling, completed database backups and month-partitioned exports.
 * Desktop web interface: folder/file import, fund/date/currency comparison, security/sector grouping, sortable contributions, Brinson–Fachler sector effects with Carino linking, and Excel-compatible CSV export.
-* Explicit incomplete-history/missing-price results. It never fabricates a zero return for an unknown holding.
+* Explicit incomplete-history/missing-price results. Missing daily holdings block a comparison. When holdings are complete but some prices are missing, a labelled partial report shows known contributions against observed fund reference returns and an unexplained residual. It never fabricates a zero return for an unknown holding.
 
 ## Accuracy and present limits
 
@@ -35,7 +35,7 @@ Requires Python 3.12+ and a browser supporting local file selection. No Python p
 
 Run `desktop/update.ps1`. Private files go to `%LOCALAPPDATA%/ArcusAttribution`, outside the repository and sync folders. `reports/arcus-attribution.json` is the convenient single-file import for the pilot. For larger histories use the `reports` folder with `manifest.json` and monthly files. The 20 MB convenience-export limit does not remove historical archives or database records.
 
-Run `desktop/install-task.ps1` to install the current-user **Arcus Attribution Update** scheduled task at 08:15 SAST and user sign-in. It does not run as administrator, overlap itself or require storing a password. Windows does not run it while powered off. Google's collector covers that interval once authorised and verified.
+Run `desktop/install-task.ps1` to install the current-user **Arcus Attribution Update** scheduled task at 08:15 SAST and user sign-in. It launches the Python updater directly without a console window or PowerShell-policy changes. It does not run as administrator, overlap itself or require storing a password. Windows does not run it while powered off. Google's collector covers that interval once authorised and verified.
 
 To stop the local schedule: disable the named task in Windows Task Scheduler. Other scheduled tasks are untouched.
 
