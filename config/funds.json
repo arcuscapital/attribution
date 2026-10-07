@@ -10,5 +10,311 @@
     "provider": "ark",
     "url": "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_INNOVATION_ETF_ARKK_HOLDINGS.csv",
     "currency": "USD"
+  },
+  "SOXX": {
+    "name": "iShares Semiconductor ETF",
+    "currency": "USD",
+    "url": "https://www.ishares.com/us/products/239705/ishares-semiconductor-etf/latest-holdings.csv",
+    "provider": "ishares",
+    "sourceFormat": "csv"
+  },
+  "ITA": {
+    "name": "iShares U.S. Aerospace & Defense ETF",
+    "currency": "USD",
+    "url": "https://www.ishares.com/us/products/239502/ishares-u-s-aerospace-defense-etf/latest-holdings.csv",
+    "provider": "ishares",
+    "sourceFormat": "csv"
+  },
+  "LAZR": {
+    "name": "Tema Photonics & Optical ETF",
+    "currency": "USD",
+    "url": "https://temaetfs.com/lazr",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "discover": true
+  },
+  "DISK": {
+    "name": "Tema Memory ETF",
+    "currency": "USD",
+    "url": "https://temaetfs.com/disk",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "discover": true
+  },
+  "WELD": {
+    "name": "Tema U.S. Manufacturing & Reshoring ETF",
+    "currency": "USD",
+    "url": "https://temaetfs.com/weld",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "discover": true
+  },
+  "CANC": {
+    "name": "Tema Oncology ETF",
+    "currency": "USD",
+    "url": "https://temaetfs.com/canc",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "discover": true
+  },
+  "AIQ": {
+    "name": "Global X Artificial Intelligence & Technology ETF",
+    "currency": "USD",
+    "url": "https://www.globalxetfs.com/funds/aiq",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "discover": true
+  },
+  "FINX": {
+    "name": "Global X FinTech ETF",
+    "currency": "USD",
+    "url": "https://www.globalxetfs.com/funds/finx",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "discover": true
+  },
+  "SHLD": {
+    "name": "Global X Defense Tech ETF",
+    "currency": "USD",
+    "url": "https://www.globalxetfs.com/funds/shld",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "discover": true
+  },
+  "EART": {
+    "name": "Global X Rare Earth & Critical Materials ETF",
+    "currency": "USD",
+    "url": "https://www.globalxetfs.com/funds/eart",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "discover": true
+  },
+  "MTUM": {
+    "name": "iShares MSCI USA Momentum Factor ETF",
+    "currency": "USD",
+    "url": "https://www.ishares.com/us/products/251614/ishares-msci-usa-momentum-factor-etf/latest-holdings.csv",
+    "provider": "ishares",
+    "sourceFormat": "csv"
+  },
+  "ARTY": {
+    "name": "iShares Future AI & Tech ETF",
+    "currency": "USD",
+    "url": "https://www.ishares.com/us/products/297905/ishares-robotics-and-artificial-intelligence-etf-fund/latest-holdings.csv",
+    "provider": "ishares",
+    "sourceFormat": "csv"
+  },
+  "ARKW": {
+    "name": "ARK Next Generation Internet ETF",
+    "currency": "USD",
+    "url": "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_NEXT_GENERATION_INTERNET_ETF_ARKW_HOLDINGS.csv",
+    "provider": "ark",
+    "sourceFormat": "csv"
+  },
+  "ARKQ": {
+    "name": "ARK Autonomous Technology & Robotics ETF",
+    "currency": "USD",
+    "url": "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_AUTONOMOUS_TECH._&_ROBOTICS_ETF_ARKQ_HOLDINGS.csv",
+    "provider": "ark",
+    "sourceFormat": "csv"
+  },
+  "ARKG": {
+    "name": "ARK Genomic Revolution ETF",
+    "currency": "USD",
+    "url": "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_GENOMIC_REVOLUTION_ETF_ARKG_HOLDINGS.csv",
+    "provider": "ark",
+    "sourceFormat": "csv"
+  },
+  "ARKF": {
+    "name": "ARK Blockchain & Fintech Innovation ETF",
+    "currency": "USD",
+    "url": "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_BLOCKCHAIN_&_FINTECH_INNOVATION_ETF_ARKF_HOLDINGS.csv",
+    "provider": "ark",
+    "sourceFormat": "csv"
+  },
+  "ARKX": {
+    "name": "ARK Space & Defense Innovation ETF",
+    "currency": "USD",
+    "url": "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_SPACE_&_DEFENSE_INNOVATION_ETF_ARKX_HOLDINGS.csv",
+    "provider": "ark",
+    "sourceFormat": "csv"
+  },
+  "LOUP": {
+    "name": "Innovator Deepwater Frontier Tech ETF",
+    "currency": "USD",
+    "url": "https://www.innovatoretfs.com/etf/loup_holdings.csv",
+    "provider": "generic",
+    "sourceFormat": "csv"
+  },
+  "FFND": {
+    "name": "One Global ETF",
+    "currency": "USD",
+    "url": "https://futurefundetf.com/modules/mod_csvtables/cron/holdings.csv",
+    "provider": "generic",
+    "sourceFormat": "csv"
+  },
+  "NITE": {
+    "name": "The Nightview ETF",
+    "currency": "USD",
+    "url": "https://www.nightviewfund.com/live_site_data/daily/NITE_fund_holdings.csv",
+    "provider": "generic",
+    "sourceFormat": "csv"
+  },
+  "BOTT": {
+    "name": "Themes Humanoid Robotics ETF",
+    "currency": "USD",
+    "url": "https://themesetfs.com/storage/holdings/Holdings-BOTT.csv",
+    "provider": "generic",
+    "sourceFormat": "csv"
+  },
+  "IVES": {
+    "name": "Dan IVES Wedbush AI Revolution ETF",
+    "currency": "USD",
+    "url": "https://wedbushfunds.com/latest-sod-holdings-ives",
+    "provider": "generic",
+    "sourceFormat": "csv"
+  },
+  "IVEP": {
+    "name": "Dan IVES Wedbush AI Power & Infrastructure ETF",
+    "currency": "USD",
+    "url": "https://wedbushfunds.com/latest-sod-holdings-ivep",
+    "provider": "generic",
+    "sourceFormat": "csv"
+  },
+  "AIS": {
+    "name": "VistaShares Artificial Intelligence Supercycle ETF",
+    "currency": "USD",
+    "url": "https://www.vistashares.com/csv/top-holdings?etf=AIS",
+    "provider": "generic",
+    "sourceFormat": "csv"
+  },
+  "LRNZ": {
+    "name": "TrueShares Technology, AI and Deep Learning ETF",
+    "currency": "USD",
+    "url": "https://docs.google.com/spreadsheets/export?id=1YsAIlsy14uHV5_PKLzkXDprxNyweaO-eH_Vtmvu2iIA&exportFormat=csv",
+    "provider": "generic",
+    "sourceFormat": "csv"
+  },
+  "QTUM": {
+    "name": "Defiance Quantum ETF",
+    "currency": "USD",
+    "url": "https://www.defianceetfs.com/qtum-full-holdings/",
+    "provider": "generic",
+    "sourceFormat": "html"
+  },
+  "JEDI": {
+    "name": "Defiance Drone and Modern Warfare ETF",
+    "currency": "USD",
+    "url": "https://www.defianceetfs.com/jedi-full-holdings/",
+    "provider": "generic",
+    "sourceFormat": "html"
+  },
+  "QQEW": {
+    "name": "First Trust Nasdaq-100 Select Equal Weight ETF",
+    "currency": "USD",
+    "url": "https://www.ftportfolios.com/retail/etf/etfholdings.aspx?Ticker=QQEW",
+    "provider": "generic",
+    "sourceFormat": "html"
+  },
+  "JHAI": {
+    "name": "Janus Henderson Global Artificial Intelligence ETF",
+    "currency": "USD",
+    "url": "https://www.janushenderson.com/en-us/investor/product/global-artificial-intelligence-etf-jhai/full-holdings/",
+    "provider": "generic",
+    "sourceFormat": "html"
+  },
+  "GRNY": {
+    "name": "Fundstrat Granny Shots US Large Cap ETF",
+    "currency": "USD",
+    "url": "https://grannyshots.com/fundstrat-granny-shots-us-large-cap-etf/grny-holdings/",
+    "provider": "generic",
+    "sourceFormat": "html"
+  },
+  "FCTE": {
+    "name": "SMI 3Fourteen Full-Cycle Trend ETF",
+    "currency": "USD",
+    "url": "https://3fourteensmi.com/fcte",
+    "provider": "generic",
+    "sourceFormat": "html"
+  },
+  "XT": {
+    "name": "iShares Future Exponential Technologies ETF",
+    "currency": "USD",
+    "url": "https://www.ishares.com/us/products/272532/ishares-exponential-technologies-etf/latest-holdings.csv",
+    "provider": "ishares",
+    "sourceFormat": "csv"
+  },
+  "VLUE": {
+    "name": "iShares MSCI USA Value Factor ETF",
+    "currency": "USD",
+    "url": "https://www.ishares.com/us/products/251616/ishares-msci-usa-value-factor-etf/latest-holdings.csv",
+    "provider": "ishares",
+    "sourceFormat": "csv"
+  },
+  "ROBO": {
+    "name": "ROBO Global Robotics and Automation Index ETF",
+    "currency": "USD",
+    "url": "https://www.roboglobaletfs.com/robo",
+    "provider": "generic",
+    "sourceFormat": "robo"
+  },
+  "THNQ": {
+    "name": "ROBO Global Artificial Intelligence ETF",
+    "currency": "USD",
+    "url": "https://www.roboglobaletfs.com/thnq",
+    "provider": "generic",
+    "sourceFormat": "robo"
+  },
+  "TEK": {
+    "name": "iShares Technology Opportunities Active ETF",
+    "currency": "USD",
+    "url": "https://www.ishares.com/us/products/339083/ishares-technology-opportunities-active-etf/latest-holdings.csv",
+    "provider": "ishares",
+    "sourceFormat": "csv"
+  },
+  "QQQ": {
+    "name": "Invesco QQQ Trust",
+    "currency": "USD",
+    "url": "https://dng-api.invesco.com/cache/v1/accounts/en_US/shareclasses/46090E103/holdings/fund?idType=cusip&productType=ETF",
+    "provider": "generic",
+    "sourceFormat": "invesco",
+    "cusip": "46090E103"
+  },
+  "RSP": {
+    "name": "Invesco S&P 500 Equal Weight ETF",
+    "currency": "USD",
+    "url": "https://dng-api.invesco.com/cache/v1/accounts/en_US/shareclasses/46137V357/holdings/fund?idType=cusip&productType=ETF",
+    "provider": "generic",
+    "sourceFormat": "invesco",
+    "cusip": "46137V357"
+  },
+  "IGPT": {
+    "name": "Invesco AI and Next Gen Software ETF",
+    "currency": "USD",
+    "url": "https://dng-api.invesco.com/cache/v1/accounts/en_US/shareclasses/46137V639/holdings/fund?idType=cusip&productType=ETF",
+    "provider": "generic",
+    "sourceFormat": "invesco",
+    "cusip": "46137V639"
+  },
+  "VOO": {
+    "name": "Vanguard S&P 500 ETF",
+    "currency": "USD",
+    "url": "https://advisors.vanguard.com/investments/products/api/funds/0968/holdings/latest",
+    "provider": "generic",
+    "sourceFormat": "vanguard"
+  },
+  "ROKT": {
+    "name": "State Street SPDR S&P Kensho Final Frontiers ETF",
+    "currency": "USD",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-rokt.xlsx",
+    "provider": "generic",
+    "sourceFormat": "xlsx"
+  },
+  "CHAT": {
+    "name": "Roundhill Generative AI & Technology ETF",
+    "currency": "USD",
+    "url": "https://www.roundhillinvestments.com/assets/data/FilepointRoundhill.40RU.RU_Holdings_{date}.csv",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "datedDownload": true
   }
 }

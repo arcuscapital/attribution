@@ -1,4 +1,4 @@
-import { compare } from "./engine.mjs";
+import { compare } from "./engine.mjs?v=research-20261007";
 self.onmessage = ({ data }) => {
   try {
     self.postMessage({ ok: true, result: compare(data.dataset, data.options) });

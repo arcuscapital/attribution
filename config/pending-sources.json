@@ -1,0 +1,66 @@
+{
+  "FFLS": {
+    "name": "The Future Fund Long/Short ETF",
+    "currency": "USD",
+    "url": "https://futurefundetf.com/modules/mod_csvtables_copy/cron/holdings.csv",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "reason": "Error: Incomplete allocation: 90.430%"
+  },
+  "UFO": {
+    "name": "Procure Space ETF",
+    "currency": "USD",
+    "url": "https://www.procureetfs.com/ufo/",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "reason": "HTTP Error 403: Forbidden"
+  },
+  "WCLD": {
+    "name": "WisdomTree Cloud Computing Fund",
+    "currency": "USD",
+    "url": "https://www.wisdomtree.com/api/fund-holdings/3813179",
+    "provider": "generic",
+    "sourceFormat": "wisdom",
+    "reason": "HTTP Error 403: Forbidden"
+  },
+  "WTAI": {
+    "name": "WisdomTree Artificial Intelligence and Innovation Fund",
+    "currency": "USD",
+    "url": "https://www.wisdomtree.com/api/fund-holdings/30084865",
+    "provider": "generic",
+    "sourceFormat": "wisdom",
+    "reason": "HTTP Error 403: Forbidden"
+  },
+  "TIME": {
+    "name": "Clockwise U.S. Core Equity ETF",
+    "currency": "USD",
+    "url": "https://clockwisefunds.com/wp-content/uploads/data/TidalFG_Holdings_TIME.csv",
+    "provider": "generic",
+    "sourceFormat": "csv",
+    "reason": "HTTP Error 404: Not Found"
+  },
+  "GPT": {
+    "name": "Intelligent Alpha Atlas ETF",
+    "currency": "USD",
+    "url": "https://iaetfs.com/etf/",
+    "provider": "generic",
+    "sourceFormat": "html",
+    "reason": "HTTP Error 403: Forbidden"
+  },
+  "KOID": {
+    "name": "KraneShares Global Humanoid Robotics and Physical AI Index ETF",
+    "currency": "USD",
+    "url": "https://kraneshares.com/etf/koid/",
+    "provider": "generic",
+    "sourceFormat": "krane",
+    "reason": "HTTP Error 403: Forbidden"
+  },
+  "WARP": {
+    "name": "VanEck Space ETF",
+    "currency": "USD",
+    "url": "https://www.vaneck.com/us/en/investments/space-etf-warp/downloads/holdings/",
+    "provider": "generic",
+    "sourceFormat": "xlsx",
+    "reason": "HTTP Error 302: The HTTP server returned a redirect error that would lead to an infinite loop.\nThe last 30x error message was:\nFound"
+  }
+}

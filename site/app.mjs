@@ -1,3 +1,4 @@
+import { dateRange } from './ranges.mjs';
 const $ = (id) => document.getElementById(id);
 let folder = null,
   dataset = null,
@@ -40,16 +41,26 @@ function setup(m) {
     $(id).disabled = false;
   }
   $("benchmark").selectedIndex = 1;
+  if (m.funds.some(f => f.id === 'ARKK') && m.funds.some(f => f.id === 'BAI')) {
+    $('portfolio').value = 'ARKK'; $('benchmark').value = 'BAI';
+  }
   const available = m.funds.flatMap((f) => f.dates || []).sort();
   $("start").value = available.at(0) || "";
   $("end").value = available.at(-1) || "";
-  for (const id of ["start", "end", "run"]) $(id).disabled = false;
+  for (const id of ["start", "end", "run", "range"]) $(id).disabled = false;
+  $('range').value = m.valuationDates?.length ? 'day' : 'custom';
+  applyRange();
   $("archive-status").textContent =
     "Archive updated " +
     new Date(m.generatedAt).toLocaleString() +
-    ". Nothing is uploaded.";
+    ". Nothing is uploaded." + (m.validationNotice ? ' ' + m.validationNotice : '');
+  renderArchiveInfo();
+  $('source-status').textContent = `${m.funds.length} funds in this archive.` + ((m.pendingSources || []).length ? ' Not yet collecting: '+m.pendingSources.map(f=>f.id+' ('+f.reason+')').join('; ')+'.' : '');
+  $("message").replaceChildren();
+}
+function renderArchiveInfo() {
   $("archive-info").replaceChildren(
-    ...m.funds.map((f) => {
+    ...manifest.funds.filter(f=>[$('portfolio').value,$('benchmark').value].includes(f.id)).map((f) => {
       const card = text("article", "", "archive-card");
       card.append(
         text("strong", f.id),
@@ -61,8 +72,19 @@ function setup(m) {
       return card;
     }),
   );
-  $("message").replaceChildren();
 }
+for(const id of ['portfolio','benchmark']) $(id).addEventListener('change', renderArchiveInfo);
+function applyRange() {
+  const dates = manifest?.valuationDates || [];
+  const range = dateRange($('range').value, dates);
+  if (range) { $('start').value = range.start; $('end').value = range.end; }
+  $('range-note').textContent = dates.length
+    ? `Periods end at the latest saved completed price date: ${dates.at(-1)}. Missing holdings are reported; dates are not silently shortened.`
+    : 'Select explicit dates, or run the desktop updater to enable date presets.';
+  if (!dates.length) $('range').value = 'custom';
+}
+$('range').addEventListener('change', applyRange);
+for (const id of ['start', 'end']) $(id).addEventListener('change', () => { $('range').value = 'custom'; });
 $("folder").addEventListener("click", async () => {
   try {
     if (!window.showDirectoryPicker) {
@@ -92,6 +114,10 @@ $("import").addEventListener("change", async (event) => {
     if (file.size > 35_000_000)
       throw Error("Use reports folder mode for large archives.");
     const parsed = JSON.parse(await file.text());
+    if (!parsed.manifest?.valuationDates) {
+      const funds = new Set((parsed.manifest?.funds || []).map(f => f.id));
+      parsed.manifest.valuationDates = [...new Set((parsed.levels || []).filter(l => l.id === 'SPY' || funds.has(l.id)).map(l => l.date))].sort();
+    }
     setup(parsed.manifest);
     dataset = parsed;
     folder = null;
@@ -106,10 +132,20 @@ async function loadRange(start, end) {
   if (!folder) throw Error("Connect an archive first.");
   // Include a baseline month. Engine requires exact preceding valuation-day holdings.
   const baseline = new Date(start + "T12:00:00Z");
+  baseline.setUTCDate(1);
   baseline.setUTCMonth(baseline.getUTCMonth() - 1);
   const months = manifest.months.filter(
     (m) => m >= baseline.toISOString().slice(0, 7) && m <= end.slice(0, 7),
   );
+  // Include the actual proxy snapshot, even when the issuer only publishes monthly.
+  for (const fund of manifest.funds.filter(f => [$('portfolio').value, $('benchmark').value].includes(f.id))) {
+    const dates = [...fund.dates].sort();
+    const before = dates.filter(d => d < start).at(-1);
+    const after = dates.find(d => d >= start);
+    for (const date of [before, after]) {
+      if (date && manifest.months.includes(date.slice(0, 7)) && !months.includes(date.slice(0, 7))) months.push(date.slice(0, 7));
+    }
+  }
   const merged = { manifest, snapshots: [], levels: [] };
   for (const month of months) {
     if (!/^\d{4}-\d{2}$/.test(month)) throw Error("Invalid month in archive");
@@ -132,9 +168,10 @@ $("controls").addEventListener("submit", async (e) => {
         $(id).value,
       ]),
     );
+    options.allowApproximateHoldings = true;
     const data = await loadRange(options.start, options.end);
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=research-20261007", import.meta.url), {
         type: "module",
       });
       worker.onmessage = ({ data }) => {
@@ -185,7 +222,7 @@ $("controls").addEventListener("submit", async (e) => {
     if (result.status === "partial") {
       const missingNames = [...new Set(result.missing.map((m) => m.name))];
       message(
-        `Partial analysis. Headline figures are fund reference returns. Minimum daily return coverage: ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. Missing contributions stay blank. Missing returns: ${missingNames.join("; ")}.`,
+        `Research estimate. Headline figures are fund reference returns. Return coverage: ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. ${missingNames.length} holdings have missing returns; details below.`,
       );
     }
     $("empty").hidden = true;
@@ -214,6 +251,13 @@ $("controls").addEventListener("submit", async (e) => {
     );
     renderRows();
     renderMethod();
+    $('research-note').replaceChildren(
+      text('strong','Research estimate — use for ideas, not exact accounting.'),
+      text('p','Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
+      ...(result.holdingsWarnings || []).map(n => text('p',n)),
+      ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. Missing returns stay blank; the headline figures are fund reference returns, not these subtotals.`)] : []),
+      ...(result.missing?.length ? [text('p','Missing returns: '+[...new Set(result.missing.map(p=>p.name))].join('; '))] : []),
+    );
   } catch (error) {
     message(error.message);
   } finally {
@@ -347,7 +391,7 @@ function renderMethod() {
   scroll.append(table);
   node.append(scroll);
 }
-$("group").addEventListener("change", renderRows);
+$("group").addEventListener("change", () => { if (result && ['complete', 'partial'].includes(result.status)) renderRows(); });
 function csvCell(v) {
   let s = String(v ?? "");
   if (/^[=+@\-]/.test(s) && typeof v === "string") s = "'" + s;
@@ -364,6 +408,8 @@ $("download").addEventListener("click", () => {
     ["Start", result.start, "End", result.end, "Currency", result.currency],
     ["Portfolio", $("portfolio").value, "Benchmark", $("benchmark").value],
     ["Values below are percent / percentage points"],
+    ['Holdings method', result.approximateHoldings ? 'Approximate dated holdings proxies' : 'Opening dated holdings'],
+    ...(result.holdingsWarnings || []).map(n => ['Holdings warning',n]),
     columns.map((c) => c[1]),
     ...displayedRows().map((r) =>
       columns.map(([key]) =>

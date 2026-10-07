@@ -43,6 +43,30 @@ const options = {
   currency: "USD",
 };
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-10, `${a} != ${b}`);
+test('research mode uses a nearby later snapshot without changing source dates', () => {
+  const d = fixture();
+  d.snapshots = d.snapshots.filter(s => s.asOf === '2026-10-02');
+  const before = JSON.stringify(d);
+  const r = compare(d, {...options,start:'2026-10-02',end:'2026-10-02',allowApproximateHoldings:true});
+  assert.equal(r.status,'complete'); assert.equal(r.approximateHoldings,true);
+  assert.ok(r.holdingsWarnings.some(n => n.includes('later-published')));
+  close(r.returnA,.06); assert.equal(JSON.stringify(d),before);
+});
+test('research mode prefers prior holdings and refuses distant hindsight', () => {
+  const d=fixture(); d.snapshots=d.snapshots.filter(s => s.asOf==='2026-10-01');
+  const r=compare(d,{...options,allowApproximateHoldings:true});
+  assert.equal(r.status,'complete'); assert.ok(r.holdingsWarnings.some(n => n.includes('carried-forward')));
+  d.snapshots.forEach(s => s.asOf='2026-11-01');
+  assert.equal(compare(d,{...options,allowApproximateHoldings:true}).status,'incomplete');
+});
+test('research mode preserves missing price disclosure and known contributions', () => {
+  const d=fixture(); d.snapshots=d.snapshots.filter(s => s.asOf==='2026-10-02');
+  d.levels=d.levels.filter(l => l.id!=='Y');
+  const r=compare(d,{...options,start:'2026-10-02',end:'2026-10-02',allowApproximateHoldings:true});
+  assert.equal(r.status,'partial'); assert.equal(r.approximateHoldings,true);
+  assert.equal(r.rows.find(x => x.id==='Y').ctrA,null);
+  close(r.knownContributionA,.06);
+});
 test("multi-day linked contributions reconcile to compounded return", () => {
   const r = compare(fixture(), options);
   assert.equal(r.status, "complete");

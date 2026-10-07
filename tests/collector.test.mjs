@@ -72,6 +72,7 @@ test("10 cloud retries archive one copy and retain later same-date revisions", (
     PropertiesService: {
       getScriptProperties: () => ({
         getProperty: (key) => properties.get(key),
+        setProperty: (key,value) => properties.set(key,value),
       }),
     },
     LockService: {

@@ -44,17 +44,52 @@ function collectHoldings() {
     const p = PropertiesService.getScriptProperties();
     const root = DriveApp.getFolderById(p.getProperty("ARCHIVE_FOLDER_ID"));
     const results = [];
-    Object.keys(FUNDS).forEach((fund) => {
+    const funds=Object.keys(FUNDS), started=Date.now();
+    const cursor=Number(p.getProperty('COLLECT_CURSOR')||0)%funds.length;
+    let processed=0;
+    for (let offset=0;offset<funds.length;offset++) {
+      if(Date.now()-started>240000)break;
+      const fund=funds[(cursor+offset)%funds.length];
       try {
-        const response = UrlFetchApp.fetch(FUNDS[fund].url, {
+        let sourceURL=FUNDS[fund].url;
+        if(FUNDS[fund].datedDownload){
+          sourceURL=null;
+          for(let offset=0;offset<4;offset++){
+            const date=Utilities.formatDate(new Date(Date.now()-offset*86400000),'UTC','MMddyyyy');
+            const candidate=FUNDS[fund].url.replace('{date}',date);
+            const test=UrlFetchApp.fetch(candidate,{muteHttpExceptions:true,followRedirects:true});
+            if(test.getResponseCode()===200&&!test.getContentText().trim().startsWith('<')){sourceURL=candidate;break;}
+          }
+          if(!sourceURL)throw new Error('No recent dated full holdings download');
+        }
+        let response = UrlFetchApp.fetch(sourceURL, {
           muteHttpExceptions: true,
           followRedirects: true,
         });
         if (response.getResponseCode() !== 200)
           throw new Error("HTTP " + response.getResponseCode());
-        const raw = response.getContentText("UTF-8").replace(/^\uFEFF/, "");
-        const rows = Utilities.parseCsv(raw.replace(/\r\r\n/g, "\n"));
-        const info = validateSnapshot(fund, rows);
+        let raw;
+        if (FUNDS[fund].sourceFormat === 'xlsx') {
+          const parts=Utilities.unzip(response.getBlob().setContentType('application/zip'));
+          const part=name=>{const blob=parts.find(p=>p.getName()===name);if(!blob)throw new Error('Missing spreadsheet part');return blob.getDataAsString('UTF-8');};
+          raw=JSON.stringify({strings:part('xl/sharedStrings.xml'),sheet:part('xl/worksheets/sheet1.xml')});
+        } else raw = response.getContentText("UTF-8").replace(/^\uFEFF/, "");
+        if (FUNDS[fund].discover) {
+          const link = ArcusSources.discover(raw, FUNDS[fund].url, fund);
+          response = UrlFetchApp.fetch(link, {muteHttpExceptions:true, followRedirects:true});
+          if (response.getResponseCode() !== 200) throw new Error('CSV HTTP '+response.getResponseCode());
+          raw=response.getContentText('UTF-8').replace(/^\uFEFF/,'');
+        }
+        let info;
+        if (FUNDS[fund].kind === 'generic') {
+          const parsed=ArcusSources.parse(fund,FUNDS[fund],raw);
+          raw=ArcusSources.canonical(parsed);
+          info={asOf:parsed.asOf,count:parsed.positions.length,weightPercent:parsed.positions.reduce((s,p)=>s+p.weight,0)};
+          if(Date.parse(info.asOf)>Date.now()+86400000)throw new Error('Future holdings date');
+        } else {
+          const rows = Utilities.parseCsv(raw.replace(/\r\r\n/g, "\n"));
+          info = validateSnapshot(fund, rows);
+        }
         const bytes = Utilities.computeDigest(
           Utilities.DigestAlgorithm.SHA_256,
           raw,
@@ -95,7 +130,10 @@ function collectHoldings() {
       } catch (e) {
         results.push({ fund, ok: false, error: String(e.message || e) });
       }
-    });
+      processed++;
+    }
+    p.setProperty('COLLECT_CURSOR',String(processed===funds.length?0:(cursor+processed)%funds.length));
+    if(processed<funds.length)results.push({ok:false,error:'Time budget reached; remaining funds resume first next run',remaining:funds.length-processed});
     const health = JSON.stringify(
       { schemaVersion: 1, checkedAt: new Date().toISOString(), results },
       null,

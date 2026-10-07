@@ -11,6 +11,10 @@ from pathlib import Path
 import sqlite3
 import sys
 import time
+import subprocess
+import zipfile
+import io
+from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 import urllib.request
 from zoneinfo import ZoneInfo
@@ -20,7 +24,7 @@ ROOT=Path(__file__).resolve().parents[2]
 DEFAULT=Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'ArcusAttribution'
 
 def fetch(url):
-    request=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (Arcus Attribution personal research)'})
+    request=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
     with urllib.request.urlopen(request,timeout=25) as r:
         data=r.read(12_000_001)
     if len(data)>12_000_000: raise ValueError('Source exceeds 12 MB safety limit')
@@ -56,7 +60,21 @@ def collect(db,home,funds):
     rawdir=home/'archive';rawdir.mkdir(exist_ok=True)
     for fund,config in funds.items():
         try:
-            raw=fetch(config['url']);snapshot=parse_snapshot(fund,config,raw)
+            if config.get('datedDownload'):
+                raw=None
+                for offset in range(4):
+                    stamp=(dt.datetime.now(dt.timezone.utc).date()-dt.timedelta(days=offset)).strftime('%m%d%Y')
+                    try:
+                        candidate=fetch(config['url'].replace('{date}',stamp))
+                        if not candidate.lstrip().startswith(b'<'):raw=candidate;break
+                    except Exception:continue
+                if raw is None:raise ValueError('No recent dated full holdings download')
+            else:raw=fetch(config['url'])
+            if config.get('discover'):
+                url=normalize_source(fund,config,raw,discover=True).decode('utf-8')
+                raw=fetch(url)
+            if config['provider']=='generic':raw=normalize_source(fund,config,raw)
+            snapshot=parse_snapshot(fund,config,raw)
             stem=f"{fund}_{snapshot['asOf']}_{snapshot['sha256'][:16]}"
             path=rawdir/(stem+'.csv')
             if not path.exists(): path.write_bytes(raw)
@@ -68,6 +86,14 @@ def collect(db,home,funds):
         except Exception as e:
             issues.append(f'{fund}: {e}');health(db,fund,False,str(e))
     return issues
+
+def normalize_source(fund,config,raw,discover=False):
+    if config.get('sourceFormat')=='xlsx' and not discover:
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            raw=json.dumps(dict(strings=archive.read('xl/sharedStrings.xml').decode('utf-8'),sheet=archive.read('xl/worksheets/sheet1.xml').decode('utf-8'))).encode('utf-8')
+    result=subprocess.run(['node',str(ROOT/'desktop/normalize-source.mjs')],input=json.dumps(dict(fund=fund,config=config,raw=raw.decode('utf-8-sig'),discover=discover)),text=True,capture_output=True,encoding='utf-8',timeout=25)
+    if result.returncode:raise ValueError(next((s for s in result.stderr.splitlines() if s.startswith('Error:')), 'Issuer parsing failed'))
+    return result.stdout.encode('utf-8')
 
 def health(db,component,ok,detail):
     db.execute('INSERT INTO health VALUES(?,?,?,?)',(dt.datetime.now(dt.timezone.utc).isoformat(),component,int(ok),detail));db.commit()
@@ -112,16 +138,26 @@ def update_prices(db,funds):
     today=dt.datetime.now(dt.timezone.utc).date().isoformat()
     issues=[]
     fx_cache={}
-    for symbol in sorted(ids):
-        checked=db.execute('SELECT checked FROM updates WHERE id=?',(symbol,)).fetchone()
-        if checked and checked[0]==today: continue
+    pending=[symbol for symbol in sorted(ids) if db.execute('SELECT checked FROM updates WHERE id=?',(symbol,)).fetchone()!=(today,)]
+    def download(symbol):
+        time.sleep(.2)
+        try:
+            currency,points=chart(symbol,baseline)
+            return symbol,currency,points,None
+        except Exception as e:return symbol,None,None,e
+    logging.info('Updating %s unique daily price histories; at most three concurrent downloads',len(pending))
+    # Network only in worker threads; SQLite and FX joins remain on the owning thread.
+    with ThreadPoolExecutor(max_workers=3) as pool:
+      for index,(symbol,currency,points,error) in enumerate(pool.map(download,pending)):
         try:
             # Reload since inception of this archive: adjusted history can be retrospectively rescaled.
             # Joining newly adjusted levels to old-scale levels fabricates a return at the boundary.
-            currency,points=chart(symbol,baseline)
+            if error:raise error
+            if currency=='GBp':
+                currency='GBP';points={day:value/100 for day,value in points.items()}
             basis='fx' if symbol=='USDZAR=X' else 'vendor-adjusted'
             if symbol!='USDZAR=X' and currency!='USD':
-                if currency not in ('TWD','KRW','JPY','HKD','EUR','GBP','CHF','CAD','AUD'):
+                if currency not in ('TWD','KRW','JPY','HKD','EUR','GBP','CHF','CAD','AUD','CNY','SEK','NOK','DKK','ILS','INR','SGD','NZD','BRL','MXN','ZAR'):
                     raise ValueError(f'{symbol} uses unsupported price currency {currency}; import verified USD total-return levels')
                 if currency not in fx_cache:
                     fx_currency,fx_points=chart(currency+'USD=X',baseline)
@@ -135,8 +171,8 @@ def update_prices(db,funds):
             for day,value in points.items():
                 db.execute('INSERT OR REPLACE INTO levels VALUES(?,?,?,?,?,?)',(symbol,day,value,currency,basis,'Yahoo adjusted close; estimate, not audited fund NAV'))
             db.execute('INSERT OR REPLACE INTO updates VALUES(?,?)',(symbol,today));db.commit()
-        except Exception as e:issues.append(str(e))
-        time.sleep(.15)
+        except Exception as e:issues.append(symbol+': '+str(e))
+        if (index+1)%100==0:logging.info('Price histories processed: %s/%s',index+1,len(pending))
     return issues
 
 def import_levels(db,path):
@@ -164,10 +200,17 @@ def export(db,home,funds):
     sectors_path=home/'sectors.json'
     sectors=json.loads(sectors_path.read_text(encoding='utf-8')) if sectors_path.exists() else {}
     mapping=sectors.get('sectors',{})
+    sector_aliases={'Communication':'Communication Services','-':'Unclassified',
+      'SOFTWARE':'Information Technology','SEMICONDUCTORS':'Information Technology',
+      'LEISURE FACILITIES & SERVICES':'Consumer Discretionary','E-COMMERCE DISCRETIONARY':'Consumer Discretionary',
+      'AUTOMOTIVE':'Consumer Discretionary','ASSET MANAGEMENT':'Financials','INSTITUTIONAL FINANCIAL SERVICES':'Financials',
+      'AEROSPACE & DEFENSE':'Industrials','CABLE & SATELLITE':'Communication Services','CURRENCY':'Cash and/or Derivatives'}
     for snap in snapshots:
         for p in snap['positions']:
+            if p['sector'] in sector_aliases:
+                p['sourceSector']=p['sector'];p['sector']=sector_aliases[p['sector']]
             if p['sector']=='Unclassified' and p.get('symbol') in mapping:
-                p['sector']=mapping[p['symbol']];p['sectorBasis']='Current classification fallback: '+str(sectors.get('asOf','unknown'))
+                p['sector']=sector_aliases.get(mapping[p['symbol']],mapping[p['symbol']]);p['sectorBasis']='Current classification fallback: '+str(sectors.get('asOf','unknown'))
     months={}
     for s in snapshots:months.setdefault(s['asOf'][:7],{'snapshots':[],'levels':[]})['snapshots'].append(s)
     for row in db.execute('SELECT id,date,value,currency,basis,source FROM levels ORDER BY date,id,basis'):
@@ -181,7 +224,10 @@ def export(db,home,funds):
         funds_out.append(dict(id=id,name=config['name'],dates=dates,latest=latest['asOf'] if latest else None,
             positions=len(latest['positions']) if latest else 0))
     events=[dict(zip(('at','component','ok','detail'),row)) for row in db.execute('SELECT ts,component,ok,detail FROM health ORDER BY ts DESC LIMIT 20')]
-    manifest=dict(schemaVersion=1,generatedAt=dt.datetime.now(dt.timezone.utc).isoformat(),funds=funds_out,
+    valuation_dates=sorted({row[0] for row in db.execute("SELECT DISTINCT date FROM levels WHERE id='SPY' AND basis!='fx'")})
+    pending_path=ROOT/'config/pending-sources.json'
+    pending_sources=json.loads(pending_path.read_text()) if pending_path.exists() else {}
+    manifest=dict(schemaVersion=1,generatedAt=dt.datetime.now(dt.timezone.utc).isoformat(),funds=funds_out,valuationDates=valuation_dates,pendingSources=[dict(id=k,name=v['name'],reason=v['reason']) for k,v in pending_sources.items()],
         months=sorted(months),events=events,method='Beginning-weight daily estimate. Missing holdings or returns block full-period results.')
     atomic_json(folder/'manifest.json',manifest)
     # Single import alternative is convenient for the small pilot. Folder mode is preferred as history grows.

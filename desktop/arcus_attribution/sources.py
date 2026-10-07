@@ -5,6 +5,7 @@ import hashlib
 import io
 import math
 import re
+import json
 
 
 def number(value):
@@ -29,6 +30,13 @@ def mapped_symbol(ticker, exchange='', currency='USD'):
     """Conservative supported exchanges; blank/private identifiers stay unmapped."""
     t=ticker.strip()
     if not t or t=='-' or t.startswith('PP'):
+        return None
+    market=re.fullmatch(r'(.+?)\s+(US|UW|UN|UQ|GR|GY|JP|JT|HK|TT|TW|KS|KQ|LN|FP|SS|SW|NA|AU|CN|C1|C2|DC|FH|NO|IM|SM)',t)
+    if market:
+        code,market=market.groups()
+        suffix={'GR':'DE','GY':'DE','JP':'T','JT':'T','HK':'HK','TT':'TW','TW':'TW','KS':'KS','KQ':'KQ','LN':'L','FP':'PA','SS':'ST','SW':'SW','NA':'AS','AU':'AX','CN':'TO','C1':'SS','C2':'SZ','DC':'CO','FH':'HE','NO':'OL','IM':'MI','SM':'MC'}
+        if market in ('US','UW','UN','UQ'):return code.replace('.','-') if re.fullmatch(r'[A-Z][A-Z0-9.-]{0,9}',code) else None
+        if re.fullmatch(r'[A-Z0-9][A-Z0-9.-]{0,12}',code):return (code.zfill(4) if market=='HK' else code)+'.'+suffix[market]
         return None
     if t.endswith(' UQ') or t.endswith(' UN'):
         t=t[:-3]
@@ -80,6 +88,24 @@ def parse_snapshot(fund, config, raw, captured_at=None):
                 asset='Cash fund' if cash else 'Private/Unmapped' if private else 'Equity',currency='USD',weight=w/100,
                 quantity=number(r['shares']),marketValue=number(r['market value ($)']),marketValueCurrency='USD'))
         if len(dates)!=1: raise ValueError('Missing or mixed issuer dates')
+        as_of=dates.pop()
+    elif config['provider']=='generic':
+        header=rows[0]
+        if header[:4]!=['asOf','ticker','name','weight']:raise ValueError('Expected validated canonical issuer data')
+        dates=set()
+        for row in rows[1:]:
+            if len(row)!=len(header):raise ValueError('Incomplete canonical row')
+            r=dict(zip(header,row));dates.add(date(r['asOf']));w=number(r['weight'])
+            if w is None:raise ValueError('Missing weight')
+            ticker=r['ticker'];name=r['name'];asset=r['asset'];identity=r.get('cusip','')
+            cash=bool(re.search(r'cash|currency|reserve|money.market',asset,re.I) or re.search(r'\bCASH\b|US DOLLAR|USD Pending Dividends|MMDA|TREASURY|TRSY',name,re.I) or re.fullmatch(r'(?:NEW TAIWAN DOLLAR|SWEDISH KRONA|SOUTH KOREA WON|JAPANESE YEN|EURO|BRITISH POUND)',name,re.I))
+            derivative=bool(re.search(r'derivative|future|option|warrant|\bWTS\b|\bCVR\b|\bSPV\b|private|prvt',asset+' '+name,re.I))
+            symbol=None if cash or derivative else mapped_symbol(ticker)
+            # Issuer's blanket KS tag incorrectly identifies this specific Kosdaq-listed security.
+            if ticker=='056080 KS' and 'Yujin Robot' in name:symbol='056080.KQ'
+            identifier=symbol or 'ISS:'+hashlib.sha256((identity+'|'+ticker+'|'+name).encode()).hexdigest()[:16]
+            positions.append(dict(id=identifier,symbol=symbol,ticker=ticker,name=name,sector=r['sector'] or 'Unclassified',asset=asset or ('Cash' if cash else 'Equity/Unmapped'),currency=r['currency'],weight=w/100))
+        if len(dates)!=1:raise ValueError('Mixed canonical dates')
         as_of=dates.pop()
     else:
         raise ValueError('Unsupported issuer')

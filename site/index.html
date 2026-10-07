@@ -52,18 +52,27 @@
               <option>Connect an archive first</option>
             </select></label
           ><label
-            >Compare with<select id="benchmark" required disabled>
+            >Benchmark<select id="benchmark" required disabled>
               <option>Connect an archive first</option>
             </select></label
-          ><label>From<input type="date" id="start" required disabled /></label
-          ><label>Through<input type="date" id="end" required disabled /></label
           ><label
             >Currency<select id="currency">
               <option>USD</option>
               <option>ZAR</option>
             </select></label
+          ><label>Classification<select id="group"><option value="security">None (individual holdings)</option><option value="sector">Sector</option></select></label
+          ><label>Date range<select id="range" disabled>
+            <option value="day">One Day</option><option value="wtd">Week to Date</option>
+            <option value="mtd">Month to Date</option><option value="qtd">Quarter to Date</option>
+            <option value="ytd">Year to Date</option><option value="last-week">Last Week</option>
+            <option value="last-month">Last Month</option><option value="last-3-months">Last 3 Months (completed)</option>
+            <option value="last-year">Last Year</option><option value="custom">Custom dates</option>
+          </select></label
+          ><label>From<input type="date" id="start" required disabled /></label
+          ><label>Through<input type="date" id="end" required disabled /></label
           ><button class="primary" id="run" disabled>Compare funds</button>
         </form>
+        <p id="range-note">Date presets use completed prices in your archive.</p>
       </section>
       <div id="message" role="status" aria-live="polite"></div>
       <section id="results" hidden>
@@ -75,12 +84,7 @@
               <p>Contributions in percentage points. Click a column to sort.</p>
             </div>
             <div class="actions">
-              <label
-                >Group by<select id="group">
-                  <option value="security">Security</option>
-                  <option value="sector">Sector</option>
-                </select></label
-              ><button id="download">Export CSV for Excel</button>
+              <button id="download">Export CSV for Excel</button>
             </div>
           </div>
           <div class="scroll">
@@ -94,6 +98,7 @@
           <summary>Method, reconciliation and sector attribution</summary>
           <div id="method"></div>
         </details>
+        <aside id="research-note" class="panel"></aside>
       </section>
       <section class="panel empty" id="empty">
         <div class="empty-mark">↗</div>
@@ -103,12 +108,13 @@
           subsequent returns are available, comparisons will appear here.
         </p>
         <p>
-          Missing days, private holdings and missing prices are shown
-          explicitly. They are never silently counted as zero.
+          Nearby holdings can be used as clearly labelled research estimates.
+          Missing prices and private holdings are shown explicitly, not silently counted as zero.
         </p>
       </section>
       <details class="panel">
         <summary>Setup and daily use</summary>
+        <p id="source-status"></p>
         <ol>
           <li>
             Run the independent desktop updater. It creates an
@@ -139,6 +145,6 @@
         source dates and investigate unexplained differences.
       </footer>
     </main>
-    <script type="module" src="app.mjs"></script>
+    <script type="module" src="app.mjs?v=research-20261007"></script>
   </body>
 </html>

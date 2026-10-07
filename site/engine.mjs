@@ -116,6 +116,26 @@ export function compare(input, options) {
   const snapshots = new Map(
     [...a, ...b].map((s) => [s.fund + "|" + s.asOf, s]),
   );
+  const proxyNotes = new Set();
+  function opening(fund, date) {
+    const exact = snapshots.get(fund + '|' + date);
+    if (exact || !options.allowApproximateHoldings) return exact;
+    const candidates = (fund === portfolio ? a : b).slice().sort((x,y) => x.asOf.localeCompare(y.asOf));
+    // Prefer information available before the period; a later snapshot is an explicitly labelled startup proxy only.
+    const before = candidates.filter(s => s.asOf < date).at(-1);
+    const chosen = before || candidates[0];
+    if (!chosen) return null;
+    const age = Math.abs((Date.parse(chosen.asOf) - Date.parse(date)) / 86400000);
+    if (!before && age > 7) return null;
+    proxyNotes.add(`${fund}: used issuer holdings dated ${chosen.asOf} as a ${before ? 'carried-forward' : 'later-published'} proxy for opening ${date} (${age} calendar days apart). Trades and weight changes may differ.`);
+    return chosen;
+  }
+  function withProxies(result) {
+    result.approximateHoldings = proxyNotes.size > 0;
+    result.holdingsWarnings = [...proxyNotes];
+    result.notes = [...(result.notes || []), ...proxyNotes];
+    return result;
+  }
   // Fund price dates provide the observed US valuation calendar; no invented holiday calendar.
   const fundDates = (id) =>
     new Set(
@@ -149,8 +169,8 @@ export function compare(input, options) {
   let from = prior;
   for (const to of dates) {
     if (!da.has(to) || !db.has(to)) issues.push(`Fund price missing on ${to}.`);
-    const sa = snapshots.get(portfolio + "|" + from),
-      sb = snapshots.get(benchmark + "|" + from);
+    const sa = opening(portfolio, from),
+      sb = opening(benchmark, from);
     if (!sa || !sb) {
       issues.push(
         `Opening holdings missing for ${!sa ? portfolio : ""}${!sa && !sb ? " and " : ""}${!sb ? benchmark : ""} on ${from}.`,
@@ -189,7 +209,7 @@ export function compare(input, options) {
         prior,
         missing,
       );
-      if (partial) return partial;
+      if (partial) return withProxies(partial);
     }
     return {
       status: "incomplete",
@@ -274,7 +294,7 @@ export function compare(input, options) {
   const weightRounding = history.some(
     (d) => Math.abs(d.a.weight - 1) > EPS || Math.abs(d.b.weight - 1) > EPS,
   );
-  return {
+  return withProxies({
     status: "complete",
     start: first,
     end: dates.at(-1),
@@ -304,12 +324,12 @@ export function compare(input, options) {
           ]
         : []),
     ],
-  };
+  });
 }
 
 /** Known contributions can be shown against observed fund returns without inventing missing prices.
  * They use reference-fund wealth for linking, and retain an explicit unexplained residual.
- * Missing holdings still block the comparison because even the exposures are unknown.
+ * Explicit research mode may use nearby dated holdings proxies; unknown returns remain blank.
  */
 function partialComparison(prices, history, options, baseline, missing) {
   const { portfolio, benchmark, currency = "USD" } = options;
@@ -370,6 +390,8 @@ function partialComparison(prices, history, options, baseline, missing) {
     fundReturnB: wealthB - 1,
     residualA: wealthA - 1 - explainedA,
     residualB: wealthB - 1 - explainedB,
+    knownContributionA: explainedA,
+    knownContributionB: explainedB,
     coverage: {
       portfolio: Math.min(...history.map((d) => d.a.covered)),
       benchmark: Math.min(...history.map((d) => d.b.covered)),
