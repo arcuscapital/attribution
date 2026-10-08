@@ -35,6 +35,18 @@ When all opening holdings exist but a security return is missing, the interface 
 
 ## Troubleshooting
 
+The Windows updater hides Node parser and Wrangler helper windows. All updater
+descendants belong to a Windows job with kill-on-close: normal exit, failure,
+Task Scheduler cancellation and the existing 15-minute limit release that process
+tree. No background service remains. Network downloads still use at most three
+threads; HTTP responses, SQLite connections and the backup connection are closed.
+`launcher-status.json` records completed runs; a forced stop may leave only its
+start status, so also check Task Scheduler's last result. Helper output and errors
+are captured, with no interactive helper prompts.
+
+Implementation references: [Windows job objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
+and [Python subprocess flags](https://docs.python.org/3/library/subprocess.html#windows-popen-helpers).
+
 * `collector-status.json`: latest per-fund collection result. Compare its check time with the issuer dates. An unchanged source is not a new dated holding.
 * Apps Script Executions: failed downloads, parsing changes, exhausted quotas or revoked consent.
 * `%LOCALAPPDATA%/ArcusAttribution/updater.log`: desktop fetch and import errors.

@@ -6,7 +6,7 @@ import math
 import os
 from pathlib import Path
 import re
-import subprocess
+from .processes import run_hidden
 
 NAMES={'easyai':'EasyAI','easyge':'EasyGE','ibkr':'IBKR','marlow':'Marlow'}
 
@@ -54,7 +54,7 @@ def read_cache(home, settings, cfg):
     env['CLOUDFLARE_ACCOUNT_ID']=cfg['accountId'];env['WRANGLER_SEND_METRICS']='false'
     sql="SELECT key,body,updated_at FROM portfolio_cache WHERE key='feed' OR (key>='estimate-opening:' AND key<'estimate-opening;')"
     try:
-        p=subprocess.run(['node',cfg['wrangler'],'d1','execute',cfg['database'],'--config',cfg['config'],'--remote','--command',sql,'--json'],capture_output=True,encoding='utf-8',timeout=90,env=env)
+        p=run_hidden(['node',cfg['wrangler'],'d1','execute',cfg['database'],'--config',cfg['config'],'--remote','--command',sql,'--json'],capture_output=True,encoding='utf-8',timeout=90,env=env)
         if p.returncode:raise ValueError('Portfolio cache read failed; retained local history. Check source sign-in.')
         result=[]
         for batch in json.loads(p.stdout):

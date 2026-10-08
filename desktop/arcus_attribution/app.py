@@ -11,7 +11,6 @@ from pathlib import Path
 import sqlite3
 import sys
 import time
-import subprocess
 import zipfile
 import io
 from concurrent.futures import ThreadPoolExecutor
@@ -19,6 +18,7 @@ import urllib.parse
 import urllib.request
 from zoneinfo import ZoneInfo
 from .sources import parse_snapshot
+from .processes import protect_process_tree, run_hidden
 
 ROOT=Path(__file__).resolve().parents[2]
 DEFAULT=Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'ArcusAttribution'
@@ -92,7 +92,7 @@ def normalize_source(fund,config,raw,discover=False):
     if config.get('sourceFormat')=='xlsx' and not discover:
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             raw=json.dumps(dict(strings=archive.read('xl/sharedStrings.xml').decode('utf-8'),sheet=archive.read('xl/worksheets/sheet1.xml').decode('utf-8'))).encode('utf-8')
-    result=subprocess.run(['node',str(ROOT/'desktop/normalize-source.mjs')],input=json.dumps(dict(fund=fund,config=config,raw=raw.decode('utf-8-sig'),discover=discover)),text=True,capture_output=True,encoding='utf-8',timeout=25)
+    result=run_hidden(['node',str(ROOT/'desktop/normalize-source.mjs')],input=json.dumps(dict(fund=fund,config=config,raw=raw.decode('utf-8-sig'),discover=discover)),text=True,capture_output=True,encoding='utf-8',timeout=25)
     if result.returncode:raise ValueError(next((s for s in result.stderr.splitlines() if s.startswith('Error:')), 'Issuer parsing failed'))
     return result.stdout.encode('utf-8')
 
@@ -240,6 +240,7 @@ def export(db,home,funds):
     return manifest
 
 def main():
+    protect_process_tree()
     parser=argparse.ArgumentParser()
     parser.add_argument('command',choices=['update','collect','export','import-archive','import-levels'])
     parser.add_argument('--home',type=Path,default=DEFAULT)
@@ -274,7 +275,8 @@ def main():
         manifest=export(db,args.home,funds)
         # Consistent completed backup, never a live database in a synchronised directory.
         backup=args.home/'history-backup.sqlite'; target=sqlite3.connect(backup)
-        db.backup(target);target.close()
+        try:db.backup(target)
+        finally:target.close()
         logging.info('Reports: %s; funds: %s',args.home/'reports',[(f['id'],f['latest']) for f in manifest['funds']])
         return 2 if issues else 0
     finally:db.close()

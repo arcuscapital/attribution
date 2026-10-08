@@ -3,6 +3,7 @@ import os
 import sys
 import datetime
 import json
+import logging
 from pathlib import Path
 
 if sys.stdout is None:
@@ -27,4 +28,5 @@ except Exception as error:
     code = 1
 status['finishedAt'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
 status_file.write_text(json.dumps(status), encoding='utf-8')
+logging.shutdown()
 sys.exit(code)
