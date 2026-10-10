@@ -8,16 +8,19 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; worker-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'"
     />
-    <title>Arcus Attribution</title>
+    <title>Portfolio Analysis · Arcus</title>
+    <meta name="theme-color" content="#151c17" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <header>
+      <a id="back-arcus" class="back-link" href="/?tab=watchlist" hidden aria-label="Back to Arcus">‹</a>
       <a class="brand" href="./"
-        >A<span>ARCUS <small>ATTRIBUTION</small></span></a
+        >A<span>ARCUS <small>PORTFOLIO ANALYSIS</small></span></a
       ><span class="private">Local analysis · private data</span>
       <form action="/logout" method="post"><button type="submit">Sign out</button></form>
     </header>
+    <section id="session-lock" class="panel session-lock" hidden role="status"><h1>Sign in to continue</h1><p>Your session ended or could not be verified. Your imported data has been cleared from this page.</p><a class="button" href="/">Return to sign in</a></section>
     <main>
       <section class="intro">
         <p class="eyebrow">PORTFOLIO RESEARCH</p>
@@ -31,13 +34,12 @@
         <div>
           <h2>Your research archive</h2>
           <p id="archive-status">
-            Connect the reports folder on your PC. Financial data stays in this
-            browser.
+            Import your arcus-attribution.json archive. On a PC you can also connect the reports folder. Data stays on this device.
           </p>
         </div>
         <div class="actions">
           <button id="folder" class="primary">Connect reports folder</button
-          ><label class="button" for="import">Import data file</label
+          ><label class="button" for="import" tabindex="0" role="button">Import data file</label
           ><input id="import" type="file" accept=".json" hidden />
         </div>
       </section>
@@ -78,11 +80,12 @@
       <div id="message" role="status" aria-live="polite"></div>
       <section id="results" hidden>
         <div class="metrics" id="metrics"></div>
+        <section id="contribution-chart" class="panel" aria-label="Largest differences in contribution"></section>
         <div class="panel">
           <div class="table-bar">
             <div>
               <h2>Return contributions</h2>
-              <p>Contributions in percentage points. Click a column to sort.</p>
+              <p>Contributions in percentage points. Tap a column to sort. Swipe the table for more columns.</p>
             </div>
             <div class="actions">
               <button id="download">Export CSV for Excel</button>
@@ -132,7 +135,7 @@
           </li>
           <li>
             If data is missing, update the archive or import verified return
-            levels. The site never accesses your Arcus account.
+            levels. Arcus sign-in provides access to this page; your financial archive is still imported privately.
           </li>
         </ol>
         <p>
@@ -141,8 +144,8 @@
         </p>
       </details>
       <footer>
-        Separate from Arcus Watchlists. Imported financial data stays in your browser;
-        the hosted page uses a private sign-in.<br />Personal research estimates. Preserve
+        Independent analysis engine. Imported financial data stays in your browser;
+        access requires a valid sign-in.<br />Personal research estimates. Preserve
         source dates and investigate unexplained differences.
       </footer>
     </main>

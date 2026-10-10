@@ -332,3 +332,17 @@ li {
     flex-direction: column;
   }
 }
+/* Mobile integration: the analysis engine and archive format are unchanged. */
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#151c17;color:#e3e8ef;--panel:#1b241e;--border:#303a34;--muted:#abb3bf;--accent:#86b4ff;--field:#151c17;color-scheme:dark}
+:root.light{background:#fff;color:#323b49;--panel:#fff;--border:#e1e5eb;--muted:#626c7b;--accent:#1967d2;--field:#f5f7fa;color-scheme:light}
+[hidden]{display:none!important}
+header{height:auto;min-height:76px;gap:12px;padding-block:12px}
+.brand{font-size:28px;gap:10px;min-width:0}.brand span{font-size:15px;letter-spacing:3px}.brand small{font-size:9px;letter-spacing:1px}
+.back-link{display:grid;place-items:center;flex:none;width:44px;height:44px;font-size:38px;text-decoration:none;color:inherit}
+button,.button,input,select{min-height:48px;max-width:100%;font-size:16px}button.primary{color:#fff;background:#1967d2;border-color:#1967d2}
+label{min-width:0}input,select{min-width:0;width:100%}summary{min-height:48px;display:flex;align-items:center;line-height:1.5}
+.panel,.metric{min-width:0}main{overflow-wrap:anywhere}.session-lock{max-width:600px;margin:24px auto}
+.positive{color:#48d2b3}.negative{color:#ff7c90}.light .positive{color:#087e62}.light .negative{color:#c23550}
+.scroll{overscroll-behavior-x:contain;max-width:100%;border:1px solid var(--border);border-radius:8px}th,td{min-width:110px}th:first-child,td:first-child{position:sticky;left:0;z-index:1;background:var(--panel);min-width:140px;max-width:180px;box-shadow:1px 0 var(--border)}
+.contribution-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;margin-top:18px;font-variant-numeric:tabular-nums}.contribution-row meter{grid-column:1/-1;width:100%;height:10px;border:0;appearance:none;background:var(--field)}meter::-webkit-meter-bar{background:var(--field);border:0}meter.positive::-webkit-meter-optimum-value{background:#159d80}meter.negative::-webkit-meter-optimum-value{background:#dc536d}
+@media(max-width:600px){header{padding:10px 12px}.brand{flex:1}.brand span{font-size:13px;letter-spacing:2px}.brand small{font-size:8px}header form button{padding:8px 10px;min-height:44px;font-size:14px}.intro{margin:4px 0 22px}h1{font-size:27px;line-height:1.2}main{padding:22px 16px}.panel{padding:16px}.actions{width:100%}.connect .actions>*{width:100%;text-align:center}#controls{grid-template-columns:repeat(2,minmax(0,1fr))}#controls label:nth-child(1),#controls label:nth-child(2),#controls label:nth-child(5),#run{grid-column:1/-1}.metrics{gap:10px}.metric{padding:16px;display:flex;align-items:center;justify-content:space-between;gap:16px}.metric strong{margin:0;font-size:26px;white-space:nowrap}.metric span{max-width:60%;line-height:1.5}#range-note{font-size:12px;margin-top:16px}.archive-grid{gap:14px}footer{font-size:12px}#message:not(:empty){padding:16px}.table-bar .actions button{width:100%}}

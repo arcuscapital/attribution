@@ -1,5 +1,45 @@
 import { dateRange } from './ranges.mjs';
+import { createSessionGuard } from './session.mjs';
 const $ = (id) => document.getElementById(id);
+const integrated = location.pathname.startsWith('/portfolio-analysis/');
+let activeWorker = null, accessGeneration = 0;
+const session = createSessionGuard({onLock() {
+  accessGeneration++;
+  activeWorker?.terminate(); activeWorker = null;
+  folder = dataset = manifest = result = null;
+  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','message']) $(id).replaceChildren();
+  for (const id of ['portfolio','benchmark']) { $(id).replaceChildren(); $(id).disabled = true; }
+  $('run').disabled = true;
+  document.querySelector('main').hidden = true;
+  $('session-lock').hidden = false;
+}, onUnlock() { document.querySelector('main').hidden = false; $('session-lock').hidden = true; }});
+if (integrated) {
+  $('back-arcus').hidden = false;
+  try {
+    const back = new URL(sessionStorage.getItem('arcus-analysis-return') || '/?tab=watchlist', location.origin);
+    if (back.origin === location.origin && back.pathname === '/') $('back-arcus').href = back.pathname + back.search + back.hash;
+  } catch {}
+  $('back-arcus').addEventListener('click', e => {
+    const previous = document.referrer && new URL(document.referrer);
+    if (previous && previous.origin === location.origin && previous.pathname === '/') { e.preventDefault(); history.back(); }
+  });
+}
+try {
+  const mode = localStorage.getItem('bw-mode') || 'system';
+  const light = mode === 'light' || (mode !== 'dark' && !matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('light', light);
+  document.querySelector('meta[name="theme-color"]').content = light ? '#ffffff' : '#151c17';
+} catch {}
+if (!window.showDirectoryPicker) $('folder').hidden = true;
+document.querySelector('label[for="import"]').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('import').click(); } });
+// Hide private content while away; revalidate before it is revealed on return.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) document.querySelector('main').hidden = true;
+  else void session.check();
+});
+window.addEventListener('pageshow', () => { document.querySelector('main').hidden = true; void session.check(); });
+window.addEventListener('focus', () => { void session.check(); });
+void session.check();
 document.querySelector('form[action="/logout"]')?.addEventListener('submit', async event => {
   event.preventDefault();
   const button = event.currentTarget.querySelector('button');
@@ -7,6 +47,7 @@ document.querySelector('form[action="/logout"]')?.addEventListener('submit', asy
   try {
     const response = await fetch('/logout', {method:'POST', credentials:'same-origin'});
     if (!response.ok) throw Error('Sign out failed');
+    session.lock();
     location.replace('/');
   } catch {
     button.disabled = false;
@@ -108,6 +149,7 @@ $("folder").addEventListener("click", async () => {
     }
     const chosen = await window.showDirectoryPicker({ mode: "read" });
     const m = await readFile(await chosen.getFileHandle("manifest.json"));
+    if (!await session.check()) return;
     setup(m);
     folder = chosen;
     dataset = null;
@@ -127,6 +169,7 @@ $("import").addEventListener("change", async (event) => {
     if (file.size > 35_000_000)
       throw Error("Use reports folder mode for large archives.");
     const parsed = JSON.parse(await file.text());
+    if (!await session.check()) return;
     if (!parsed.manifest?.valuationDates) {
       const funds = new Set((parsed.manifest?.funds || []).map(f => f.id));
       parsed.manifest.valuationDates = [...new Set((parsed.levels || []).filter(l => l.id === 'SPY' || funds.has(l.id)).map(l => l.date))].sort();
@@ -175,6 +218,8 @@ $("controls").addEventListener("submit", async (e) => {
   $("results").hidden = true;
   result = null;
   try {
+    if (!await session.check()) return;
+    const generation = accessGeneration;
     const options = Object.fromEntries(
       ["portfolio", "benchmark", "start", "end", "currency"].map((id) => [
         id,
@@ -188,8 +233,10 @@ $("controls").addEventListener("submit", async (e) => {
       const worker = new Worker(new URL("./worker.mjs?v=research-20261007", import.meta.url), {
         type: "module",
       });
+      activeWorker = worker;
       worker.onmessage = ({ data }) => {
         worker.terminate();
+        activeWorker = null;
         data.ok ? resolve(data.result) : reject(Error(data.error));
       };
       worker.onerror = () => {
@@ -198,6 +245,7 @@ $("controls").addEventListener("submit", async (e) => {
       };
       worker.postMessage({ dataset: data, options });
     });
+    if (generation !== accessGeneration || !await session.check()) return;
     result = response;
     if (!["complete", "partial"].includes(result.status)) {
       $("empty").hidden = false;
@@ -348,6 +396,7 @@ function renderRows() {
         ? a[sortKey].localeCompare(b[sortKey])
         : (a[sortKey] ?? -Infinity) - (b[sortKey] ?? -Infinity)),
   );
+  renderContributionChart(rows);
   $("rows").replaceChildren(
     ...rows.map((r) => {
       const row = document.createElement("tr");
@@ -362,6 +411,22 @@ function renderRows() {
       return row;
     }),
   );
+}
+function renderContributionChart(rows) {
+  const top = rows.filter(r => Number.isFinite(r.activeCtr)).sort((a,b) => Math.abs(b.activeCtr)-Math.abs(a.activeCtr)).slice(0,6);
+  const root = $('contribution-chart');
+  root.replaceChildren(text('h2', 'Biggest contribution differences'), text('p', 'Portfolio minus benchmark · percentage points'));
+  const max = Math.max(...top.map(r => Math.abs(r.activeCtr)), 0.000001);
+  for (const row of top) {
+    const item = text('div','','contribution-row');
+    item.append(text('span',row.ticker), text('strong',(row.activeCtr >= 0 ? '+' : '')+(row.activeCtr*100).toFixed(2)+' pp',row.activeCtr >= 0 ? 'positive' : 'negative'));
+    const bar = document.createElement('meter');
+    bar.min = 0; bar.max = max; bar.value = Math.abs(row.activeCtr);
+    bar.className = row.activeCtr >= 0 ? 'positive' : 'negative';
+    bar.setAttribute('aria-label', row.ticker + ' contribution difference magnitude');
+    item.append(bar); root.append(item);
+  }
+  if (!top.length) root.append(text('p','No complete contribution differences for this selection.'));
 }
 function renderMethod() {
   const node = $("method");
@@ -411,7 +476,8 @@ function csvCell(v) {
   if (/^[=+@\-]/.test(s) && typeof v === "string") s = "'" + s;
   return '"' + s.replaceAll('"', '""') + '"';
 }
-$("download").addEventListener("click", () => {
+$("download").addEventListener("click", async () => {
+  if (!await session.check()) return;
   if (!["complete", "partial"].includes(result?.status)) return;
   const output = [
     [

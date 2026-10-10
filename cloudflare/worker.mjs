@@ -1,4 +1,5 @@
 // Authentication is server-side. No passwords, verifier or session keys are shipped as assets.
+import { bridgeAsset } from './bridge.mjs';
 const COOKIE = '__Host-arcus-attribution';
 const TTL = 86400;
 const enc = new TextEncoder();
@@ -34,6 +35,14 @@ export default {
       return new Response('Private site setup is not yet complete.',{status:503,headers:headers()});
     const url=new URL(request.url);
     if (url.protocol!=='https:') return new Response(null,{status:308,headers:{Location:'https://'+url.host+url.pathname}});
+    if (url.pathname.startsWith('/arcus-bridge/')) {
+      const asset = await bridgeAsset(request, env);
+      if (!asset) return new Response('Not authorised.', {status:401,headers:headers()});
+      const response = await env.ASSETS.fetch(new Request(url.origin+(asset === 'index.html' ? '/' : '/'+asset), {method:request.method}));
+      const secured = new Response(response.body, response);
+      for (const [name,value] of Object.entries(headers())) secured.headers.set(name,value);
+      return secured;
+    }
     if (url.pathname==='/login.js' && request.method==='GET') return new Response(loginScript,{headers:headers({'Content-Type':'text/javascript; charset=utf-8'})});
     if (request.method==='POST' && ['/login','/logout'].includes(url.pathname)) {
       if (request.headers.get('origin')!==url.origin) return new Response('Request rejected.',{status:403,headers:headers()});
@@ -53,6 +62,7 @@ export default {
     }
     if (!['GET','HEAD'].includes(request.method)) return new Response('Method not allowed',{status:405,headers:headers()});
     if (!await authenticated(request,env)) return url.pathname==='/' || url.pathname==='/login' ? login() : new Response('Sign in required.',{status:401,headers:headers()});
+    if (url.pathname === '/session') return new Response(null, {status:204,headers:headers()});
     const response=await env.ASSETS.fetch(request);
     const secured=new Response(response.body,response);
     for(const [name,value] of Object.entries(headers())) secured.headers.set(name,value);
