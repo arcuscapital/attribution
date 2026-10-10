@@ -1,4 +1,3 @@
-import { createOnlineSource } from './online.mjs';
 import { dateRange } from './ranges.mjs';
 import { createSessionGuard } from './session.mjs';
 const $ = (id) => document.getElementById(id);
@@ -539,7 +538,14 @@ $("download").addEventListener("click", async () => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
-online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
+// An older Arcus bridge may not yet allow the online modules during rollout/rollback.
+try {
+  const {createOnlineSource}=await import('./online.mjs');
+  online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
+} catch {
+  $('connect-saved').disabled=true;
+  message('Saved online holdings are temporarily unavailable. You can still import an archive file.');
+}
 async function connectSaved() {
   const generation=accessGeneration;
   try {
@@ -562,4 +568,4 @@ async function connectSaved() {
   finally {$('connect-saved').disabled=false;}
 }
 $('connect-saved').addEventListener('click',connectSaved);
-if(integrated)void connectSaved();
+if(integrated && online)void connectSaved();

@@ -64,7 +64,7 @@ XDG_CONFIG_HOME=C:/Users/Skrom/AppData/Local/ArcusAttribution/cloudflare-auth on
 CLOUDFLARE_ACCOUNT_ID=5695cae2becf35e049eb5df3e2849ae2.
 npx --yes wrangler@4.128.0 deploy --config wrangler.jsonc
 
-Deploy Attribution first, Arcus second. Roll back Arcus first, then Attribution.
+Deploy Attribution first, Arcus second. Roll back Arcus first, then Attribution. Online modules load dynamically: an older Arcus bridge can still display the archive-import application during rollout/rollback, even though its allowlist blocks the new online modules.
 Old versions ignore the new KV namespace and new private mobilePublish setting; leave existing
 PASSWORD_*, SESSION_KEY and ANALYSIS_BRIDGE_KEY intact. No existing database migration occurs.
 See MOBILE-DATA-RELEASE.md for exact paired commits, deployment IDs and test limits.
