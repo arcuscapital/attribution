@@ -32,12 +32,12 @@
       </section>
       <section class="panel connect">
         <div>
-          <h2>Your research archive</h2>
+          <h2 id="archive-title">Your research archive</h2>
           <p id="archive-status">
             Import your arcus-attribution.json archive. On a PC you can also connect the reports folder. Data stays on this device.
           </p>
         </div>
-        <div class="actions">
+        <div class="actions"><button id="connect-saved" type="button" class="primary">Saved ETFs &amp; portfolios</button>
           <button id="folder" class="primary">Connect reports folder</button
           ><label class="button" for="import" tabindex="0" role="button">Import data file</label
           ><input id="import" type="file" accept=".json" hidden />
@@ -78,6 +78,7 @@
         <p id="range-note">Date presets use completed prices in your archive.</p>
       </section>
       <div id="message" role="status" aria-live="polite"></div>
+      <p id="price-status" class="muted" aria-live="polite"></p>
       <section id="results" hidden>
         <div class="metrics" id="metrics"></div>
         <section id="contribution-chart" class="panel" aria-label="Largest differences in contribution"></section>
@@ -135,7 +136,7 @@
           </li>
           <li>
             If data is missing, update the archive or import verified return
-            levels. Arcus sign-in provides access to this page; your financial archive is still imported privately.
+            levels. Arcus sign-in provides access to this page; saved holdings are available online without your PC. Their dates remain visible; daily prices are fetched only for the selected comparison.
           </li>
         </ol>
         <p>
@@ -144,7 +145,7 @@
         </p>
       </details>
       <footer>
-        Independent analysis engine. Imported financial data stays in your browser;
+        Independent analysis engine. Saved allocations are private; imported files stay in your browser;
         access requires a valid sign-in.<br />Personal research estimates. Preserve
         source dates and investigate unexplained differences.
       </footer>

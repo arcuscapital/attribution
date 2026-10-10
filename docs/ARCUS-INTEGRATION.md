@@ -1,3 +1,7 @@
+# Current mobile data mode
+
+The later [mobile saved-holdings release](MOBILE-DATA.md) supersedes the archive-import-only data section below. Authentication remains compatible; the bridge now signs three explicit read-only data routes including their queries.
+
 # Arcus mobile integration
 
 This is the existing https://github.com/arcuscapital/attribution.git application, not a replacement. Its pure calculation engine, dated-holdings estimates, missing-return handling, Python desktop updater and Google collector are unchanged.

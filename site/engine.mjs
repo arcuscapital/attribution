@@ -126,7 +126,7 @@ export function compare(input, options) {
     const chosen = before || candidates[0];
     if (!chosen) return null;
     const age = Math.abs((Date.parse(chosen.asOf) - Date.parse(date)) / 86400000);
-    if (!before && age > 7) return null;
+    if (!before && age > 7 && !options.allowSnapshotResearch) return null;
     proxyNotes.add(`${fund}: used issuer holdings dated ${chosen.asOf} as a ${before ? 'carried-forward' : 'later-published'} proxy for opening ${date} (${age} calendar days apart). Trades and weight changes may differ.`);
     return chosen;
   }

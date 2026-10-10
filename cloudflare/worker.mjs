@@ -1,4 +1,5 @@
 // Authentication is server-side. No passwords, verifier or session keys are shipped as assets.
+import { dataResponse } from './data.mjs';
 import { bridgeAsset } from './bridge.mjs';
 const COOKIE = '__Host-arcus-attribution';
 const TTL = 86400;
@@ -30,7 +31,7 @@ async function authenticated(request,env) {
   return !extra.length && /^\d+$/.test(expiry) && /^[a-f0-9]{32}$/.test(nonce||'') && Number(expiry)>seconds && Number(expiry)<=seconds+TTL && await verify(env.SESSION_KEY, 'session:'+expiry+'.'+nonce, signature);
 }
 export default {
-  async fetch(request,env) {
+  async fetch(request,env,ctx) {
     if (!env.PASSWORD_VERIFIER || !env.PASSWORD_PEPPER || !env.SESSION_KEY || !env.LOGIN_LIMITER)
       return new Response('Private site setup is not yet complete.',{status:503,headers:headers()});
     const url=new URL(request.url);
@@ -38,6 +39,7 @@ export default {
     if (url.pathname.startsWith('/arcus-bridge/')) {
       const asset = await bridgeAsset(request, env);
       if (!asset) return new Response('Not authorised.', {status:401,headers:headers()});
+      if (asset.startsWith('data/')) return dataResponse(request,env,ctx);
       const response = await env.ASSETS.fetch(new Request(url.origin+(asset === 'index.html' ? '/' : '/'+asset), {method:request.method}));
       const secured = new Response(response.body, response);
       for (const [name,value] of Object.entries(headers())) secured.headers.set(name,value);
@@ -63,6 +65,7 @@ export default {
     if (!['GET','HEAD'].includes(request.method)) return new Response('Method not allowed',{status:405,headers:headers()});
     if (!await authenticated(request,env)) return url.pathname==='/' || url.pathname==='/login' ? login() : new Response('Sign in required.',{status:401,headers:headers()});
     if (url.pathname === '/session') return new Response(null, {status:204,headers:headers()});
+    if (url.pathname.startsWith('/data/')) return dataResponse(request,env,ctx);
     const response=await env.ASSETS.fetch(request);
     const secured=new Response(response.body,response);
     for(const [name,value] of Object.entries(headers())) secured.headers.set(name,value);

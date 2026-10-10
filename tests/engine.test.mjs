@@ -217,3 +217,14 @@ test('IBKR portfolio cannot inherit the IBKR listed stock return',()=>{
  assert.equal(r.status,'partial');assert.equal(r.returnA,null);
  assert.equal(r.fundReturnA,null);assert.ok(Number.isFinite(r.knownContributionA));
 });
+
+test('explicit saved-allocation research permits historical periods without fabricating holding dates',()=>{
+ const d=fixture();d.snapshots=d.snapshots.filter(s=>s.asOf==='2026-10-01');
+ d.snapshots.forEach(s=>s.asOf='2026-11-01');
+ const original=JSON.stringify(d);
+ const r=compare(d,{...options,allowApproximateHoldings:true,allowSnapshotResearch:true});
+ assert.equal(r.status,'complete');assert.equal(r.approximateHoldings,true);
+ assert.ok(r.holdingsWarnings.every(w=>w.includes('2026-11-01')&&w.includes('later-published')));
+ assert.equal(JSON.stringify(d),original);
+ close(r.rows.find(row=>row.id==='X').securityReturn,-.01);
+});

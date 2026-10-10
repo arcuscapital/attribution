@@ -348,3 +348,9 @@ label{min-width:0}input,select{min-width:0;width:100%}summary{min-height:48px;di
 @media(max-width:600px){header{padding:10px 12px}.brand{flex:1}.brand span{font-size:13px;letter-spacing:2px}.brand small{font-size:8px}header form button{padding:8px 10px;min-height:44px;font-size:14px}.intro{margin:4px 0 22px}h1{font-size:27px;line-height:1.2}main{padding:22px 16px}.panel{padding:16px}.actions{width:100%}.connect .actions>*{width:100%;text-align:center}#controls{grid-template-columns:repeat(2,minmax(0,1fr))}#controls label:nth-child(1),#controls label:nth-child(2),#controls label:nth-child(5),#run{grid-column:1/-1}.metrics{gap:10px}.metric{padding:16px;display:flex;align-items:center;justify-content:space-between;gap:16px}.metric strong{margin:0;font-size:26px;white-space:nowrap}.metric span{max-width:60%;line-height:1.5}#range-note{font-size:12px;margin-top:16px}.archive-grid{gap:14px}footer{font-size:12px}#message:not(:empty){padding:16px}.table-bar .actions button{width:100%}}
 .button.primary{color:#fff;background:#1967d2;border-color:#1967d2}
 summary::before{content:'›';font-size:25px;margin-right:12px;flex:none}details[open]>summary::before{transform:rotate(90deg)}
+
+.online-analysis .connect .actions{width:auto}
+.online-analysis .connect .actions button{width:auto;white-space:normal}
+.online-analysis .archive-grid{margin-top:16px;margin-bottom:16px}
+.online-analysis .archive-card{padding:12px}
+.online-analysis .archive-card p{margin:4px 0 0}

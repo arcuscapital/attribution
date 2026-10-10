@@ -273,6 +273,16 @@ def main():
             if args.command=='update':issues.extend(update_prices(db,funds))
         for issue in issues:logging.warning(issue);health(db,'update',False,issue)
         manifest=export(db,args.home,funds)
+        settings_file=args.home/'settings.json'
+        publish_config=json.loads(settings_file.read_text()).get('mobilePublish') if settings_file.exists() else None
+        if publish_config and args.command in ('update','export'):
+            try:
+                from .publish import publish
+                logging.info('Private mobile archive published: %s funds',publish(args.home,publish_config))
+            except Exception as error:
+                issues.append(str(error));health(db,'mobile-publish',False,str(error))
+                logging.warning('%s',error)
+
         # Consistent completed backup, never a live database in a synchronised directory.
         backup=args.home/'history-backup.sqlite'; target=sqlite3.connect(backup)
         try:db.backup(target)

@@ -1,20 +1,30 @@
+import { createOnlineSource } from './online.mjs';
 import { dateRange } from './ranges.mjs';
 import { createSessionGuard } from './session.mjs';
 const $ = (id) => document.getElementById(id);
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
+let online = null, onlineMode = false;
 let activeWorker = null, cancelCalculation = null, accessGeneration = 0;
 const session = createSessionGuard({onLock() {
   accessGeneration++;
+  online?.clear();
   activeWorker?.terminate(); activeWorker = null;
   cancelCalculation?.(); cancelCalculation = null;
-  folder = dataset = manifest = result = null;
-  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','message']) $(id).replaceChildren();
+  folder = dataset = manifest = result = null; onlineMode = false;
+  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','message','price-status']) $(id).replaceChildren();
   for (const id of ['portfolio','benchmark']) { $(id).replaceChildren(); $(id).disabled = true; }
   $('run').disabled = true;
   document.querySelector('main').hidden = true;
   $('session-lock').hidden = false;
 }, onUnlock() { document.querySelector('main').hidden = false; $('session-lock').hidden = true; }});
 if (integrated) {
+  document.documentElement.classList.add('online-analysis');
+  const setupPanel=document.querySelector('details.panel');
+  const archiveActions=document.createElement('div');archiveActions.className='actions';
+  archiveActions.append($('folder'),$('import'),document.querySelector('label[for="import"]'));
+  setupPanel.append(archiveActions);
+  $('connect-saved').textContent='Refresh saved holdings';
+  $('controls').after($('archive-info'));
   $('back-arcus').hidden = false;
   try {
     const back = new URL(sessionStorage.getItem('arcus-analysis-return') || '/?tab=watchlist', location.origin);
@@ -42,6 +52,7 @@ document.addEventListener('visibilitychange', () => {
   else void session.check();
 });
 window.addEventListener('pageshow', () => { document.querySelector('main').hidden = true; void session.check(); });
+window.addEventListener('pagehide',()=>online?.clear());
 window.addEventListener('focus', () => { void session.check(); });
 void session.check();
 document.querySelector('form[action="/logout"]')?.addEventListener('submit', async event => {
@@ -109,9 +120,9 @@ function setup(m) {
   $('range').value = m.valuationDates?.length ? 'day' : 'custom';
   applyRange();
   $("archive-status").textContent =
-    "Archive updated " +
+    (onlineMode ? "Holdings saved " : "Archive updated ") +
     new Date(m.generatedAt).toLocaleString() +
-    ". Nothing is uploaded." + (m.validationNotice ? ' ' + m.validationNotice : '');
+    (onlineMode ? ". Available with your PC off. Prices are checked when you compare." : ". Nothing is uploaded.") + (m.validationNotice ? ' ' + m.validationNotice : '');
   renderArchiveInfo();
   $('source-status').textContent = `${m.funds.length} funds in this archive.` + ((m.pendingSources || []).length ? ' Source limitations: '+m.pendingSources.map(f=>f.id+' ('+f.reason+')').join('; ')+'.' : '');
   $("message").replaceChildren();
@@ -124,13 +135,16 @@ function renderArchiveInfo() {
         text("strong", f.id.startsWith('PORTFOLIO:') ? f.name : f.id),
         text(
           "p",
-          `${f.positions} positions · latest holdings ${f.latest || "not collected"} · ${f.dates.length} saved dates`,
+          `${f.positions} positions · latest holdings ${f.latest || "not collected"} · ${onlineMode ? 'saved allocation' : f.dates.length+' saved dates'}`,
         ),
       );
       return card;
     }),
   );
 }
+for(const id of ['portfolio','benchmark','currency','range','start','end']) $(id).addEventListener('change',()=>{
+  result=null;$('results').hidden=true;$('price-status').textContent='';$('message').replaceChildren();
+});
 for(const id of ['portfolio','benchmark']) $(id).addEventListener('change', renderArchiveInfo);
 function applyRange() {
   const dates = manifest?.valuationDates || [];
@@ -154,7 +168,7 @@ $("folder").addEventListener("click", async () => {
     const chosen = await window.showDirectoryPicker({ mode: "read" });
     const m = await readFile(await chosen.getFileHandle("manifest.json"));
     if (!await session.check()) return;
-    setup(m);
+    onlineMode = false; online?.clear(); setup(m);
     folder = chosen;
     dataset = null;
   } catch (e) {
@@ -178,7 +192,7 @@ $("import").addEventListener("change", async (event) => {
       const funds = new Set((parsed.manifest?.funds || []).map(f => f.id));
       parsed.manifest.valuationDates = [...new Set((parsed.levels || []).filter(l => l.id === 'SPY' || funds.has(l.id)).map(l => l.date))].sort();
     }
-    setup(parsed.manifest);
+    onlineMode = false; online?.clear(); setup(parsed.manifest);
     dataset = parsed;
     folder = null;
   } catch (e) {
@@ -188,6 +202,7 @@ $("import").addEventListener("change", async (event) => {
   }
 });
 async function loadRange(start, end) {
+  if (onlineMode) return online.load(manifest,[$('portfolio').value,$('benchmark').value],start,end,$('currency').value);
   if (dataset) return dataset;
   if (!folder) throw Error("Connect an archive first.");
   // Include a baseline month. Engine requires exact preceding valuation-day holdings.
@@ -221,6 +236,9 @@ $("controls").addEventListener("submit", async (e) => {
   $("run").textContent = "Calculating…";
   $("results").hidden = true;
   result = null;
+  $('price-status').textContent='';
+  const controls=[...$('controls').elements,$('connect-saved'),$('folder'),$('import')];
+  const disabledBefore=controls.map(el=>el.disabled);controls.forEach(el=>el.disabled=true);
   try {
     if (!await session.check()) return;
     const generation = accessGeneration;
@@ -232,7 +250,9 @@ $("controls").addEventListener("submit", async (e) => {
     );
     options.allowApproximateHoldings = true;
     options.allowPartialReturns = true;
+    options.allowSnapshotResearch = onlineMode;
     const data = await loadRange(options.start, options.end);
+    if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
       const worker = new Worker(new URL("./worker.mjs?v=research-20261007", import.meta.url), {
         type: "module",
@@ -320,9 +340,10 @@ $("controls").addEventListener("submit", async (e) => {
     );
     renderRows();
     renderMethod();
+    if(onlineMode) $('price-status').textContent = 'Adjusted daily returns · '+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
     $('research-note').replaceChildren(
       text('strong','Research estimate — use for ideas, not exact accounting.'),
-      text('p','Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
+      text('p',onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Each share uses date-matched adjusted closing prices; foreign shares use same-date FX. No live quotes or old endpoint prices are substituted. Missing prices, cash income and unsupported positions remain blank. Price dates are shown above; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
       ...(result.holdingsWarnings || []).map(n => text('p',n)),
       ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. Missing returns stay blank; available headline figures are fund reference returns, not these subtotals. ${result.contributionMethod === 'arithmetic-daily' ? 'Both contribution columns use arithmetic daily sums because a complete reference series is unavailable.' : ''}`)] : []),
       ...(result.missing?.length ? [text('p','Missing returns: '+[...new Set(result.missing.map(p=>p.name))].join('; '))] : []),
@@ -330,6 +351,7 @@ $("controls").addEventListener("submit", async (e) => {
   } catch (error) {
     message(error.message);
   } finally {
+    controls.forEach((el,i)=>el.disabled = !manifest || disabledBefore[i]);
     $("run").disabled = !manifest;
     $("run").textContent = "Compare funds";
   }
@@ -516,3 +538,28 @@ $("download").addEventListener("click", async () => {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
+
+online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
+async function connectSaved() {
+  const generation=accessGeneration;
+  try {
+    if(!await session.check())return;
+    $('connect-saved').disabled=true;
+    message('Loading saved ETFs and portfolios…');
+    const m=await online.catalog();
+    if(generation!==accessGeneration)return;
+    onlineMode=true;dataset=folder=null; setup(m);
+    $('archive-title').textContent='Saved ETFs & portfolios';
+    $('empty').hidden=true;
+    $('range-note').textContent='Checking the latest completed US trading date…';
+    const calendar=await online.calendar();
+    if(generation!==accessGeneration || !onlineMode)return;
+    manifest.valuationDates=calendar;
+    $('range').value='day';applyRange();
+    $('range-note').textContent='Daily closing-price analysis through '+calendar.at(-1)+'. Today’s intraday session is excluded. Saved allocations may be older.';
+    message('');
+  } catch(error){if(generation===accessGeneration)message(error.message+' You can refresh saved holdings or use an archive file.');}
+  finally {$('connect-saved').disabled=false;}
+}
+$('connect-saved').addEventListener('click',connectSaved);
+if(integrated)void connectSaved();
