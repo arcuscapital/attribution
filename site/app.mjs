@@ -2,10 +2,11 @@ import { dateRange } from './ranges.mjs';
 import { createSessionGuard } from './session.mjs';
 const $ = (id) => document.getElementById(id);
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
-let activeWorker = null, accessGeneration = 0;
+let activeWorker = null, cancelCalculation = null, accessGeneration = 0;
 const session = createSessionGuard({onLock() {
   accessGeneration++;
   activeWorker?.terminate(); activeWorker = null;
+  cancelCalculation?.(); cancelCalculation = null;
   folder = dataset = manifest = result = null;
   for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','message']) $(id).replaceChildren();
   for (const id of ['portfolio','benchmark']) { $(id).replaceChildren(); $(id).disabled = true; }
@@ -30,7 +31,10 @@ try {
   document.documentElement.classList.toggle('light', light);
   document.querySelector('meta[name="theme-color"]').content = light ? '#ffffff' : '#151c17';
 } catch {}
-if (!window.showDirectoryPicker) $('folder').hidden = true;
+if (!window.showDirectoryPicker || /Android/i.test(navigator.userAgent)) {
+  $('folder').hidden = true;
+  document.querySelector('label[for="import"]').classList.add('primary');
+}
 document.querySelector('label[for="import"]').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('import').click(); } });
 // Hide private content while away; revalidate before it is revealed on return.
 document.addEventListener('visibilitychange', () => {
@@ -234,13 +238,16 @@ $("controls").addEventListener("submit", async (e) => {
         type: "module",
       });
       activeWorker = worker;
+      cancelCalculation = () => reject(Error('Your session ended. Sign in before calculating again.'));
       worker.onmessage = ({ data }) => {
         worker.terminate();
         activeWorker = null;
+        cancelCalculation = null;
         data.ok ? resolve(data.result) : reject(Error(data.error));
       };
       worker.onerror = () => {
         worker.terminate();
+        activeWorker = null; cancelCalculation = null;
         reject(Error("Calculation failed. Your data has not been changed."));
       };
       worker.postMessage({ dataset: data, options });
@@ -323,7 +330,7 @@ $("controls").addEventListener("submit", async (e) => {
   } catch (error) {
     message(error.message);
   } finally {
-    $("run").disabled = false;
+    $("run").disabled = !manifest;
     $("run").textContent = "Compare funds";
   }
 });
