@@ -90,11 +90,25 @@ correct login was made; neither token is stored in Git.
 - Anonymous `GET` of `/portfolio-analysis/` and `/portfolio-analysis/app.mjs` on
   arcuscapital.co.za, and of `/app.mjs` and `/arcus-bridge/app.mjs` on the workers.dev
   origin, all returned 401 after the deploy; the standalone root still shows its password form.
-- **Not verified live with an authenticated session.** The marlow17 emulator's Arcus
-  device session had expired (it rendered the Arcus 401 sign-in page) and the desktop
-  browser pane was signed out too; only the owner can re-approve those sign-ins. The
-  authenticated phone evidence in this release therefore comes from the local synthetic
-  server (see Tests and evidence), not from production data. No physical Pixel was used.
+- Live authenticated verification, after the owner signed in on both test surfaces:
+  - Desktop app browser pane emulating 412×915 on https://arcuscapital.co.za/portfolio-analysis/:
+    module `app.mjs?v=phone-20261011`, 51 saved funds loaded automatically, Compare at
+    367px from the top, intro hidden, document width 412px. ARKK versus BAI, One Day
+    through 2026-10-09, USD: 2.31% versus 1.24%, difference 1.07%, coverage 96.85% /
+    81.64%, 17 holdings with missing returns, 88 table rows. These equal the figures
+    recorded for the same date in MOBILE-DATA-RELEASE.md, so the calculation path is
+    unchanged. Price check "Checking prices 62 / 83" was visible in the button during the run.
+  - **Actual Android emulator against production**: marlow17 (Android 17, Chrome,
+    411 CSS px) signed in to Arcus by the owner. Compare tapped by ADB touchscreen input:
+    page scrolled to the coverage warning, selection collapsed to the sticky bar, same
+    2.31% / 1.24% / 1.07% figures and 88 rows. Tapping CRSP opened its detail (ARKK weight
+    4.28%, BAI 0.00%, active 4.28%, contribution 0.25% / 0.00%); a touch swipe scrolled the
+    table with scrollX 0, document 411px, table 344px in a 344px box; tapping Change reopened
+    the form and focused Portfolio. Captures `live-emu-entry.png`, `live-emu-results.png`,
+    `live-emu-row.png`, `live-emu-change.png` under `tmp/analysis-phone/` in the Arcus
+    checkout (not committed; they show real holdings). No physical Pixel and no Pixel 9
+    were used; dark mode, sector view and custom dates were verified on the local
+    synthetic server only. The emulator was left running and signed in.
 
 ## Rollback
 Attribution only; Arcus needs no change and must not be rolled back for this release.
