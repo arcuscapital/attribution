@@ -48,31 +48,34 @@
         class="archive-grid"
         aria-live="polite"
       ></section>
-      <section class="panel">
+      <section class="panel" id="selection">
+        <div id="selection-summary" hidden>
+          <div class="summary-text"><strong id="summary-funds"></strong><span id="summary-period"></span></div>
+          <button type="button" id="change-selection">Change</button>
+        </div>
         <form id="controls">
-          <label
+          <label id="field-portfolio"
             >Portfolio<select id="portfolio" required disabled>
               <option>Connect an archive first</option>
             </select></label
-          ><label
+          ><label id="field-benchmark"
             >Benchmark<select id="benchmark" required disabled>
               <option>Connect an archive first</option>
             </select></label
-          ><label
+          ><label id="field-range"><span>Date range <small id="range-dates"></small></span><select id="range" disabled>
+            <option value="day">One Day</option><option value="wtd">Week to Date</option>
+            <option value="mtd">Month to Date</option><option value="qtd">Quarter to Date</option>
+            <option value="ytd">Year to Date</option><option value="last-week">Last Week</option>
+            <option value="last-month">Last Month</option><option value="last-3-months">Last 3 Months</option>
+            <option value="last-year">Last Year</option><option value="custom">Custom dates</option>
+          </select></label
+          ><label id="field-currency"
             >Currency<select id="currency">
               <option>USD</option>
               <option>ZAR</option>
             </select></label
-          ><label>Classification<select id="group"><option value="security">Holdings</option><option value="sector">Sector</option></select></label
-          ><label>Date range<select id="range" disabled>
-            <option value="day">One Day</option><option value="wtd">Week to Date</option>
-            <option value="mtd">Month to Date</option><option value="qtd">Quarter to Date</option>
-            <option value="ytd">Year to Date</option><option value="last-week">Last Week</option>
-            <option value="last-month">Last Month</option><option value="last-3-months">Last 3 Months (completed)</option>
-            <option value="last-year">Last Year</option><option value="custom">Custom dates</option>
-          </select></label
-          ><label>From<input type="date" id="start" required disabled /></label
-          ><label>Through<input type="date" id="end" required disabled /></label
+          ><label id="field-start" class="field-date">From<input type="date" id="start" required disabled /></label
+          ><label id="field-end" class="field-date">Through<input type="date" id="end" required disabled /></label
           ><button class="primary" id="run" disabled>Compare funds</button>
         </form>
         <p id="range-note">Date presets use completed prices in your archive.</p>
@@ -86,11 +89,16 @@
           <div class="table-bar">
             <div>
               <h2>Return contributions</h2>
-              <p>Contributions in percentage points. Tap a column to sort. Swipe the table for more columns.</p>
+              <p id="table-hint">Contributions in percentage points. Tap a column to sort. Swipe the table for more columns.</p>
             </div>
             <div class="actions">
               <button id="download">Export CSV for Excel</button>
             </div>
+          </div>
+          <div class="view-bar">
+            <label>View<select id="group"><option value="security">Holdings</option><option value="sector">Sector</option></select></label
+            ><label>Sort by<select id="sort"></select></label
+            ><button type="button" id="sort-direction" aria-label="Sort direction">↓ Largest first</button>
           </div>
           <div class="scroll">
             <table>
@@ -117,7 +125,7 @@
           Missing prices and private holdings are shown explicitly, not silently counted as zero.
         </p>
       </section>
-      <details class="panel">
+      <details class="panel" id="setup">
         <summary>Setup and daily use</summary>
         <p id="source-status"></p>
         <ol>
@@ -150,6 +158,6 @@
         source dates and investigate unexplained differences.
       </footer>
     </main>
-    <script type="module" src="app.mjs?v=research-20261007"></script>
+    <script type="module" src="app.mjs?v=phone-20261011"></script>
   </body>
 </html>

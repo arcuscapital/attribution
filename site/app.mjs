@@ -13,6 +13,7 @@ const session = createSessionGuard({onLock() {
   for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','message','price-status']) $(id).replaceChildren();
   for (const id of ['portfolio','benchmark']) { $(id).replaceChildren(); $(id).disabled = true; }
   $('run').disabled = true;
+  expandSelection();
   document.querySelector('main').hidden = true;
   $('session-lock').hidden = false;
 }, onUnlock() { document.querySelector('main').hidden = false; $('session-lock').hidden = true; }});
@@ -72,8 +73,58 @@ let folder = null,
   dataset = null,
   manifest = null,
   result = null,
+  lastOptions = null,
   sortKey = "activeCtr",
   sortDirection = -1;
+// Phone layout: one column, compact table and a collapsible selection panel.
+const phone = matchMedia('(max-width: 600px)');
+const SELECTION_KEY = 'arcus-analysis-selection';
+const fundLabel = (id) => {
+  const fund = manifest?.funds.find(f => f.id === id);
+  return fund && id.startsWith('PORTFOLIO:') ? fund.name : id;
+};
+const rangeLabel = () => $('range').selectedOptions[0]?.textContent || 'Custom dates';
+function saveSelection() {
+  try { localStorage.setItem(SELECTION_KEY, JSON.stringify(Object.fromEntries(['portfolio','benchmark','currency','range','group'].map(id => [id, $(id).value])))); } catch {}
+}
+function savedSelection() {
+  try { const saved = JSON.parse(localStorage.getItem(SELECTION_KEY) || 'null'); return saved && typeof saved === 'object' ? saved : null; } catch { return null; }
+}
+const hasOption = (id, value) => [...$(id).options].some(o => o.value === value);
+function restoreSelection(m) {
+  const saved = savedSelection();
+  if (!saved) return false;
+  const ids = new Set(m.funds.map(f => f.id));
+  if (!ids.has(saved.portfolio) || !ids.has(saved.benchmark) || saved.portfolio === saved.benchmark) return false;
+  $('portfolio').value = saved.portfolio; $('benchmark').value = saved.benchmark;
+  if (hasOption('currency', saved.currency)) $('currency').value = saved.currency;
+  if (hasOption('group', saved.group)) $('group').value = saved.group;
+  return true;
+}
+const preferredRange = () => { const saved = savedSelection()?.range; return saved && saved !== 'custom' && hasOption('range', saved) ? saved : 'day'; };
+function syncDateFields() {
+  $('controls').classList.toggle('preset', $('range').value !== 'custom');
+  const start = $('start').value, end = $('end').value;
+  $('range-dates').textContent = start && end ? (start === end ? start : start + ' → ' + end) : '';
+}
+function collapseSelection(options) {
+  $('summary-funds').textContent = fundLabel(options.portfolio) + ' vs ' + fundLabel(options.benchmark);
+  $('summary-period').textContent = rangeLabel() + ' · ' + (options.start === options.end ? options.end : options.start + ' → ' + options.end) + ' · ' + options.currency;
+  $('selection').classList.add('collapsed');
+  $('selection-summary').hidden = false;
+}
+function expandSelection() {
+  $('selection').classList.remove('collapsed');
+  $('selection-summary').hidden = true;
+}
+$('change-selection').addEventListener('click', () => {
+  expandSelection();
+  $('selection').scrollIntoView({behavior: 'smooth', block: 'start'});
+  $('portfolio').focus({preventScroll: true});
+});
+const scrollTo = (id) => { if (phone.matches) requestAnimationFrame(() => $(id).scrollIntoView({behavior: 'smooth', block: 'start'})); };
+// Read the price-check note directly under the headline figures.
+$('metrics').after($('price-status'));
 const text = (tag, value, cls) => {
   const n = document.createElement(tag);
   n.textContent = value;
@@ -81,7 +132,7 @@ const text = (tag, value, cls) => {
   return n;
 };
 function message(value) {
-  $("message").replaceChildren(text("div", value));
+  $("message").replaceChildren(...(value ? [text("div", value)] : []));
 }
 async function readFile(handle) {
   const file = await handle.getFile();
@@ -109,15 +160,16 @@ function setup(m) {
     $(id).disabled = false;
   }
   $("benchmark").selectedIndex = 1;
-  if (m.funds.some(f => f.id === 'ARKK') && m.funds.some(f => f.id === 'BAI')) {
+  if (!restoreSelection(m) && m.funds.some(f => f.id === 'ARKK') && m.funds.some(f => f.id === 'BAI')) {
     $('portfolio').value = 'ARKK'; $('benchmark').value = 'BAI';
   }
   const available = m.funds.flatMap((f) => f.dates || []).sort();
   $("start").value = available.at(0) || "";
   $("end").value = available.at(-1) || "";
   for (const id of ["start", "end", "run", "range"]) $(id).disabled = false;
-  $('range').value = m.valuationDates?.length ? 'day' : 'custom';
+  $('range').value = m.valuationDates?.length ? preferredRange() : 'custom';
   applyRange();
+  expandSelection();
   $("archive-status").textContent =
     (onlineMode ? "Holdings saved " : "Archive updated ") +
     new Date(m.generatedAt).toLocaleString() +
@@ -143,6 +195,7 @@ function renderArchiveInfo() {
 }
 for(const id of ['portfolio','benchmark','currency','range','start','end']) $(id).addEventListener('change',()=>{
   result=null;$('results').hidden=true;$('price-status').textContent='';$('message').replaceChildren();
+  saveSelection();
 });
 for(const id of ['portfolio','benchmark']) $(id).addEventListener('change', renderArchiveInfo);
 function applyRange() {
@@ -153,9 +206,10 @@ function applyRange() {
     ? `Periods end at the latest saved completed price date: ${dates.at(-1)}. Missing holdings are reported; dates are not silently shortened.`
     : 'Select explicit dates, or run the desktop updater to enable date presets.';
   if (!dates.length) $('range').value = 'custom';
+  syncDateFields();
 }
 $('range').addEventListener('change', applyRange);
-for (const id of ['start', 'end']) $(id).addEventListener('change', () => { $('range').value = 'custom'; });
+for (const id of ['start', 'end']) $(id).addEventListener('change', () => { $('range').value = 'custom'; syncDateFields(); });
 $("folder").addEventListener("click", async () => {
   try {
     if (!window.showDirectoryPicker) {
@@ -250,6 +304,8 @@ $("controls").addEventListener("submit", async (e) => {
     options.allowApproximateHoldings = true;
     options.allowPartialReturns = true;
     options.allowSnapshotResearch = onlineMode;
+    lastOptions = options;
+    saveSelection();
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
@@ -286,6 +342,7 @@ $("controls").addEventListener("submit", async (e) => {
       for (const issue of result.issues.slice(0, 12))
         ul.append(text("li", issue));
       $("message").append(ul);
+      scrollTo('message');
       const missing = [
         ...new Map(
           (result.missing || []).map((x) => [x.fund + "|" + x.id, x]),
@@ -321,19 +378,15 @@ $("controls").addEventListener("submit", async (e) => {
         [options.benchmark, result.returnB],
         ["Difference", result.activeReturn],
       ].map(([label, value]) => {
-        const card = text("div", "", "metric");
-        card.append(
-          text(
-            "span",
-            label +
-              " · " +
-              options.currency +
-              (result.status === "partial"
-                ? " · reference return"
-                : " · holdings estimate"),
-          ),
-          text("strong", fmt(value), value >= 0 ? "positive" : "negative"),
+        const card = text("div", "", label === "Difference" ? "metric difference" : "metric");
+        const body = text("div", "", "metric-text");
+        body.append(
+          text("span", label === "Difference" ? label : fundLabel(label)),
+          text("small", options.currency + (result.status === "partial" ? " · reference return" : " · holdings estimate")),
         );
+        const figure = text("strong", fmt(value), value === null || value === undefined ? "muted" : value >= 0 ? "positive" : "negative");
+        if (label === "Difference") card.append(body, figure);
+        else { const [labelNode, noteNode] = [...body.childNodes]; card.append(labelNode, figure, noteNode); }
         return card;
       }),
     );
@@ -347,8 +400,11 @@ $("controls").addEventListener("submit", async (e) => {
       ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. Missing returns stay blank; available headline figures are fund reference returns, not these subtotals. ${result.contributionMethod === 'arithmetic-daily' ? 'Both contribution columns use arithmetic daily sums because a complete reference series is unavailable.' : ''}`)] : []),
       ...(result.missing?.length ? [text('p','Missing returns: '+[...new Set(result.missing.map(p=>p.name))].join('; '))] : []),
     );
+    if (phone.matches) collapseSelection(options);
+    scrollTo($('message').childElementCount ? 'message' : 'results');
   } catch (error) {
     message(error.message);
+    scrollTo('message');
   } finally {
     controls.forEach((el,i)=>el.disabled = !manifest || disabledBefore[i]);
     $("run").disabled = !manifest;
@@ -397,13 +453,36 @@ const columns = [
   ["ctrB", "Contribution · Benchmark"],
   ["activeCtr", "Difference (pp)"],
 ];
+// Phones show three columns; the remaining figures open under the tapped row.
+const phoneColumns = () => $("group").value === "sector"
+  ? [["ticker", "Sector"], ["activeWeight", "Active wt"], ["activeCtr", "Diff (pp)"]]
+  : [["ticker", "Security"], ["securityReturn", "Return"], ["activeCtr", "Diff (pp)"]];
+const signClass = (key, value) => ["ctrA", "ctrB", "activeCtr", "securityReturn", "activeWeight"].includes(key)
+  ? (value === null || value === undefined ? "muted" : value >= 0 ? "positive" : "negative") : "";
+function columnLabel(key, name) {
+  if (!lastOptions) return name;
+  return name.replace("· Portfolio", "· " + fundLabel(lastOptions.portfolio)).replace("· Benchmark", "· " + fundLabel(lastOptions.benchmark));
+}
+function syncSortControls() {
+  $("sort").value = sortKey;
+  $("sort-direction").textContent = sortKey === "ticker"
+    ? (sortDirection === 1 ? "↓ A to Z" : "↑ Z to A")
+    : (sortDirection === -1 ? "↓ Largest first" : "↑ Smallest first");
+}
 function renderRows() {
   if (!["complete", "partial"].includes(result?.status)) return;
+  const compact = phone.matches;
+  const visible = compact ? phoneColumns() : columns;
+  if (!$("sort").options.length) $("sort").replaceChildren(...columns.map(([key, name]) => { const o = text("option", key === "ticker" ? "Name" : name); o.value = key; return o; }));
+  syncSortControls();
+  $("table-hint").textContent = compact
+    ? "Percentage points. Tap a row for weights and contributions; sort with the controls above."
+    : "Contributions in percentage points. Tap a column to sort. Swipe the table for more columns.";
   const tr = document.createElement("tr");
-  for (const [key, name] of columns) {
+  for (const [key, name] of visible) {
     const th = text(
       "th",
-      name + (sortKey === key ? (sortDirection === 1 ? " ↑" : " ↓") : ""),
+      columnLabel(key, name) + (sortKey === key ? (sortDirection === 1 ? " ↑" : " ↓") : ""),
     );
     th.tabIndex = 0;
     th.addEventListener("click", () => {
@@ -426,20 +505,51 @@ function renderRows() {
   );
   renderContributionChart(rows);
   $("rows").replaceChildren(
-    ...rows.map((r) => {
+    ...rows.flatMap((r) => {
       const row = document.createElement("tr");
-      for (const [key] of columns) {
+      for (const [key] of visible) {
         const cell = text("td", key === "ticker" ? r.ticker : fmt(r[key]));
-        if (key === "ticker") cell.append(text("small", r.name));
-        if (["ctrA", "ctrB", "activeCtr"].includes(key))
-          cell.className =
-            r[key] === null ? "muted" : r[key] >= 0 ? "positive" : "negative";
+        if (key === "ticker" && r.name !== r.ticker) cell.append(text("small", r.name));
+        if (compact || ["ctrA", "ctrB", "activeCtr"].includes(key)) cell.className = signClass(key, r[key]);
         row.append(cell);
       }
-      return row;
+      if (!compact) return [row];
+      const detail = document.createElement("tr");
+      detail.className = "detail";
+      detail.hidden = true;
+      const cell = document.createElement("td");
+      cell.colSpan = visible.length;
+      const list = document.createElement("dl");
+      for (const [key, name] of columns) {
+        if (key === "ticker" || visible.some(([k]) => k === key)) continue;
+        list.append(text("dt", columnLabel(key, name)), text("dd", fmt(r[key]), signClass(key, r[key])));
+      }
+      cell.append(list);
+      detail.append(cell);
+      row.className = "expandable";
+      row.tabIndex = 0;
+      row.setAttribute("aria-expanded", "false");
+      row.addEventListener("click", () => {
+        detail.hidden = !detail.hidden;
+        row.setAttribute("aria-expanded", String(!detail.hidden));
+      });
+      row.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); row.click(); }
+      });
+      return [row, detail];
     }),
   );
 }
+$("sort").addEventListener("change", () => {
+  sortKey = $("sort").value;
+  sortDirection = sortKey === "ticker" ? 1 : -1;
+  if (result) renderRows();
+});
+$("sort-direction").addEventListener("click", () => {
+  sortDirection = -sortDirection;
+  if (result) renderRows();
+});
+phone.addEventListener("change", () => { if (result && ["complete", "partial"].includes(result.status)) renderRows(); if (!phone.matches) expandSelection(); });
 function renderContributionChart(rows) {
   const top = rows.filter(r => Number.isFinite(r.activeCtr)).sort((a,b) => Math.abs(b.activeCtr)-Math.abs(a.activeCtr)).slice(0,6);
   const root = $('contribution-chart');
@@ -498,7 +608,7 @@ function renderMethod() {
   scroll.append(table);
   node.append(scroll);
 }
-$("group").addEventListener("change", () => { if (result && ['complete', 'partial'].includes(result.status)) renderRows(); });
+$("group").addEventListener("change", () => { saveSelection(); if (result && ['complete', 'partial'].includes(result.status)) renderRows(); });
 function csvCell(v) {
   let s = String(v ?? "");
   if (/^[=+@\-]/.test(s) && typeof v === "string") s = "'" + s;
@@ -561,7 +671,7 @@ async function connectSaved() {
     const calendar=await online.calendar();
     if(generation!==accessGeneration || !onlineMode)return;
     manifest.valuationDates=calendar;
-    $('range').value='day';applyRange();
+    $('range').value=preferredRange();applyRange();
     $('range-note').textContent='Daily closing-price analysis through '+calendar.at(-1)+'. Today’s intraday session is excluded. Saved allocations may be older.';
     message('');
   } catch(error){if(generation===accessGeneration)message(error.message+' You can refresh saved holdings or use an archive file.');}
