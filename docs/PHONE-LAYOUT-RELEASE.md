@@ -66,20 +66,35 @@ No new network requests, polling, collectors, queues, crons or storage of financ
   deployment section below.
 
 ## Deployment
-Not yet deployed at the time this file was written. The separate Attribution Wrangler
-login (`XDG_CONFIG_HOME=C:/Users/Skrom/AppData/Local/ArcusAttribution/cloudflare-auth`)
-held no token on 11 October; a browser sign-in with the arcuscapital.co.za Cloudflare
-user produced a token for account 42dd7264… only, which cannot deploy account
-5695cae2…. The deployment entry will be appended once the correct account is authorised.
+- Account 5695cae2becf35e049eb5df3e2849ae2 (shaunkrom18@gmail.com OAuth, separate
+  `XDG_CONFIG_HOME=C:/Users/Skrom/AppData/Local/ArcusAttribution/cloudflare-auth`); Worker arcus-attribution
+- UTC 2026-10-11T09:35:08.157539Z, 100% traffic
+- Version 1dc0e8af-e761-49a5-8cad-99f3ffd5c8a4, tag `phone-20261011`
+- Deployment 72b7a786-f035-4d25-ad27-946158aeb267
+- Wrangler 4.128.0 uploaded exactly three changed assets (index.html, style.css, app.mjs);
+  six unchanged; 13.14 KiB Worker; bindings unchanged (HOLDINGS_ARCHIVE, LOGIN_LIMITER, ASSETS).
+  Wrangler reported 1 ms Worker startup, which is not an end-user page-load measurement.
+- Arcus was not deployed; its bridge serves these files with private/no-store, so phones
+  receive the new layout on the next open without a cache clear.
 
-Deploy command (Attribution account only, never the Arcus OAuth directory):
+Deploy command used:
 
-    XDG_CONFIG_HOME=C:/Users/Skrom/AppData/Local/ArcusAttribution/cloudflare-auth \
-    CLOUDFLARE_ACCOUNT_ID=5695cae2becf35e049eb5df3e2849ae2 \
-    npx --yes wrangler@4.128.0 deploy --config wrangler.jsonc
+    XDG_CONFIG_HOME=C:/Users/Skrom/AppData/Local/ArcusAttribution/cloudflare-auth     CLOUDFLARE_ACCOUNT_ID=5695cae2becf35e049eb5df3e2849ae2     npx --yes wrangler@4.128.0 deploy --config wrangler.jsonc --tag phone-20261011
 
-Dry run on 11 October: 9 asset files read, 13.14 KiB Worker upload, bindings unchanged
-(HOLDINGS_ARCHIVE, LOGIN_LIMITER, ASSETS).
+Earlier on 11 October the auth directory held no token, and a browser sign-in with the
+arcuscapital.co.za Cloudflare user produced a token for account 42dd7264… only, which
+Cloudflare rejected for this Worker (code 10000). That token was logged out before the
+correct login was made; neither token is stored in Git.
+
+### Post-deployment checks
+- Anonymous `GET` of `/portfolio-analysis/` and `/portfolio-analysis/app.mjs` on
+  arcuscapital.co.za, and of `/app.mjs` and `/arcus-bridge/app.mjs` on the workers.dev
+  origin, all returned 401 after the deploy; the standalone root still shows its password form.
+- **Not verified live with an authenticated session.** The marlow17 emulator's Arcus
+  device session had expired (it rendered the Arcus 401 sign-in page) and the desktop
+  browser pane was signed out too; only the owner can re-approve those sign-ins. The
+  authenticated phone evidence in this release therefore comes from the local synthetic
+  server (see Tests and evidence), not from production data. No physical Pixel was used.
 
 ## Rollback
 Attribution only; Arcus needs no change and must not be rolled back for this release.
