@@ -131,6 +131,8 @@ export function compare(input, options) {
     return chosen;
   }
   function withProxies(result) {
+    if ([portfolio, benchmark].some(id => id.startsWith('PORTFOLIO:')))
+      result = averageWeightReturns(result, portfolio, benchmark);
     result.approximateHoldings = proxyNotes.size > 0;
     result.holdingsWarnings = [...proxyNotes];
     result.notes = [...(result.notes || []), ...proxyNotes];
@@ -188,6 +190,17 @@ export function compare(input, options) {
     );
     history.push({ from, to, a: x, b: y, snapshotA: sa, snapshotB: sb });
     from = to;
+  }
+  // Account comparisons use period SUMPRODUCT, not daily wealth/Carino linking.
+  // Still require every opening snapshot and the full requested calendar.
+  if ([portfolio, benchmark].some(id => id.startsWith('PORTFOLIO:')) &&
+      history.length === dates.length && issues.every(issue =>
+        issue.startsWith('Incomplete return coverage') || issue.startsWith('Fund price missing'))) {
+    const weighted = partialComparison(prices, history, {...options, allowPartialReturns:true}, prior, missing);
+    weighted.status = history.every(day => day.a.complete && day.b.complete &&
+      (portfolio.startsWith('PORTFOLIO:') || levelReturn(prices, portfolio, day.from, day.to, currency)) &&
+      (benchmark.startsWith('PORTFOLIO:') || levelReturn(prices, benchmark, day.from, day.to, currency))) ? 'complete' : 'partial';
+    return withProxies(weighted);
   }
   if (issues.length) {
     const onlyPriceGaps = issues.every((issue) =>
@@ -325,6 +338,52 @@ export function compare(input, options) {
         : []),
     ],
   });
+}
+
+/** Account estimates use exactly the displayed average weights and period returns.
+ * Unknown contributions stay null; the headline is the available weighted estimate,
+ * never a listed stock masquerading as an account or a rescaled allocation.
+ */
+function averageWeightReturns(result, portfolio, benchmark) {
+  const rows = result.rows.map(row => {
+    const product = side => row['weight' + side] === 0 ? 0
+      : row['ctr' + side] !== null && Number.isFinite(row.securityReturn)
+        ? row['weight' + side] * row.securityReturn : null;
+    const ctrA = product('A'), ctrB = product('B');
+    return {...row, ctrA, ctrB, activeCtr: ctrA === null || ctrB === null ? null : ctrA - ctrB};
+  });
+  const estimate = side => {
+    const held = rows.filter(row => row['weight' + side] !== 0);
+    const known = held.filter(row => Number.isFinite(row['ctr' + side]));
+    return known.length ? known.reduce((sum, row) => sum + row['ctr' + side], 0) : null;
+  };
+  const weightedA = estimate('A'), weightedB = estimate('B');
+  const returnA = portfolio.startsWith('PORTFOLIO:') ? weightedA : result.fundReturnA;
+  const returnB = benchmark.startsWith('PORTFOLIO:') ? weightedB : result.fundReturnB;
+  const coverage = side => rows.reduce((sum, row) => sum +
+    (Number.isFinite(row['ctr' + side]) ? Math.abs(row['weight' + side]) : 0), 0);
+  const missing = [...result.missing];
+  for (const row of rows) for (const [side, fund] of [['A', portfolio], ['B', benchmark]])
+    if (row['weight' + side] !== 0 && row['ctr' + side] === null && !missing.some(m => m.id === row.id && m.fund === fund))
+      missing.push({id:row.id, name:row.name, fund, weight:row['weight' + side], from:result.baseline, to:result.end});
+  return {...result, rows, missing, status:missing.length ? 'partial' : result.status, returnA, returnB,
+    activeReturn: returnA === null || returnB === null ? null : returnA - returnB,
+    returnMethodA: portfolio.startsWith('PORTFOLIO:') ? 'weighted-estimate' : 'reference',
+    returnMethodB: benchmark.startsWith('PORTFOLIO:') ? 'weighted-estimate' : 'reference',
+    contributionMethod: 'average-weight-period',
+    knownContributionA: weightedA, knownContributionB: weightedB,
+    coverage: {portfolio: coverage('A'), benchmark: coverage('B')},
+    residualA: result.fundReturnA !== null && weightedA !== null ? result.fundReturnA - weightedA : null,
+    residualB: result.fundReturnB !== null && weightedB !== null ? result.fundReturnB - weightedB : null,
+    sectors: [],
+    notes: [
+      'Portfolio headline returns are SUMPRODUCT(average opening weight, security period return). ETF headlines use observed fund reference returns.',
+      'Each contribution is average opening weight × security period return. Weights are averaged across every included valuation day, without rescaling cash, shorts or incomplete allocations.',
+      'With missing prices, the portfolio headline is the available weighted estimate. Unavailable security contributions remain blank; coverage is the absolute source weight with usable period returns.',
+      'Security returns require exact endpoints and every held-day return. Foreign adjusted prices use same-date FX. These estimates do not reconstruct trades or cash income.',
+      'Weighted period contributions use a different method from daily linked attribution; daily sector allocation/selection effects are not shown for this comparison.',
+    ],
+  };
 }
 
 /** Known contributions can be shown against observed fund returns without inventing missing prices.

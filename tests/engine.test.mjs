@@ -214,7 +214,9 @@ test('IBKR portfolio cannot inherit the IBKR listed stock return',()=>{
  d.snapshots.filter(s=>s.fund==='A').forEach(s=>s.fund='PORTFOLIO:IBKR');
  d.levels.filter(l=>l.id==='A').forEach(l=>l.id='IBKR');
  const r=compare(d,{...options,portfolio:'PORTFOLIO:IBKR',allowPartialReturns:true});
- assert.equal(r.status,'partial');assert.equal(r.returnA,null);
+ assert.equal(r.status,'complete');close(r.returnA,.034);
+ assert.equal(r.returnMethodA,'weighted-estimate');close(r.returnB,.05);
+ close(r.activeReturn,-.016);
  assert.equal(r.fundReturnA,null);assert.ok(Number.isFinite(r.knownContributionA));
 });
 

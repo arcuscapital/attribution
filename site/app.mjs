@@ -309,7 +309,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=research-20261007", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=weighted-excel-20261014", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -367,22 +367,22 @@ $("controls").addEventListener("submit", async (e) => {
     if (result.status === "partial") {
       const missingNames = [...new Set(result.missing.map((m) => m.name))];
       message(
-        `Research estimate. Missing figures stay blank. Return coverage (absolute source weight): ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. ${missingNames.length} holdings have missing returns. ${result.contributionMethod === 'arithmetic-daily' ? 'Contributions sum daily estimates; they are not compounded returns.' : 'Contributions use reference-return linking.'}`,
+        `Research estimate. Missing figures stay blank. Return coverage (absolute source weight): ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. ${missingNames.length} holdings have missing returns. ${result.contributionMethod === 'average-weight-period' ? 'Portfolio returns sum average weight × security return for available holdings.' : result.contributionMethod === 'arithmetic-daily' ? 'Contributions sum daily estimates; they are not compounded returns.' : 'Contributions use reference-return linking.'}`,
       );
     }
     $("empty").hidden = true;
     $("results").hidden = false;
     $("metrics").replaceChildren(
       ...[
-        [options.portfolio, result.returnA],
-        [options.benchmark, result.returnB],
-        ["Difference", result.activeReturn],
-      ].map(([label, value]) => {
+        [options.portfolio, result.returnA, result.returnMethodA],
+        [options.benchmark, result.returnB, result.returnMethodB],
+        ["Difference", result.activeReturn, result.contributionMethod === 'average-weight-period' ? 'comparison' : null],
+      ].map(([label, value, method]) => {
         const card = text("div", "", label === "Difference" ? "metric difference" : "metric");
         const body = text("div", "", "metric-text");
         body.append(
           text("span", label === "Difference" ? label : fundLabel(label)),
-          text("small", options.currency + (result.status === "partial" ? " · reference return" : " · holdings estimate")),
+          text("small", options.currency + (method === 'weighted-estimate' ? ' · weighted return estimate' : method === 'reference' ? ' · reference return' : method === 'comparison' ? ' · return difference' : result.status === "partial" ? " · reference return" : " · holdings estimate")),
         );
         const figure = text("strong", fmt(value), value === null || value === undefined ? "muted" : value >= 0 ? "positive" : "negative");
         if (label === "Difference") card.append(body, figure);
@@ -397,7 +397,7 @@ $("controls").addEventListener("submit", async (e) => {
       text('strong','Research estimate — use for ideas, not exact accounting.'),
       text('p',onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Each share uses date-matched adjusted closing prices; foreign shares use same-date FX. No live quotes or old endpoint prices are substituted. Missing prices, cash income and unsupported positions remain blank. Price dates are shown above; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
       ...(result.holdingsWarnings || []).map(n => text('p',n)),
-      ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. Missing returns stay blank; available headline figures are fund reference returns, not these subtotals. ${result.contributionMethod === 'arithmetic-daily' ? 'Both contribution columns use arithmetic daily sums because a complete reference series is unavailable.' : ''}`)] : []),
+      ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. ${result.contributionMethod === 'average-weight-period' ? 'Your portfolio headline is the sum of available average weight × security return contributions. ETF headlines use observed fund returns; the contribution subtotal may differ.' : 'Missing returns stay blank; available headline figures are fund reference returns, not these subtotals.'} ${result.contributionMethod === 'arithmetic-daily' ? 'Both contribution columns use arithmetic daily sums because a complete reference series is unavailable.' : ''}`)] : []),
       ...(result.missing?.length ? [text('p','Missing returns: '+[...new Set(result.missing.map(p=>p.name))].join('; '))] : []),
     );
     if (phone.matches) collapseSelection(options);
@@ -609,43 +609,25 @@ function renderMethod() {
   node.append(scroll);
 }
 $("group").addEventListener("change", () => { saveSelection(); if (result && ['complete', 'partial'].includes(result.status)) renderRows(); });
-function csvCell(v) {
-  let s = String(v ?? "");
-  if (/^[=+@\-]/.test(s) && typeof v === "string") s = "'" + s;
-  return '"' + s.replaceAll('"', '""') + '"';
-}
 $("download").addEventListener("click", async () => {
-  if (!await session.check()) return;
-  if (!["complete", "partial"].includes(result?.status)) return;
-  const output = [
-    [
-      result.status === "partial"
-        ? "Arcus PARTIAL contribution analysis; missing contributions are blank"
-        : "Arcus holdings-based attribution estimate",
-    ],
-    ["Start", result.start, "End", result.end, "Currency", result.currency],
-    ["Portfolio", $("portfolio").value, "Benchmark", $("benchmark").value],
-    ["Values below are percent / percentage points"],
-    ['Holdings method', result.approximateHoldings ? 'Approximate dated holdings proxies' : 'Opening dated holdings'],
-    ...(result.holdingsWarnings || []).map(n => ['Holdings warning',n]),
-    ...(result.notes || []).map(n => ['Method / disclaimer', n]),
-    columns.map((c) => c[1]),
-    ...displayedRows().map((r) =>
-      columns.map(([key]) =>
-        key === "ticker" ? r.ticker : r[key] === null ? "" : r[key] * 100,
-      ),
-    ),
-  ];
-  const blob = new Blob(
-    ["\uFEFF" + output.map((r) => r.map(csvCell).join(",")).join("\r\n")],
-    { type: "text/csv;charset=utf-8" },
-  );
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `attribution-${result.start}-${result.end}.csv`;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  $('download').disabled = true;
+  try {
+    if (!await session.check()) return;
+    if (!["complete", "partial"].includes(result?.status)) return;
+    const current = result, generation = accessGeneration;
+    const selection = {portfolio:fundLabel(lastOptions.portfolio), benchmark:fundLabel(lastOptions.benchmark),
+      rows:displayedRows(), view:$('group').value === 'security' ? 'Holdings' : 'Sector'};
+    const {comparisonXlsx} = await import('./export.mjs?v=weighted-excel-20261014');
+    if (!await session.check() || generation !== accessGeneration || current !== result) return;
+    const blob = new Blob([comparisonXlsx(current, selection)],
+      {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url = URL.createObjectURL(blob), link = document.createElement('a');
+    link.href = url;
+    link.download = `arcus-comparison-${current.start}-${current.end}.xlsx`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) { message('Excel download unavailable. '+error.message); }
+  finally { $('download').disabled = false; }
 });
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.

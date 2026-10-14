@@ -1,5 +1,5 @@
 // Optional server-to-server access for Arcus. Standalone password access is unchanged.
-const ASSETS = new Set(['index.html','style.css','app.mjs','session.mjs','worker.mjs','engine.mjs','ranges.mjs','online.mjs','price-data.mjs']);
+const ASSETS = new Set(['index.html','style.css','app.mjs','session.mjs','worker.mjs','engine.mjs','ranges.mjs','online.mjs','price-data.mjs','export.mjs']);
 export async function bridgeAsset(request, env, now = Date.now()) {
   const url = new URL(request.url), path = url.pathname;
   const asset = path.slice('/arcus-bridge/'.length);
