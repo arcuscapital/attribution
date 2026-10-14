@@ -9,9 +9,15 @@ The initial publication contains 51 saved funds/accounts from the existing deskt
 No themes are introduced. Allocation dates remain the actual source dates; dates are never rewritten.
 The latest saved allocation is used across the requested historical period as an explicitly labelled
 research approximation. It is not a transaction-based reconstruction or historical-weight attribution.
-Shares use Yahoo vendor-adjusted closes at exact dates. Foreign shares require exact-date FX.
+Shares use Yahoo vendor-adjusted closes. For verified Tokyo cash-equity holidays in 2026–2027,
+the immediately preceding open session's local adjusted close is carried to the US valuation date.
+Every intervening day must be a verified closure; missing open-session prices are never bridged.
+The exact valuation-date FX is then applied, so a closed local market can still have an FX return.
+Other markets and unverified calendar years retain exact-date-only behaviour. Foreign shares require exact-date FX.
 The current exchange-local date is excluded conservatively, even after its session closes.
 Cash income, unmapped positions, missing prices and unsupported currencies stay blank.
+The disclosure distinguishes exchange-mapped securities missing prices/FX, explicitly private/unlisted
+holdings, cash, and unresolved listing identities. A failed price lookup is never evidence of private status.
 Portfolio account IDs are never mistaken for listed securities (e.g. PORTFOLIO:IBKR versus IBKR).
 
 ## Private storage and publication

@@ -329,6 +329,8 @@ $("controls").addEventListener("submit", async (e) => {
     });
     if (generation !== accessGeneration || !await session.check()) return;
     result = response;
+    result.notes=[...(result.notes || []),...(data.priceNotes || [])];
+    if(data.returnReasons)result.missing=(result.missing || []).map(p=>({...p,reason:data.returnReasons[p.fund+'|'+p.id]}));
     if (!["complete", "partial"].includes(result.status)) {
       $("empty").hidden = false;
       $("message").replaceChildren(
@@ -355,7 +357,7 @@ $("controls").addEventListener("submit", async (e) => {
             "Missing returns: " +
               missing
                 .slice(0, 15)
-                .map((m) => `${m.fund}: ${m.name}`)
+                .map((m) => `${m.fund}: ${m.name}${m.reason ? ' — '+m.reason : ''}`)
                 .join("; ") +
               (missing.length > 15 ? ` and ${missing.length - 15} more.` : ""),
           ),
@@ -395,10 +397,10 @@ $("controls").addEventListener("submit", async (e) => {
     if(onlineMode) $('price-status').textContent = 'Adjusted daily returns · '+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
     $('research-note').replaceChildren(
       text('strong','Research estimate — use for ideas, not exact accounting.'),
-      text('p',onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Each share uses date-matched adjusted closing prices; foreign shares use same-date FX. No live quotes or old endpoint prices are substituted. Missing prices, cash income and unsupported positions remain blank. Price dates are shown above; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
+      text('p',onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Shares use adjusted closing prices and same-date FX. Across verified Tokyo market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
       ...(result.holdingsWarnings || []).map(n => text('p',n)),
       ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. ${result.contributionMethod === 'average-weight-period' ? 'Your portfolio headline is the sum of available average weight × security return contributions. ETF headlines use observed fund returns; the contribution subtotal may differ.' : 'Missing returns stay blank; available headline figures are fund reference returns, not these subtotals.'} ${result.contributionMethod === 'arithmetic-daily' ? 'Both contribution columns use arithmetic daily sums because a complete reference series is unavailable.' : ''}`)] : []),
-      ...(result.missing?.length ? [text('p','Missing returns: '+[...new Set(result.missing.map(p=>p.name))].join('; '))] : []),
+      ...(result.missing?.length ? [text('p','Missing returns: '+[...new Set(result.missing.map(p=>p.name+(p.reason ? ' — '+p.reason : '')))].join('; '))] : []),
     );
     if (phone.matches) collapseSelection(options);
     scrollTo($('message').childElementCount ? 'message' : 'results');
@@ -632,7 +634,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs');
+  const {createOnlineSource}=await import('./online.mjs?v=listed-holidays-20261014');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;

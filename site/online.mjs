@@ -1,4 +1,12 @@
-import {completedPrices} from './price-data.mjs';
+import {completedPrices,valuationPrices} from './price-data.mjs?v=listed-holidays-20261014';
+// A failed price request is not evidence that a company is private.
+export function missingReturnReason(position) {
+  const asset=String(position.asset || '').trim();
+  if(/^cash(?:\b|$)/i.test(asset))return 'Cash income unavailable';
+  if(/^(private|unlisted)(?: equity| company)?$/i.test(asset))return 'Private/unlisted holding: no exchange return';
+  if(position.symbol)return 'Listed security: adjusted close or same-date FX unavailable';
+  return 'Listing unresolved: no verified exchange symbol (not classified as private)';
+}
 // Phone-independent data adapter; prices only for the two selected holdings lists.
 export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgress=()=>{}}={}) {
   let controller=new AbortController(), generation=0;
@@ -55,19 +63,23 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       for(const data of downloaded.values())if(!data.symbol.endsWith('=X') && data.currency!=='USD')fxCurrencies.add(data.currency==='GBp'?'GBP':data.currency);
       const supported=new Set('TWD KRW JPY HKD EUR GBP CHF CAD AUD CNY SEK NOK DKK ILS INR SGD NZD BRL MXN ZAR'.split(' '));
       await batch([...fxCurrencies].filter(c=>supported.has(c)).map(c=>c+'USD=X'));
-      const levels=[];
+      const levels=[],priceNotes=[];
+      const valuationDates=downloaded.get('SPY').points.map(([date])=>date);
       for(const [id,data] of downloaded) {
+        const aligned=valuationPrices(data,valuationDates);
+        if(aligned.carried.length)priceNotes.push(id+': local adjusted close carried across verified Tokyo market closures ('+aligned.carried.map(p=>p.date+' uses '+p.priceDate).join('; ')+'); FX still uses each valuation date.');
         if(data.currency==='USD' || id==='USDZAR=X') {
           for(const [date,value] of data.points)levels.push({id,date,value,currency:data.currency,basis:id.endsWith('=X')?'fx':'vendor-adjusted'});
         } else if(!id.endsWith('=X')) {
           const c=data.currency==='GBp'?'GBP':data.currency,fx=downloaded.get(c+'USD=X');
           if(fx?.currency!=='USD')continue;
           const map=new Map(fx.points);
-          for(const [date,value] of data.points)if(map.has(date))levels.push({id,date,value:value*(data.currency==='GBp'?.01:1)*map.get(date),currency:'USD',basis:'vendor-adjusted'});
+          for(const [date,value] of aligned.points)if(map.has(date))levels.push({id,date,value:value*(data.currency==='GBp'?.01:1)*map.get(date),currency:'USD',basis:'vendor-adjusted'});
         }
       }
       if(run!==generation)throw Error('Data request cancelled');
-      return {manifest,snapshots,levels,priceFailures:failures,priceCheckedAt:new Date().toISOString()};
+      const returnReasons=Object.fromEntries(snapshots.flatMap(s=>s.positions.map(p=>[s.fund+'|'+p.id,missingReturnReason(p)])));
+      return {manifest,snapshots,levels,returnReasons,priceNotes,priceFailures:failures,priceCheckedAt:new Date().toISOString()};
     }
   };
 }
