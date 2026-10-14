@@ -74,37 +74,42 @@ const styles = `<?xml version="1.0" encoding="UTF-8"?>
 
 export function comparisonXlsx(result, {portfolio, benchmark, rows = result.rows, view = 'Holdings'} = {}) {
   if (!['complete', 'partial'].includes(result?.status) || !rows?.length) throw Error('Compare funds before downloading.');
-  const first = 10, last = first + rows.length - 1;
+  const first = 4, last = first + rows.length - 1;
   const headers = ['Security / sector',`Avg weight · ${portfolio}`,`Avg weight · ${benchmark}`,
     'Active weight','Security return',`Contribution · ${portfolio}`,`Contribution · ${benchmark}`,'Contribution difference'];
   const sheetRows = [];
   const add = (n, values, style = 0, height = 23) => sheetRows.push(`<row r="${n}" ht="${height}" customHeight="1">` +
     values.map((value, i) => cell(col(i) + n, value, style)).join('') + '</row>');
-  add(2, ['Arcus · Portfolio comparison'], 3, 30);
-  add(3, ['From',result.start,'Through',result.end,'Currency',result.currency,'View',view]);
-  add(4, ['Portfolio',portfolio,'Benchmark',benchmark], 4);
+  add(1, ['Arcus · Portfolio comparison'], 3, 30);
+  add(2, ['From',result.start,'Through',result.end,'Currency',result.currency,'View',view]);
+  add(3, ['Portfolio',portfolio,'Benchmark',benchmark], 4);
   const headlineFormula = (side, value) => {
     if (result['returnMethod' + side] !== 'weighted-estimate' || view !== 'Holdings') return undefined;
     const contributions = side === 'A' ? 'F' : 'G';
     // Sum the individual weight × return formulas, excluding unavailable cells.
-    return Number.isFinite(value) ? `SUM(${contributions}${first}:${contributions}${last})` : undefined;
+    return Number.isFinite(value) ? `SUM(Analysis!${contributions}${first}:${contributions}${last})` : undefined;
   };
-  sheetRows.push('<row r="5" ht="26" customHeight="1">' +
-    cell('A5',portfolio,4) + cell('B5',result.returnA,7,headlineFormula('A',result.returnA)) +
-    cell('C5',benchmark,4) + cell('D5',result.returnB,7,headlineFormula('B',result.returnB)) +
-    cell('E5','Difference',4) + cell('F5',result.activeReturn,7,'B5-D5') + '</row>');
+  sheetRows.push('<row r="4" ht="26" customHeight="1">' +
+    cell('A4',portfolio,4) + cell('B4',result.returnA,7,headlineFormula('A',result.returnA)) +
+    cell('C4',benchmark,4) + cell('D4',result.returnB,7,headlineFormula('B',result.returnB)) +
+    cell('E4','Difference',4) + cell('F4',result.activeReturn,7,'B4-D4') + '</row>');
   const basis = side => result['returnMethod' + side] === 'weighted-estimate'
     ? 'Weighted estimate (available returns)' : result['returnMethod' + side] === 'reference' || result.status === 'partial'
       ? 'Fund reference return' : 'Holdings estimate';
-  add(6,['Return basis',basis('A'),null,basis('B')]);
-  if (result.coverage) sheetRows.push('<row r="7" ht="23" customHeight="1">' +
-    cell('A7','Coverage',4) + cell('B7',result.coverage.portfolio,1) +
-    cell('C7','Coverage',4) + cell('D7',result.coverage.benchmark,1) + '</row>');
-  add(9,headers,2,48);
+  add(5,['Return basis',basis('A'),null,basis('B')]);
+  if (result.coverage) sheetRows.push('<row r="6" ht="23" customHeight="1">' +
+    cell('A6','Coverage',4) + cell('B6',result.coverage.portfolio,1) +
+    cell('C6','Coverage',4) + cell('D6',result.coverage.benchmark,1) + '</row>');
+  const analysisRows = ['<row r="1" ht="26" customHeight="1">' +
+    cell('A1',portfolio,4) + cell('B1',result.returnA,7,'Summary!B4') +
+    cell('C1',benchmark,4) + cell('D1',result.returnB,7,'Summary!D4') +
+    cell('E1','Difference',4) + cell('F1',result.activeReturn,7,'Summary!F4') +
+    cell('G1','Currency',4) + cell('H1',result.currency) + '</row>',
+    '<row r="3" ht="48" customHeight="1">'+headers.map((value,i)=>cell(col(i)+'3',value,2)).join('')+'</row>'];
   rows.forEach((row, i) => {
     const n = first + i, numericStyle = i % 2 ? 5 : 1, textStyle = i % 2 ? 6 : 0;
     const values = [row.ticker,row.weightA,row.weightB,row.activeWeight,row.securityReturn,row.ctrA,row.ctrB,row.activeCtr];
-    sheetRows.push(`<row r="${n}" ht="23" customHeight="1">` + values.map((value,j) => {
+    analysisRows.push(`<row r="${n}" ht="23" customHeight="1">` + values.map((value,j) => {
       const formula = j === 3 ? `B${n}-C${n}` : j === 7 ? `F${n}-G${n}`
         : result.contributionMethod === 'average-weight-period' && view === 'Holdings' && (j === 5 || j === 6)
           ? (values[j === 5 ? 1 : 2] === 0 ? '0' : `${j === 5 ? 'B' : 'C'}${n}*E${n}`) : undefined;
@@ -113,26 +118,30 @@ export function comparisonXlsx(result, {portfolio, benchmark, rows = result.rows
   });
   // Sum available contributions without turning an entirely missing column into zero.
   const totals = [null,null,null,null,null,'ctrA','ctrB','activeCtr'];
-  sheetRows.push(`<row r="${last+2}" ht="26" customHeight="1">` + cell('A'+(last+2),'Total',8) +
+  analysisRows.push(`<row r="${last+2}" ht="26" customHeight="1">` + cell('A'+(last+2),'Total',8) +
     totals.map((key,j) => {
       if (!key) return '';
       const valid=rows.map(row=>row[key]).filter(Number.isFinite);
       return cell(col(j)+(last+2), valid.length?valid.reduce((a,b)=>a+b,0):null,7,`SUM(${col(j)}${first}:${col(j)}${last})`);
     }).join('') + '</row>');
-  const sheet = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="${ns}">
+  const sheet = (contents, heights, widths, extras, pane='') => `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="${ns}">
 <sheetPr><tabColor rgb="FF1764A0"/><pageSetUpPr fitToPage="1"/></sheetPr>
-<dimension ref="A1:H${last+2}"/><sheetViews><sheetView workbookViewId="0" showGridLines="0" zoomScale="90" zoomScaleNormal="100">
-<selection activeCell="A1" sqref="A1"/></sheetView></sheetViews>
-<sheetFormatPr defaultRowHeight="23"/><cols>${[view==='Sector'?24:12,18,18,14,16,18,18,19].map((width,i)=>`<col min="${i+1}" max="${i+1}" width="${width}" customWidth="1"/>`).join('')}</cols>
-<sheetData>${sheetRows.join('')}</sheetData><autoFilter ref="A9:H${last}"/>
-<mergeCells count="3"><mergeCell ref="A2:H2"/><mergeCell ref="B6:C6"/><mergeCell ref="D6:F6"/></mergeCells>
+<dimension ref="A1:H${heights}"/><sheetViews><sheetView workbookViewId="0" showGridLines="0" zoomScale="90" zoomScaleNormal="100">
+${pane || '<selection activeCell="A1" sqref="A1"/>'}</sheetView></sheetViews>
+<sheetFormatPr defaultRowHeight="23"/><cols>${widths.map((width,i)=>`<col min="${i+1}" max="${i+1}" width="${width}" customWidth="1"/>`).join('')}</cols>
+<sheetData>${contents.join('')}</sheetData>${extras}
 <pageMargins left="0.25" right="0.25" top="0.4" bottom="0.4" header="0.2" footer="0.2"/>
 <pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/></worksheet>`;
+  const summary = sheet(sheetRows,7,[12,28,18,20,18,18,10,16],
+    '<mergeCells count="3"><mergeCell ref="A1:H1"/><mergeCell ref="B5:C5"/><mergeCell ref="D5:F5"/></mergeCells>');
+  const analysis = sheet(analysisRows,last+2,[view==='Sector'?24:12,18,18,14,16,18,18,19],
+    `<autoFilter ref="A3:H${last}"/>`,
+    '<pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A4" sqref="A4"/>');
   return zip([
-    ['[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`],
+    ['[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`],
     ['_rels/.rels',`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
-    ['xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="${ns}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="Comparison" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`],
-    ['xl/_rels/workbook.xml.rels',`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
-    ['xl/styles.xml',styles],['xl/worksheets/sheet1.xml',sheet],
+    ['xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="${ns}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="Summary" sheetId="1" r:id="rId1"/><sheet name="Analysis" sheetId="2" r:id="rId2"/></sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`],
+    ['xl/_rels/workbook.xml.rels',`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ['xl/styles.xml',styles],['xl/worksheets/sheet1.xml',summary],['xl/worksheets/sheet2.xml',analysis],
   ]);
 }
