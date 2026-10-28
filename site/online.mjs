@@ -1,4 +1,4 @@
-import {normalizeArcusPacket,resolveArchiveListings,isNonListed} from './arcus-source.mjs?v=listed-focus-final-20261028';
+import {normalizeArcusPacket,resolveArchiveListings,isNonListed} from './arcus-source.mjs?v=listed-focus-types-20261028';
 import {completedPrices,valuationPrices} from './price-data.mjs?v=missing-recovery-20261028';
 // A failed price request is not evidence that a company is private.
 export function missingReturnReason(position) {

@@ -428,7 +428,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=listed-focus-final-20261028", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=listed-focus-types-20261028", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -754,7 +754,7 @@ $("download").addEventListener("click", async () => {
     const current = result, generation = accessGeneration;
     const selection = {portfolio:fundLabel(lastOptions.portfolio), benchmark:fundLabel(lastOptions.benchmark),
       rows:displayedRows(), view:$('group').value === 'security' ? 'Holdings' : 'Sector'};
-    const {comparisonXlsx} = await import('./export.mjs?v=listed-focus-final-20261028');
+    const {comparisonXlsx} = await import('./export.mjs?v=listed-focus-types-20261028');
     if (!await session.check() || generation !== accessGeneration || current !== result) return;
     const blob = new Blob([comparisonXlsx(current, selection)],
       {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -771,7 +771,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=listed-focus-final-20261028');
+  const {createOnlineSource}=await import('./online.mjs?v=listed-focus-types-20261028');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;

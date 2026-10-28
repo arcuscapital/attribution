@@ -11,6 +11,12 @@ test('archive listing recovery preserves current dates and weights and excludes 
  assert.equal(snapshot.positions[0].symbol,'ABC');assert.equal(snapshot.positions[0].weight,.7);assert.equal(snapshot.asOf,'2026-10-27');assert(!snapshot.positions[1].symbol);assert(!snapshot.positions[2].symbol);
  for(const name of ['S&P500 EMINI FUT Dec26','TRS: Visa Inc 2027','ABIOMED INC-CVR','OPENAI SERIES C PREF EQ Prvt'])assert(isNonListed({name}));
  assert(!isNonListed({name:'Willis Towers Watson PLC',asset:'Equity'}));
+ assert(!isNonListed({name:'Unresolved ordinary share',asset:'Private/Unmapped'}));
+ assert(isNonListed({name:'KALSHI INC.',identity:'PPKALSHIC'}));
+ assert(!isNonListed({name:'Different company',identity:'PPKALSHIC'}));
+ assert(isNonListed({name:'GOLDMAN FS TRSY OBLIG INST 468'}));
+ assert(isNonListed({name:'BRERA HOLDINGS PLC WTS'}));
+ assert(isNonListed({name:'US Dollar',ticker:'$USD'}));
  const r=allocationSnapshot('ETF',{asOf:'2026-10-27',positions:[{ticker:'OLD',name:'Old Inc',weight:100}]},[{id:'old',rawSymbol:'OLD',name:'Old Inc (acquired for cash)',sourceName:'Old Inc',corporateAction:{kind:'cash-acquisition'}}]);
  assert(isNonListed(r.positions[0]));assert.equal(r.positions[0].symbol,null);
 });

@@ -29,14 +29,18 @@ const portfolios={IBKR:'ibkr',MARLOW:'marlow',EASYAI:'easyai',EASYGE:'easyge'};
 const validDate=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'');
 const json=async response=>{if(!response.ok)throw Error('Arcus source unavailable');return response.json();};
 const cash=p=>/^(cash|currency)$/i.test(p.asset||'') || /^(USD|TWD|EUR|GBP|JPY|ZAR) CASH$/i.test(p.name||'') ||
-  (/^\$?USD$/.test(p.ticker||'') && /^US Dollar$/i.test(p.name||''));
+  /^(?:US DOLLAR|SWISS FRANC|EURO|KOREAN WON|JAPANESE YEN|CANADIAN DOLLAR|BRITISH STERLING POUND|TURKISH LIRA|ISRAELI SHEKEL|CHINESE YUAN RENMINBI|OTHER PAYABLE & RECEIVABLES|Receivables\/Payables)$/i.test(p.name||'');
 function asset(p){
   const description=(p.asset||'')+' '+(p.name||'');
   if(cash(p))return 'Cash';
-  if(/money market|cash collateral|short.term reserves|market liquidity|\bMKTLIQ\b|\bSLBBH1142\b/i.test(description+' '+p.ticker))return 'Money Market';
-  if(/\bprvt\b|\bprivate\b|\bunlisted\b/i.test(description))return 'Private';
+  if(/money market|cash collateral|short.term reserves|market liquidity|\bMKTLIQ\b|\bSLBBH1142\b/i.test(description+' '+p.ticker) || /^(?:GOLDMAN FS TRSY OBLIG INST 468|DREYFUS TRSY OBLIG CASH MGMT CL INS)$/i.test(p.name||''))return 'Money Market';
+  // ARK issuer identities, verified against its Q3 2026 private-company disclosure.
+  const identity=p.identity||String(p.id||'').split(':').at(-1);
+  const knownPrivate=(identity==='PPOPENAIC'&&/^OPENAI GROUP PBC SERIES C$/i.test(p.name||'')) ||
+    (identity==='PPKALSHIC'&&/^KALSHI INC\.?$/i.test(p.name||''));
+  if(knownPrivate || /^(?:private|unlisted)(?: equity| company)?$/i.test(p.asset||'') || /\bprvt\b|\bprivate\b|\bunlisted\b/i.test(p.name||''))return 'Private';
   if(p.corporateAction || /\bCVR\b|acquired for cash/i.test(description))return 'Corporate action';
-  if(/\bTRS\s*:|\b(?:futures?|swaps?|options?|warrants?|derivatives?)\b|\bEMINI\b/i.test(description))return 'Derivative';
+  if(/^FX$/i.test(p.asset||'') || /\bTRS\s*:|\b(?:futures?|swaps?|options?|warrants?|derivatives?)\b|\bEMINI\b|\bWTS$/i.test(description))return 'Derivative';
   return p.asset||'Equity';
 }
 export function isNonListed(p){return ['Cash','Private','Money Market','Corporate action','Derivative'].includes(asset(p));}
