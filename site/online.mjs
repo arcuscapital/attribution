@@ -64,12 +64,12 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
     async load(manifest,ids,start,end,currency) {
       const run=generation, baseline=new Date(Date.parse(start)-14*86400000).toISOString().slice(0,10);
       if(!start || !end || start>end || Date.parse(end)-Date.parse(start)>1096*86400000)throw Error('Choose a period of at most three years.');
-      const sourceNotes=[],arcusReturns={};
+      const sourceNotes=[],arcusReturns={},arcusPackets=new Map();
       const arcus=manifest.holdingsSource==='arcus';
       const snapshots=await Promise.all(ids.map(async fund=>{
         if(arcus) {
           const packet=normalizeArcusPacket(await get('arcus-source?'+new URLSearchParams({fund})));
-          for(const [symbol,values] of Object.entries(packet.returns||{}))arcusReturns[symbol]={...(arcusReturns[symbol]||{}),...values};
+          arcusPackets.set(fund,packet);
           if(packet.warning)sourceNotes.push(fund+': '+packet.warning);
           if(packet.snapshot)return packet.snapshot;
           sourceNotes.push(fund+': archive allocation fallback; current Arcus constituents dated '+packet.arcusHoldingsAsOf+'.');
@@ -78,6 +78,10 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
         if(!holdings.has(key))holdings.set(key,await get('holdings?'+new URLSearchParams({fund,version:manifest.version})));
         return holdings.get(key);
       }));
+      // A shared listing must not change when the two requests finish in a
+      // different order. Prefer the selected portfolio's dated facts on overlap.
+      for(const fund of [...ids].reverse())for(const [symbol,values] of Object.entries(arcusPackets.get(fund)?.returns||{}))
+        arcusReturns[symbol]={...(arcusReturns[symbol]||{}),...values};
       const calendar=arcus ? manifest.valuationDates||[] : [];
       const useCalendar=calendar.some(d=>d<start)&&calendar.some(d=>d>=start&&d<=end);
       const reused=arcusReturnLevels(arcusReturns,calendar,start,end);

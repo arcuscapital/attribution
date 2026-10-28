@@ -13,6 +13,16 @@ test('Arcus completed returns compound without filling missing dates or mixing r
  const r=arcusReturnLevels({A:{'2026-10-26':10,'2026-10-27':-10},B:{'2026-10-27':2}},['2026-10-23','2026-10-26','2026-10-27'],'2026-10-26','2026-10-27');
  assert.deepEqual([...r.used],['A']);assert.ok(Math.abs(r.levels.at(-1).value-99)<1e-10);assert.equal(r.levels[0].date,'2026-10-23');
 });
+test('overlapping source returns are independent of request completion order',async()=>{
+ async function run(slow){
+  const source=createOnlineSource({fetcher:async path=>{
+   const fund=new URL(path,'https://test').searchParams.get('fund');if(fund===slow)await new Promise(r=>setTimeout(r,10));
+   return Response.json({snapshot:{fund,asOf:'2026-10-26',source:'Arcus',positions:[{id:'ABC',symbol:'ABC',name:'ABC',weight:1}]},returns:{ABC:{'2026-10-27':fund==='P'?3:2},P:{'2026-10-27':1},B:{'2026-10-27':1}}});
+  }});
+  const r=await source.load({holdingsSource:'arcus',valuationDates:['2026-10-26','2026-10-27']},['P','B'],'2026-10-27','2026-10-27','USD');return r.levels.find(l=>l.id==='ABC'&&l.date==='2026-10-27').value;
+ }
+ assert.equal(await run('P'),103);assert.equal(await run('B'),103);
+});
 test('current Arcus snapshots and returns replace archive without any vendor request when coverage exists',async()=>{
  let requests=[];
  const source=createOnlineSource({fetcher:async path=>{
