@@ -74,6 +74,7 @@ const styles = `<?xml version="1.0" encoding="UTF-8"?>
 
 export function comparisonXlsx(result, {portfolio, benchmark, rows = result.rows, view = 'Holdings'} = {}) {
   if (!['complete', 'partial'].includes(result?.status) || !rows?.length) throw Error('Compare funds before downloading.');
+  rows=[...rows].sort((a,b)=>Number(!!a.nonListed)-Number(!!b.nonListed));
   const first = 4, last = first + rows.length - 1;
   const headers = ['Security / sector',`Avg weight · ${portfolio}`,`Avg weight · ${benchmark}`,
     'Security return','Active weight',`Contribution · ${portfolio}`,`Contribution · ${benchmark}`,'Contribution difference'];

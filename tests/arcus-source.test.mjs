@@ -4,6 +4,17 @@ import {createOnlineSource,arcusReturnLevels} from '../site/online.mjs';
 import {compare} from '../site/engine.mjs';
 import {normalizeArcusPacket} from '../site/arcus-source.mjs';
 
+test('archive listing recovery preserves current dates and weights and excludes non-listed positions',async()=>{
+ const {resolveArchiveListings,isNonListed,allocationSnapshot}=await import('../site/arcus-source.mjs');
+ const snapshot={asOf:'2026-10-27',positions:[{id:'new',ticker:'ABC',name:'ABC Inc',weight:.7},{id:'wrong',ticker:'ABC',name:'Other business',weight:.1},{id:'private',ticker:'ABC',name:'ABC Inc Prvt',asset:'Private',weight:.2}]};
+ resolveArchiveListings(snapshot,{asOf:'2026-10-01',positions:[{id:'ABC',symbol:'ABC',ticker:'ABC',name:'ABC Corporation',weight:1}]});
+ assert.equal(snapshot.positions[0].symbol,'ABC');assert.equal(snapshot.positions[0].weight,.7);assert.equal(snapshot.asOf,'2026-10-27');assert(!snapshot.positions[1].symbol);assert(!snapshot.positions[2].symbol);
+ for(const name of ['S&P500 EMINI FUT Dec26','TRS: Visa Inc 2027','ABIOMED INC-CVR','OPENAI SERIES C PREF EQ Prvt'])assert(isNonListed({name}));
+ assert(!isNonListed({name:'Willis Towers Watson PLC',asset:'Equity'}));
+ const r=allocationSnapshot('ETF',{asOf:'2026-10-27',positions:[{ticker:'OLD',name:'Old Inc',weight:100}]},[{id:'old',rawSymbol:'OLD',name:'Old Inc (acquired for cash)',sourceName:'Old Inc',corporateAction:{kind:'cash-acquisition'}}]);
+ assert(isNonListed(r.positions[0]));assert.equal(r.positions[0].symbol,null);
+});
+
 test('browser projects raw D1 packets, preserves duplicate weights and rejects stale seeds',()=>{
  const packet={kind:'etf',fund:'BAI',source:{fund:{asOf:'2026-10-27',positions:[{id:'abc',name:'ABC Inc',rawSymbol:'ABC',candidates:['ABC']}]},index:[{id:'abc',symbol:'ABC',status:'ready',data:{oneDOn:'2026-10-27',dailyReturns:{'2026-10-27':1}}}]},seed:{asOf:'2026-10-27',positions:[{ticker:'ABC',name:'ABC Inc',asset:'Equity',weight:60},{ticker:'ABC',name:'ABC Inc',asset:'Equity',weight:40}]},main:{returns:{ABC:{oneDOn:'2026-10-27',dailyReturns:{'2026-10-27':2}}},companies:[]}};
  const r=normalizeArcusPacket(packet);assert.deepEqual(r.snapshot.positions.map(p=>[p.id,p.weight]),[['ABC',.6],['ABC',.4]]);assert.equal(r.returns.ABC['2026-10-27'],2);

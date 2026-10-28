@@ -105,17 +105,21 @@ function carino(a, b) {
     : (Math.log1p(a) - Math.log1p(b)) / (a - b);
 }
 export function compare(input, options) {
-  if(options.assumeMissingZero) {
-    const original=compare(input,{...options,assumeMissingZero:false});
+  if(!options.assumptionsApplied && (options.assumeMissingZero || input.nonListedIds?.length)) {
+    const nonListed=new Set(input.nonListedIds||[]);
+    const original=compare({...input,levels:input.levels.filter(l=>!nonListed.has(l.id))},{...options,assumptionsApplied:true,assumeMissingZero:false,allowPartialReturns:true});
     if(!['complete','partial'].includes(original.status))return original;
-    const assumed=original.rows.filter(row=>row.securityReturn===null);
+    const shouldAssume=row=>nonListed.has(row.id)||(options.assumeMissingZero&&row.securityReturn===null);
+    const assumed=original.rows.filter(shouldAssume);
     if(!assumed.length)return original;
-    const rows=original.rows.map(row=>row.securityReturn===null
-      ? {...row,securityReturn:0,ctrA:0,ctrB:0,assumedZero:true}:row);
+    const rows=original.rows.map(row=>shouldAssume(row)
+      ? {...row,securityReturn:0,ctrA:0,ctrB:0,assumedZero:true,nonListed:nonListed.has(row.id)}:row)
+      .sort((a,b)=>Number(!!a.nonListed)-Number(!!b.nonListed));
     const estimate=averageWeightReturns({...original,rows},options.portfolio,options.benchmark);
-    return {...estimate,status:'partial',coverage:original.coverage,missing:original.missing,
+    return {...estimate,status:'partial',coverage:original.coverage,missing:original.missing.filter(m=>!nonListed.has(m.id)),
       assumedReturns:assumed.map(row=>({id:row.id,name:row.name})),sectors:[],
-      notes:[...estimate.notes,'USER ASSUMPTION: missing security period returns are 0% in the selected reporting currency. These are not observed returns or verified holidays. All contributions use average weight × period return; measured coverage remains unchanged. Sector attribution is withheld.']};
+      notes:[...estimate.notes.filter(n=>!n.includes('Missing returns are never treated as zero.')),
+        'USER ASSUMPTION: '+(options.assumeMissingZero?'missing security returns and non-listed positions':'private holdings, cash, money-market funds, derivatives and corporate-action positions')+' are assigned 0% in the selected reporting currency. These are not observed returns or verified holidays. Non-listed positions are shown last. All contributions use average weight × period return; measured coverage excludes assumptions. Sector attribution is withheld.']};
   }
   const data = validateDataset(input),
     { portfolio, benchmark, start, end, currency = "USD" } = options;

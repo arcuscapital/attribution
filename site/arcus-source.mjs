@@ -29,7 +29,16 @@ const portfolios={IBKR:'ibkr',MARLOW:'marlow',EASYAI:'easyai',EASYGE:'easyge'};
 const validDate=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'');
 const json=async response=>{if(!response.ok)throw Error('Arcus source unavailable');return response.json();};
 const cash=p=>/^(cash|currency)$/i.test(p.asset||'') || /^(USD|TWD|EUR|GBP|JPY|ZAR) CASH$/i.test(p.name||'');
-function asset(p){return cash(p)?'Cash':/money market/i.test(p.asset||'')?'Money Market':/\bprvt\b|\bprivate\b/i.test((p.asset||'')+' '+p.name)?'Private':p.asset||'Equity';}
+function asset(p){
+  const description=(p.asset||'')+' '+(p.name||'');
+  if(cash(p))return 'Cash';
+  if(/money market|cash collateral|short.term reserves|market liquidity|\bMKTLIQ\b|\bSLBBH1142\b/i.test(description+' '+p.ticker))return 'Money Market';
+  if(/\bprvt\b|\bprivate\b|\bunlisted\b/i.test(description))return 'Private';
+  if(p.corporateAction || /\bCVR\b|acquired for cash/i.test(description))return 'Corporate action';
+  if(/\bTRS\s*:|\b(?:futures?|swaps?|options?|warrants?|derivatives?)\b|\bEMINI\b/i.test(description))return 'Derivative';
+  return p.asset||'Equity';
+}
+export function isNonListed(p){return ['Cash','Private','Money Market','Corporate action','Derivative'].includes(asset(p));}
 export function allocationSnapshot(fund,allocation,members=[],index=[]) {
   if(!validDate(allocation?.asOf) || !allocation.positions?.length)throw Error('Arcus source weights unavailable');
   // Index once: a large ETF must not scan every constituent for every weight.
@@ -40,10 +49,10 @@ export function allocationSnapshot(fund,allocation,members=[],index=[]) {
   const seen=new Set();
   const positions=allocation.positions.map((p,i)=>{
     if(!Number.isFinite(p.weight))throw Error('Invalid source allocation');
-    const matches=(p.ticker ? byTicker.get(p.ticker)||[] : byName.get(p.name)||[]).filter(m=>p.name===m.name || nameMatches(p.name,m.name));
+    const matches=(p.ticker ? byTicker.get(p.ticker)||[] : byName.get(p.name)||[]).filter(m=>p.name===m.name || nameMatches(p.name,m.sourceName||m.name));
     const refs=matches.length===1 ? (byId.get(matches[0].id)||[]).filter(r=>r.status==='ready' &&
       matches[0].candidates?.includes(r.symbol)) : [];
-    const kind=asset(p),symbol=kind==='Equity' || !['Cash','Private','Money Market'].includes(kind) ? (refs.length===1?refs[0].symbol:null) : null;
+    const kind=asset({...p,corporateAction:matches[0]?.corporateAction}),symbol=!isNonListed({asset:kind}) ? (refs.length===1?refs[0].symbol:null) : null;
     let id=symbol||fund+':'+(p.identity||p.ticker||i);
     // Repeated verified listings share returns and are aggregated by the engine.
     if(!symbol && seen.has(id))id+=':'+i;seen.add(id);
@@ -72,8 +81,20 @@ export function resolveKnownListings(snapshot,companies) {
   const known=new Map(companies.map(c=>[c.ticker,c]));
   for(const p of snapshot.positions) {
     const c=known.get(p.ticker);
-    if(!p.symbol && !['Cash','Private','Money Market'].includes(p.asset) && c && nameMatches(p.name,c.name))
+    if(!p.symbol && !isNonListed(p) && c && nameMatches(p.name,c.name))
       Object.assign(p,{id:c.ticker,symbol:c.ticker});
+  }
+  return snapshot;
+}
+
+// Reuse only a previously verified identity, never the archive's weight or date.
+export function resolveArchiveListings(snapshot,archive) {
+  for(const p of snapshot.positions) {
+    if(p.symbol || isNonListed(p) || !p.ticker)continue;
+    const matches=(archive?.positions||[]).filter(a=>a.symbol && !isNonListed(a) &&
+      (p.ticker===a.ticker || p.ticker===a.symbol) && nameMatches(p.name,a.name));
+    const symbols=[...new Set(matches.map(a=>a.symbol))];
+    if(symbols.length===1)Object.assign(p,{id:symbols[0],symbol:symbols[0]});
   }
   return snapshot;
 }

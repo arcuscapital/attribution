@@ -6,6 +6,18 @@ import {createOnlineSource} from '../site/online.mjs';
 import {dataResponse} from '../cloudflare/data.mjs';
 import {comparisonXlsx} from '../site/export.mjs';
 
+test('non-listed positions default to labelled zero at the bottom while listed gaps remain visible',()=>{
+ const positions=[{id:'PRIVATE',ticker:'PRIVATE',name:'Private',weight:.1},{id:'KNOWN',ticker:'KNOWN',name:'Known',weight:.8},{id:'MISSING',ticker:'MISSING',name:'Listed gap',weight:.1}];
+ const data={manifest:{schemaVersion:1},nonListedIds:['PRIVATE'],snapshots:['PORTFOLIO:A','ETF'].map(fund=>({fund,asOf:'2026-10-08',positions})),levels:['SPY','ETF','KNOWN'].flatMap(id=>[{id,date:'2026-10-08',value:100,currency:'USD',basis:'vendor-adjusted'},{id,date:'2026-10-09',value:110,currency:'USD',basis:'vendor-adjusted'}])};
+ const options={portfolio:'PORTFOLIO:A',benchmark:'ETF',start:'2026-10-09',end:'2026-10-09',currency:'USD',allowApproximateHoldings:true,allowPartialReturns:true};
+ const result=compare(data,options);
+ assert.equal(result.rows.at(-1).id,'PRIVATE');assert.equal(result.rows.at(-1).securityReturn,0);assert(result.rows.at(-1).assumedZero);
+ assert.equal(result.rows.find(r=>r.id==='MISSING').securityReturn,null);assert(result.missing.every(m=>m.id==='MISSING'));
+ assert.equal(result.coverage.portfolio,.8);assert.ok(Math.abs(result.returnA-.08)<1e-12);
+ const xml=new TextDecoder().decode(comparisonXlsx(result,{...options,rows:[...result.rows].reverse()}));
+ assert(xml.indexOf('MISSING</t>')<xml.indexOf('PRIVATE [assumed 0%]</t>'));assert.match(xml,/showGridLines="1"/);
+});
+
 test('Taiwan verified holiday carries only the previous open close; no guessed open-day or year values',()=>{
  const d={symbol:'3037.TW',currency:'TWD',timeZone:'Asia/Taipei',points:[['2026-10-23',100],['2026-10-27',110]]};
  assert.deepEqual(valuationPrices(d,['2026-10-26']).carried,[{date:'2026-10-26',priceDate:'2026-10-23'}]);

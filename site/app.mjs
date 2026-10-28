@@ -428,7 +428,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=arcus-sql-20261028", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=listed-focus-20261028", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -493,7 +493,7 @@ $("controls").addEventListener("submit", async (e) => {
     if (result.status === "partial") {
       const missingNames = [...new Set(result.missing.map((m) => m.name))];
       message(
-        `Research estimate. Missing figures stay blank. Return coverage (absolute source weight): ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. ${missingNames.length} holdings have missing returns. ${result.contributionMethod === 'average-weight-period' ? 'Portfolio returns sum average weight × security return for available holdings.' : result.contributionMethod === 'arithmetic-daily' ? 'Contributions sum daily estimates; they are not compounded returns.' : 'Contributions use reference-return linking.'}`,
+        `Research estimate. Measured return coverage (absolute source weight): ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. ${missingNames.length ? missingNames.length+' listed/unresolved holdings have missing returns.' : 'No listed-share return gaps.'} ${result.assumedReturns?.length ? result.assumedReturns.length+' positions use a labelled 0% assumption. ' : ''}${result.contributionMethod === 'average-weight-period' ? 'Portfolio returns sum average weight × security return.' : result.contributionMethod === 'arithmetic-daily' ? 'Contributions sum daily estimates; they are not compounded returns.' : 'Contributions use reference-return linking.'}`,
       );
       if(result.assumedReturns?.length)message(`Research estimate: ${result.assumedReturns.length} missing security returns assumed 0% in ${options.currency}. These are assumptions, not verified holidays. Measured return coverage: ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. Assumptions are marked in the table and Excel.`);
     }
@@ -525,6 +525,7 @@ $("controls").addEventListener("submit", async (e) => {
       text('p',data.arcusSource ? 'Current holdings and completed USD daily returns come from Arcus. ETF weights come from its issuer sources, retaining cash and private holdings. Where Arcus does not hold the requested dated return history, adjusted-price history and same-date FX fill the gap. Current allocations are applied to the selected period; historical trades are not reconstructed. Any archive allocation fallback is disclosed below.' : onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Shares use adjusted closing prices and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
       ...(result.holdingsWarnings || []).map(n => text('p',n)),
       ...(data.sourceWarnings || []).map(n=>text('p',n)),
+      ...(result.assumedReturns?.length ? [text('p','Private holdings, cash, money-market funds, derivatives and corporate-action positions are shown at the bottom with an assumed 0% return. They are excluded from measured coverage. Missing listed-share returns remain blank unless you select the additional 0% assumption.')] : []),
       ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. ${result.contributionMethod === 'average-weight-period' ? 'Your portfolio headline is the sum of available average weight × security return contributions. ETF headlines use observed fund returns; the contribution subtotal may differ.' : 'Missing returns stay blank; available headline figures are fund reference returns, not these subtotals.'} ${result.contributionMethod === 'arithmetic-daily' ? 'Both contribution columns use arithmetic daily sums because a complete reference series is unavailable.' : ''}`)] : []),
       ...(result.missing?.length ? [text('p','Missing returns: '+[...new Set(result.missing.map(p=>p.name+(p.reason ? ' — '+p.reason : '')))].join('; '))] : []),
     );
@@ -634,7 +635,7 @@ function renderRows() {
   $("columns").replaceChildren(tr);
   const rows = [...displayedRows()].sort(
     (a, b) =>
-      sortDirection *
+      Number(!!a.nonListed)-Number(!!b.nonListed) || sortDirection *
       (typeof a[sortKey] === "string"
         ? a[sortKey].localeCompare(b[sortKey])
         : (a[sortKey] ?? -Infinity) - (b[sortKey] ?? -Infinity)),
@@ -754,7 +755,7 @@ $("download").addEventListener("click", async () => {
     const current = result, generation = accessGeneration;
     const selection = {portfolio:fundLabel(lastOptions.portfolio), benchmark:fundLabel(lastOptions.benchmark),
       rows:displayedRows(), view:$('group').value === 'security' ? 'Holdings' : 'Sector'};
-    const {comparisonXlsx} = await import('./export.mjs?v=themes-readability-20261028');
+    const {comparisonXlsx} = await import('./export.mjs?v=listed-focus-20261028');
     if (!await session.check() || generation !== accessGeneration || current !== result) return;
     const blob = new Blob([comparisonXlsx(current, selection)],
       {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -771,7 +772,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=arcus-sql-20261028');
+  const {createOnlineSource}=await import('./online.mjs?v=listed-focus-20261028');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;

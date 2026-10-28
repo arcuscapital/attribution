@@ -1,4 +1,4 @@
-import {normalizeArcusPacket} from './arcus-source.mjs?v=arcus-sql-20261028';
+import {normalizeArcusPacket,resolveArchiveListings,isNonListed} from './arcus-source.mjs?v=listed-focus-20261028';
 import {completedPrices,valuationPrices} from './price-data.mjs?v=missing-recovery-20261028';
 // A failed price request is not evidence that a company is private.
 export function missingReturnReason(position) {
@@ -66,17 +66,26 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       if(!start || !end || start>end || Date.parse(end)-Date.parse(start)>1096*86400000)throw Error('Choose a period of at most three years.');
       const sourceNotes=[],arcusReturns={},arcusPackets=new Map();
       const arcus=manifest.holdingsSource==='arcus';
+      async function archive(fund){
+        const key=manifest.version+':'+fund;
+        if(!holdings.has(key))holdings.set(key,await get('holdings?'+new URLSearchParams({fund,version:manifest.version})));
+        return holdings.get(key);
+      }
       const snapshots=await Promise.all(ids.map(async fund=>{
         if(arcus) {
           const packet=normalizeArcusPacket(await get('arcus-source?'+new URLSearchParams({fund})));
           arcusPackets.set(fund,packet);
           if(packet.warning)sourceNotes.push(fund+': '+packet.warning);
-          if(packet.snapshot)return packet.snapshot;
+          if(packet.snapshot){
+            if(packet.snapshot.positions.some(p=>!p.symbol&&!isNonListed(p))) {
+              try{resolveArchiveListings(packet.snapshot,await archive(fund));}
+              catch(e){if(controller.signal.aborted)throw e;sourceNotes.push(fund+': saved listing identities unavailable; unresolved listed shares remain visible.');}
+            }
+            return packet.snapshot;
+          }
           sourceNotes.push(fund+': archive allocation fallback; current Arcus constituents dated '+packet.arcusHoldingsAsOf+'.');
         }
-        const key=manifest.version+':'+fund;
-        if(!holdings.has(key))holdings.set(key,await get('holdings?'+new URLSearchParams({fund,version:manifest.version})));
-        return holdings.get(key);
+        return archive(fund);
       }));
       // A shared listing must not change when the two requests finish in a
       // different order. Prefer the selected portfolio's dated facts on overlap.
@@ -86,7 +95,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       const useCalendar=calendar.some(d=>d<start)&&calendar.some(d=>d>=start&&d<=end);
       const reused=arcusReturnLevels(arcusReturns,calendar,start,end);
       const symbols=new Set([...(useCalendar?[]:['SPY']),...ids.filter(id=>!id.startsWith('PORTFOLIO:'))]);
-      for(const snapshot of snapshots)for(const p of snapshot.positions)if(p.symbol)symbols.add(p.symbol);
+      for(const snapshot of snapshots)for(const p of snapshot.positions)if(p.symbol&&!isNonListed(p))symbols.add(p.symbol);
       for(const symbol of reused.used)symbols.delete(symbol);
       if(currency==='ZAR')symbols.add('USDZAR=X');
       const downloaded=new Map(), failures=[];
@@ -126,7 +135,8 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       if(run!==generation)throw Error('Data request cancelled');
       lastSnapshots=snapshots;lastDownloaded=downloaded;lastCurrency=currency;
       const returnReasons=Object.fromEntries(snapshots.flatMap(s=>s.positions.map(p=>[s.fund+'|'+p.id,missingReturnReason(p)])));
-      return {manifest,snapshots,levels,valuationDates,returnReasons,priceNotes,priceFailures:failures,sourceWarnings:sourceNotes,arcusSource:arcus,arcusReturnCount:reused.used.size,priceCheckedAt:new Date().toISOString()};
+      const nonListedIds=[...new Set(snapshots.flatMap(s=>s.positions.filter(isNonListed).map(p=>p.id)))];
+      return {manifest,snapshots,levels,valuationDates,nonListedIds,returnReasons,priceNotes,priceFailures:failures,sourceWarnings:sourceNotes,arcusSource:arcus,arcusReturnCount:reused.used.size,priceCheckedAt:new Date().toISOString()};
     }
   };
 }

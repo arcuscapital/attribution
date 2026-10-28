@@ -34,7 +34,7 @@ Local IJR 655-row parse benchmark (including existing constituent parsing plus o
 
 ## Verification before release
 
-Final CPU revision: 959 Watchlists tests and 75 Attribution JavaScript tests (pure source tests moved into the browser repository) pass. Builds passed for main, holdings and Attribution. New tests cover exact source weights and signed cash, private-data projection, named identity checks, private-preferred classification, duplicate verified listings, stale-weight refusal, bounded read-only source access, authentication/error redaction, compounding exact dated Arcus returns, whole-period fallback and repeat holdings reads. Existing UI/Excel/auth/holiday/assumption regressions remain passing.
+Final CPU revision: 959 Watchlists tests and 78 Attribution JavaScript tests (pure source tests moved into the browser repository) pass. Builds passed for main, holdings and Attribution. New tests cover exact source weights and signed cash, private-data projection, named identity checks, private-preferred classification, duplicate verified listings, stale-weight refusal, bounded read-only source access, authentication/error redaction, compounding exact dated Arcus returns, whole-period fallback and repeat holdings reads. Existing UI/Excel/auth/holiday/assumption regressions remain passing.
 
 Private production-data replay: IBKR 2026-10-27 (40 rows, 39 listed), BAI 2026-10-26 (53 rows, 46 listed). Every weight matches its actual source exactly. 73 unique Arcus series reused for 27 October; zero external price requests. Listed returns present; five report rows remain for USD cash, two private companies and Treasury fund income. Private fixtures and comparison values are excluded from Git/logs. Browser verification is Brave DOM automation only, with no native desktop takeover, emulator or physical-device claim.
 
@@ -92,3 +92,11 @@ node tools/seed-analysis-allocations.cjs --rollback C:/Users/Skrom/ArcusAttribut
 ```
 
 This verifies every backup and refuses to overwrite later changes. If Cloudflare expires an old version, rebuild/deploy the recorded application commit with its matching config and assets in an isolated checkout. Never discard existing secrets. Treasury-original `98c4a615-05c3-4213-bd07-f69702de43c9` / application `d51ae4d0a9757eb6ec2d0a969697f76fecface57` and graphs-only `42785cce-8059-4716-a5ef-882e5f47dc59` / application `2828e1a8b3a6bebd4dc04d55a3b62e119f38f091` remain preserved; see `portfolio-analysis-release.md` and `portable-release.md`.
+
+## Listed-share focus follow-up
+
+At the user's request, explicitly classified private/unlisted holdings, cash, money-market funds, derivatives and corporate-action positions now default to a labelled 0% return in the chosen reporting currency. Their source weights remain intact and they are placed after listed shares in the website and Excel. They are removed from missing-price errors and are not fetched as stock quotes. Measured coverage excludes assumptions. This is a research convention, not a claim about actual cash income, derivative performance or private valuations. Unresolved ordinary shares are never reclassified as private just because a request fails. Listed gaps remain blank unless the user selects the separate all-missing-zero option.
+
+Current allocations may contain names absent from an older constituent index. The main SQL projection now includes current allocation tickers when selecting already-stored Arcus facts. Browser matching can also reuse a saved verified archive identity only when ticker and company name agree; it never copies archived weights or dates into the current allocation. This addresses AIRR/Willis Towers Watson mapping gaps while preserving cash-acquisition classifications.
+
+The final follow-up passed all 959 Watchlists and 78 Attribution tests, including mixed listed/non-listed calculations, retained measured coverage, default-zero labels, bottom ordering in Excel, strict archive identity matching and current-seed quote selection. Final live receipts and Brave results follow after deployment.
