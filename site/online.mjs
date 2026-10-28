@@ -1,3 +1,4 @@
+import {normalizeArcusPacket} from './arcus-source.mjs?v=arcus-sql-20261028';
 import {completedPrices,valuationPrices} from './price-data.mjs?v=missing-recovery-20261028';
 // A failed price request is not evidence that a company is private.
 export function missingReturnReason(position) {
@@ -67,7 +68,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       const arcus=manifest.holdingsSource==='arcus';
       const snapshots=await Promise.all(ids.map(async fund=>{
         if(arcus) {
-          const packet=await get('arcus-holdings?'+new URLSearchParams({fund}));
+          const packet=normalizeArcusPacket(await get('arcus-source?'+new URLSearchParams({fund})));
           for(const [symbol,values] of Object.entries(packet.returns||{}))arcusReturns[symbol]={...(arcusReturns[symbol]||{}),...values};
           if(packet.warning)sourceNotes.push(fund+': '+packet.warning);
           if(packet.snapshot)return packet.snapshot;
