@@ -8,6 +8,18 @@ export function missingReturnReason(position) {
   if(position.symbol)return 'Listed security: adjusted close or same-date FX unavailable';
   return 'Listing unresolved: no verified exchange symbol (not classified as private)';
 }
+export function arcusReturnLevels(returns,calendar,start,end) {
+  const days=calendar.filter(d=>d>=start&&d<=end),prior=calendar.filter(d=>d<start).at(-1),levels=[],used=new Set();
+  if(!prior || !days.length)return {levels,used};
+  for(const [id,values] of Object.entries(returns)) {
+    if(!days.every(d=>Number.isFinite(values[d])&&values[d]>-100))continue;
+    let value=100;
+    levels.push({id,date:prior,value,currency:'USD',basis:'arcus-completed-session'});
+    for(const date of days){value*=1+values[date]/100;levels.push({id,date,value,currency:'USD',basis:'arcus-completed-session'});}
+    used.add(id);
+  }
+  return {levels,used};
+}
 // Phone-independent data adapter; prices only for the two selected holdings lists.
 export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgress=()=>{}}={}) {
   let controller=new AbortController(), generation=0;
@@ -42,7 +54,8 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       return refreshSymbols.size;
     },
     catalog:()=>get('catalog'),
-    async calendar(){
+    async calendar(manifest){
+      if(manifest?.holdingsSource==='arcus' && manifest.valuationDates?.length)return manifest.valuationDates;
       const now=new Date(),end=new Date(now.getTime()-86400000).toISOString().slice(0,10);
       const start=(now.getUTCFullYear()-1)+'-01-01';
       return (await price('SPY',start,end)).points.map(p=>p[0]);
@@ -50,13 +63,26 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
     async load(manifest,ids,start,end,currency) {
       const run=generation, baseline=new Date(Date.parse(start)-14*86400000).toISOString().slice(0,10);
       if(!start || !end || start>end || Date.parse(end)-Date.parse(start)>1096*86400000)throw Error('Choose a period of at most three years.');
+      const sourceNotes=[],arcusReturns={};
+      const arcus=manifest.holdingsSource==='arcus';
       const snapshots=await Promise.all(ids.map(async fund=>{
+        if(arcus) {
+          const packet=await get('arcus-holdings?'+new URLSearchParams({fund}));
+          for(const [symbol,values] of Object.entries(packet.returns||{}))arcusReturns[symbol]={...(arcusReturns[symbol]||{}),...values};
+          if(packet.warning)sourceNotes.push(fund+': '+packet.warning);
+          if(packet.snapshot)return packet.snapshot;
+          sourceNotes.push(fund+': archive allocation fallback; current Arcus constituents dated '+packet.arcusHoldingsAsOf+'.');
+        }
         const key=manifest.version+':'+fund;
         if(!holdings.has(key))holdings.set(key,await get('holdings?'+new URLSearchParams({fund,version:manifest.version})));
         return holdings.get(key);
       }));
-      const symbols=new Set(['SPY',...ids.filter(id=>!id.startsWith('PORTFOLIO:'))]);
+      const calendar=arcus ? manifest.valuationDates||[] : [];
+      const useCalendar=calendar.some(d=>d<start)&&calendar.some(d=>d>=start&&d<=end);
+      const reused=arcusReturnLevels(arcusReturns,calendar,start,end);
+      const symbols=new Set([...(useCalendar?[]:['SPY']),...ids.filter(id=>!id.startsWith('PORTFOLIO:'))]);
       for(const snapshot of snapshots)for(const p of snapshot.positions)if(p.symbol)symbols.add(p.symbol);
+      for(const symbol of reused.used)symbols.delete(symbol);
       if(currency==='ZAR')symbols.add('USDZAR=X');
       const downloaded=new Map(), failures=[];
       async function batch(list) {
@@ -72,13 +98,14 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
         }));
       }
       await batch([...symbols]);
-      if(!downloaded.get('SPY')?.points.length)throw Error('Could not verify the trading dates. Please retry when prices are available.');
+      if(!useCalendar && !downloaded.get('SPY')?.points.length)throw Error('Could not verify the trading dates. Please retry when prices are available.');
       const fxCurrencies=new Set();
       for(const data of downloaded.values())if(!data.symbol.endsWith('=X') && data.currency!=='USD')fxCurrencies.add(data.currency==='GBp'?'GBP':data.currency);
       const supported=new Set('TWD KRW JPY HKD EUR GBP CHF CAD AUD CNY SEK NOK DKK ILS INR SGD NZD BRL MXN ZAR'.split(' '));
       await batch([...fxCurrencies].filter(c=>supported.has(c)).map(c=>c+'USD=X'));
-      const levels=[],priceNotes=[];
-      const valuationDates=downloaded.get('SPY').points.map(([date])=>date);
+      const levels=[...reused.levels],priceNotes=[...sourceNotes];
+      const valuationDates=useCalendar ? calendar : downloaded.get('SPY').points.map(([date])=>date);
+      if(arcus)priceNotes.push('Arcus completed-session USD returns reused for '+reused.used.size+' securities/funds. Other requested listings use adjusted-price history only where the selected period is unavailable in Arcus. No intraday quotes are used.');
       for(const [id,data] of downloaded) {
         const aligned=valuationPrices(data,valuationDates);
         if(aligned.carried.length)priceNotes.push(id+': local adjusted close carried across verified '+(data.timeZone==='Asia/Taipei'?'Taiwan':'Tokyo')+' market closures ('+aligned.carried.map(p=>p.date+' uses '+p.priceDate).join('; ')+'); FX still uses each valuation date.');
@@ -94,7 +121,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       if(run!==generation)throw Error('Data request cancelled');
       lastSnapshots=snapshots;lastDownloaded=downloaded;lastCurrency=currency;
       const returnReasons=Object.fromEntries(snapshots.flatMap(s=>s.positions.map(p=>[s.fund+'|'+p.id,missingReturnReason(p)])));
-      return {manifest,snapshots,levels,returnReasons,priceNotes,priceFailures:failures,priceCheckedAt:new Date().toISOString()};
+      return {manifest,snapshots,levels,valuationDates,returnReasons,priceNotes,priceFailures:failures,sourceWarnings:sourceNotes,arcusSource:arcus,arcusReturnCount:reused.used.size,priceCheckedAt:new Date().toISOString()};
     }
   };
 }

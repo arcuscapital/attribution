@@ -29,7 +29,7 @@ function levelIndex(data) {
 function levelReturn(map, id, from, to, currency) {
   let ret = null,
     basis = null;
-  for (const b of ["verified-total-return", "vendor-adjusted"]) {
+  for (const b of ["verified-total-return", "arcus-completed-session", "vendor-adjusted"]) {
     const a = map.get(`${id}|${from}|${b}`),
       z = map.get(`${id}|${to}|${b}`);
     if (a && z && a.currency === "USD" && z.currency === "USD") {
@@ -139,7 +139,9 @@ export function compare(input, options) {
     if (!chosen) return null;
     const age = Math.abs((Date.parse(chosen.asOf) - Date.parse(date)) / 86400000);
     if (!before && age > 7 && !options.allowSnapshotResearch) return null;
-    proxyNotes.add(`${fund}: used issuer holdings dated ${chosen.asOf} as a ${before ? 'carried-forward' : 'later-published'} proxy for opening ${date} (${age} calendar days apart). Trades and weight changes may differ.`);
+    proxyNotes.add(chosen.source==='Arcus'
+      ? `${chosen.name||fund.replace('PORTFOLIO:','')}: current Arcus allocation dated ${chosen.asOf}. This comparison applies that allocation to the selected period; it does not reconstruct trades during the period.`
+      : `${fund}: used issuer holdings dated ${chosen.asOf} as a ${before ? 'carried-forward' : 'later-published'} proxy for opening ${date} (${age} calendar days apart). Trades and weight changes may differ.`);
     return chosen;
   }
   function withProxies(result) {
@@ -159,7 +161,7 @@ export function compare(input, options) {
     );
   const da = fundDates(portfolio),
     db = fundDates(benchmark);
-  const reference = fundDates("SPY");
+  const reference = new Set(data.valuationDates||fundDates("SPY"));
   const calendar = [...new Set([...reference, ...da, ...db])].sort();
   const dates = calendar.filter((d) => d >= start && d <= end),
     first = dates[0];

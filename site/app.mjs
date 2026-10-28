@@ -428,7 +428,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=missing-recovery-20261028", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=arcus-sources-20261028", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -448,6 +448,10 @@ $("controls").addEventListener("submit", async (e) => {
     });
     if (generation !== accessGeneration || !await session.check()) return;
     result = response;
+    if(data.arcusSource) {
+      for(const snap of data.snapshots){const fund=manifest.funds.find(f=>f.id===snap.fund);if(fund){fund.latest=snap.asOf;fund.positions=snap.positions.length;fund.currentSource=snap.source||'Archive fallback';}}
+      renderArchiveInfo();
+    }
     $('missing-actions').hidden= !onlineMode || !result.missing?.length;
     result.notes=[...(result.notes || []),...(data.priceNotes || [])];
     if(data.returnReasons)result.missing=(result.missing || []).map(p=>({...p,reason:data.returnReasons[p.fund+'|'+p.id]}));
@@ -518,8 +522,9 @@ $("controls").addEventListener("submit", async (e) => {
     if(onlineMode) $('price-status').textContent = 'Adjusted daily returns · '+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
     $('research-note').replaceChildren(
       text('strong','Research estimate — use for ideas, not exact accounting.'),
-      text('p',onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Shares use adjusted closing prices and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
+      text('p',data.arcusSource ? 'Current holdings and completed USD daily returns come from Arcus. ETF weights come from its issuer sources, retaining cash and private holdings. Where Arcus does not hold the requested dated return history, adjusted-price history and same-date FX fill the gap. Current allocations are applied to the selected period; historical trades are not reconstructed. Any archive allocation fallback is disclosed below.' : onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Shares use adjusted closing prices and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
       ...(result.holdingsWarnings || []).map(n => text('p',n)),
+      ...(data.sourceWarnings || []).map(n=>text('p',n)),
       ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. ${result.contributionMethod === 'average-weight-period' ? 'Your portfolio headline is the sum of available average weight × security return contributions. ETF headlines use observed fund returns; the contribution subtotal may differ.' : 'Missing returns stay blank; available headline figures are fund reference returns, not these subtotals.'} ${result.contributionMethod === 'arithmetic-daily' ? 'Both contribution columns use arithmetic daily sums because a complete reference series is unavailable.' : ''}`)] : []),
       ...(result.missing?.length ? [text('p','Missing returns: '+[...new Set(result.missing.map(p=>p.name+(p.reason ? ' — '+p.reason : '')))].join('; '))] : []),
     );
@@ -766,7 +771,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=missing-recovery-20261028');
+  const {createOnlineSource}=await import('./online.mjs?v=arcus-sources-20261028');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;
@@ -782,10 +787,11 @@ async function connectSaved() {
     if(generation!==accessGeneration)return;
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
-    $('archive-title').textContent='Saved ETFs & portfolios';
+    $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';
+    if(m.holdingsSource==='arcus')$('archive-status').textContent='Current holdings are read from Arcus whenever you compare. Arcus completed returns are reused first. Source dates are shown with the result.';
     $('empty').hidden=true;
     $('range-note').textContent='Checking the latest completed US trading date…';
-    const calendar=await online.calendar();
+    const calendar=await online.calendar(m);
     if(generation!==accessGeneration || !onlineMode)return;
     manifest.valuationDates=calendar;
     $('range').value=preferredRange();applyRange();

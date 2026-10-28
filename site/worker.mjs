@@ -1,4 +1,4 @@
-import { compare } from "./engine.mjs?v=missing-recovery-20261028";
+import { compare } from "./engine.mjs?v=arcus-sources-20261028";
 self.onmessage = ({ data }) => {
   try {
     self.postMessage({ ok: true, result: compare(data.dataset, data.options) });
