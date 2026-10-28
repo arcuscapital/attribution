@@ -30,6 +30,8 @@ def prepare(folder, version=None):
                    positions=[{k:p[k] for k in fields if k in p} for p in snap['positions']])
         records.append(dict(key='holdings:'+version+':'+f['id'],value=json.dumps(clean,separators=(',',':'))))
         funds.append(dict(id=f['id'],name=f['name'],latest=snap['asOf'],dates=[snap['asOf']],positions=len(clean['positions'])))
+        if snap.get('weightBasis'):
+            funds[-1]['allocationNote']=snap['weightBasis']
     if len(funds)<2:raise ValueError('At least two saved funds are required')
     catalog=dict(schemaVersion=1,version=version,generatedAt=manifest['generatedAt'],
                  publishedAt=dt.datetime.now(dt.timezone.utc).isoformat(),funds=funds,valuationDates=[],

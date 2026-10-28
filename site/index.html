@@ -79,8 +79,10 @@
           ><button class="primary" id="run" disabled>Compare funds</button>
         </form>
         <p id="range-note">Date presets use completed prices in your archive.</p>
+        <label class="zero-option"><input id="assume-zero" type="checkbox" /> Assume 0% for missing returns (labelled estimate)</label>
       </section>
       <div id="message" role="status" aria-live="polite"></div>
+      <div id="missing-actions" hidden><button id="retry-missing" type="button">Retry missing prices</button><p>Fetch fresh prices and exchange rates for missing listed holdings. Cash income, private valuations and unidentified listings need verified data. You can explicitly assume 0% above to include them in an estimate.</p></div>
       <p id="price-status" class="muted" aria-live="polite"></p>
       <section id="results" hidden>
         <div class="metrics" id="metrics"></div>
@@ -158,6 +160,6 @@
         source dates and investigate unexplained differences.
       </footer>
     </main>
-    <script type="module" src="app.mjs?v=listed-holidays-20261014"></script>
+    <script type="module" src="app.mjs?v=themes-readability-20261028"></script>
   </body>
 </html>

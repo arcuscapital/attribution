@@ -23,8 +23,11 @@ const TOKYO_HOLIDAYS = {
   2026: new Set('01-01 01-02 01-03 01-12 02-11 02-23 03-20 04-29 05-03 05-04 05-05 05-06 07-20 08-11 09-21 09-22 09-23 10-12 11-03 11-23 12-31'.split(' ')),
   2027: new Set('01-01 01-02 01-03 01-11 02-11 02-23 03-21 03-22 04-29 05-03 05-04 05-05 07-19 08-11 09-20 09-23 10-11 11-03 11-23 12-31'.split(' ')),
 };
-function tokyoClosed(date) {
-  const holidays=TOKYO_HOLIDAYS[date.slice(0,4)];
+// TWSE cash-equity calendar, verified 2026-10-28 (opening dates excluded).
+// https://www.twse.com.tw/holidaySchedule/holidaySchedule?queryYear=115&response=json
+const TAIWAN_HOLIDAYS={2026:new Set('01-01 02-12 02-13 02-15 02-16 02-17 02-18 02-19 02-20 02-27 02-28 04-03 04-04 04-05 04-06 05-01 06-19 09-25 09-28 10-09 10-10 10-25 10-26 12-25'.split(' '))};
+function marketClosed(calendar,date) {
+  const holidays=calendar[date.slice(0,4)];
   if(!holidays)return false;
   return [0,6].includes(new Date(date+'T00:00:00Z').getUTCDay()) || holidays.has(date.slice(5));
 }
@@ -34,13 +37,15 @@ const previousDate=date=>new Date(Date.parse(date+'T00:00:00Z')-86400000).toISOS
 // be observed on the valuation date. Never bridge a missing open-session close.
 export function valuationPrices(data, dates) {
   const points=new Map(data.points), carried=[];
-  if(!/^[0-9A-Z]{4}\.T$/i.test(data.symbol) || data.currency!=='JPY' || data.timeZone!=='Asia/Tokyo')
-    return {points:data.points,carried};
+  const calendar=/^[0-9A-Z]{4}\.T$/i.test(data.symbol) && data.currency==='JPY' && data.timeZone==='Asia/Tokyo' ? TOKYO_HOLIDAYS
+    : /^\d{4,6}\.TW$/i.test(data.symbol) && data.currency==='TWD' && data.timeZone==='Asia/Taipei' ? TAIWAN_HOLIDAYS : null;
+  if(!calendar)return {points:data.points,carried};
+  const closed=date=>marketClosed(calendar,date);
   for(const date of dates) {
-    if(points.has(date) || !tokyoClosed(date))continue;
+    if(points.has(date) || !closed(date))continue;
     let from=date,steps=0;
-    while(tokyoClosed(from) && steps++<10)from=previousDate(from);
-    if(!TOKYO_HOLIDAYS[from.slice(0,4)] || tokyoClosed(from) || !points.has(from))continue;
+    while(closed(from) && steps++<16)from=previousDate(from);
+    if(!calendar[from.slice(0,4)] || closed(from) || !points.has(from))continue;
     points.set(date,points.get(from));
     carried.push({date,priceDate:from});
   }

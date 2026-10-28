@@ -358,5 +358,124 @@
     "name": "Marlow",
     "provider": "portfolio",
     "currency": "USD"
+  },
+  "UFO": {
+    "name": "Procure Space ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://etfdb.com/etf/UFO/#holdings"
+  },
+  "TIME": {
+    "name": "Clockwise U.S. Core Equity ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://clockwisefunds.com/wp-content/uploads/data/TidalFG_Holdings_TIME.csv"
+  },
+  "GPT": {
+    "name": "Intelligent Alpha Atlas ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://etfdb.com/etf/GPT/#holdings"
+  },
+  "WARP": {
+    "name": "VanEck Space ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.vaneck.com/us/en/investments/space-etf-warp/downloads/holdings/"
+  },
+  "KOID": {
+    "name": "KraneShares Global Humanoid Robotics and Physical AI Index ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://kraneshares.com/csv/09_08_2026_koid_holdings.csv"
+  },
+  "URA": {
+    "name": "Global X Uranium ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.globalxetfs.com/funds/ura"
+  },
+  "BOTZ": {
+    "name": "Global X Robotics & Artificial Intelligence ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.globalxetfs.com/funds/botz"
+  },
+  "LIT": {
+    "name": "Global X Lithium & Battery Tech ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.globalxetfs.com/funds/lit"
+  },
+  "PAVE": {
+    "name": "Global X U.S. Infrastructure Development ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.globalxetfs.com/funds/pave"
+  },
+  "IBB": {
+    "name": "iShares Biotechnology ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.ishares.com/us/products/239699/ishares-nasdaq-biotechnology-etf/latest-holdings.csv"
+  },
+  "IYK": {
+    "name": "iShares US Consumer Staples ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.ishares.com/us/products/239505/ishares-us-consumer-staples-etf/latest-holdings.csv"
+  },
+  "IYT": {
+    "name": "iShares Transportation Average ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.ishares.com/us/products/239501/ishares-transportation-average-etf/latest-holdings.csv"
+  },
+  "IJR": {
+    "name": "iShares Core S&P Small-Cap ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.ishares.com/us/products/239774/ishares-core-sp-smallcap-etf/latest-holdings.csv"
+  },
+  "KRE": {
+    "name": "State Street\u00c2\u00ae SPDR\u00c2\u00ae S&P\u00c2\u00ae Regional Banking ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-kre.xlsx"
+  },
+  "XBI": {
+    "name": "State Street\u00c2\u00ae SPDR\u00c2\u00ae S&P\u00c2\u00ae Biotech ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xbi.xlsx"
+  },
+  "AIRR": {
+    "name": "First Trust RBA American Industrial RenaissanceTM ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.ftportfolios.com/LoadHoldingsCsv.aspx?Ticker=AIRR"
+  },
+  "HUMN": {
+    "name": "Roundhill Humanoid Robotics ETF",
+    "provider": "generic",
+    "currency": "USD",
+    "manualOnly": true,
+    "url": "https://www.roundhillinvestments.com/assets/data/FilepointRoundhill.40RU.RU_Holdings_{date}.csv"
   }
 }

@@ -49,7 +49,7 @@ function zip(files) {
 const styles = `<?xml version="1.0" encoding="UTF-8"?>
 <styleSheet xmlns="${ns}">
 <fonts count="4">
- <font><sz val="11"/><color rgb="FF24364B"/><name val="Arial"/></font>
+ <font><sz val="11"/><color rgb="FF000000"/><name val="Calibri"/></font>
  <font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Arial"/></font>
  <font><b/><sz val="16"/><color rgb="FF173E69"/><name val="Arial"/></font>
  <font><b/><sz val="11"/><color rgb="FF173E69"/><name val="Arial"/></font>
@@ -65,8 +65,8 @@ const styles = `<?xml version="1.0" encoding="UTF-8"?>
  <xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
  <xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0"><alignment vertical="center"/></xf>
  <xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0"><alignment vertical="center"/></xf>
- <xf numFmtId="10" fontId="0" fillId="3" borderId="0" xfId="0" applyNumberFormat="1"><alignment horizontal="right" vertical="center"/></xf>
- <xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0"><alignment vertical="center"/></xf>
+ <xf numFmtId="10" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"><alignment horizontal="right" vertical="center"/></xf>
+ <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment vertical="center"/></xf>
  <xf numFmtId="10" fontId="3" fillId="0" borderId="1" xfId="0" applyNumberFormat="1"><alignment horizontal="right" vertical="center"/></xf>
  <xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0"><alignment vertical="center"/></xf>
 </cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
@@ -76,7 +76,7 @@ export function comparisonXlsx(result, {portfolio, benchmark, rows = result.rows
   if (!['complete', 'partial'].includes(result?.status) || !rows?.length) throw Error('Compare funds before downloading.');
   const first = 4, last = first + rows.length - 1;
   const headers = ['Security / sector',`Avg weight · ${portfolio}`,`Avg weight · ${benchmark}`,
-    'Active weight','Security return',`Contribution · ${portfolio}`,`Contribution · ${benchmark}`,'Contribution difference'];
+    'Security return','Active weight',`Contribution · ${portfolio}`,`Contribution · ${benchmark}`,'Contribution difference'];
   const sheetRows = [];
   const add = (n, values, style = 0, height = 23) => sheetRows.push(`<row r="${n}" ht="${height}" customHeight="1">` +
     values.map((value, i) => cell(col(i) + n, value, style)).join('') + '</row>');
@@ -107,12 +107,12 @@ export function comparisonXlsx(result, {portfolio, benchmark, rows = result.rows
     cell('G1','Currency',4) + cell('H1',result.currency) + '</row>',
     '<row r="3" ht="48" customHeight="1">'+headers.map((value,i)=>cell(col(i)+'3',value,2)).join('')+'</row>'];
   rows.forEach((row, i) => {
-    const n = first + i, numericStyle = i % 2 ? 5 : 1, textStyle = i % 2 ? 6 : 0;
-    const values = [row.ticker,row.weightA,row.weightB,row.activeWeight,row.securityReturn,row.ctrA,row.ctrB,row.activeCtr];
+    const n = first + i, numericStyle = 1, textStyle = 0;
+    const values = [row.ticker+(row.assumedZero?' [assumed 0%]':''),row.weightA,row.weightB,row.securityReturn,row.activeWeight,row.ctrA,row.ctrB,row.activeCtr];
     analysisRows.push(`<row r="${n}" ht="23" customHeight="1">` + values.map((value,j) => {
-      const formula = j === 3 ? `B${n}-C${n}` : j === 7 ? `F${n}-G${n}`
+      const formula = j === 4 ? `B${n}-C${n}` : j === 7 ? `F${n}-G${n}`
         : result.contributionMethod === 'average-weight-period' && view === 'Holdings' && (j === 5 || j === 6)
-          ? (values[j === 5 ? 1 : 2] === 0 ? '0' : `${j === 5 ? 'B' : 'C'}${n}*E${n}`) : undefined;
+          ? (values[j === 5 ? 1 : 2] === 0 ? '0' : `${j === 5 ? 'B' : 'C'}${n}*D${n}`) : undefined;
       return cell(col(j)+n,value,j===0?textStyle:numericStyle,formula);
     }).join('') + '</row>');
   });
@@ -126,15 +126,19 @@ export function comparisonXlsx(result, {portfolio, benchmark, rows = result.rows
     }).join('') + '</row>');
   const sheet = (contents, heights, widths, extras, pane='') => `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="${ns}">
 <sheetPr><tabColor rgb="FF1764A0"/><pageSetUpPr fitToPage="1"/></sheetPr>
-<dimension ref="A1:H${heights}"/><sheetViews><sheetView workbookViewId="0" showGridLines="0" zoomScale="90" zoomScaleNormal="100">
+<dimension ref="A1:H${heights}"/><sheetViews><sheetView workbookViewId="0" showGridLines="1" zoomScale="100" zoomScaleNormal="100">
 ${pane || '<selection activeCell="A1" sqref="A1"/>'}</sheetView></sheetViews>
 <sheetFormatPr defaultRowHeight="23"/><cols>${widths.map((width,i)=>`<col min="${i+1}" max="${i+1}" width="${width}" customWidth="1"/>`).join('')}</cols>
 <sheetData>${contents.join('')}</sheetData>${extras}
 <pageMargins left="0.25" right="0.25" top="0.4" bottom="0.4" header="0.2" footer="0.2"/>
 <pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/></worksheet>`;
-  const summary = sheet(sheetRows,7,[12,28,18,20,18,18,10,16],
+  if(result.assumedReturns?.length) {
+    add(8,['ASSUMPTIONS','Missing returns assumed 0% in '+result.currency+'; not verified holidays. Measured coverage excludes assumptions.']);
+    result.assumedReturns.forEach((r,i)=>add(9+i,[r.id,r.name,'Assumed 0%']));
+  }
+  const summary = sheet(sheetRows,Math.max(7,8+(result.assumedReturns?.length||0)),[12,28,18,20,18,18,10,16],
     '<mergeCells count="3"><mergeCell ref="A1:H1"/><mergeCell ref="B5:C5"/><mergeCell ref="D5:F5"/></mergeCells>');
-  const analysis = sheet(analysisRows,last+2,[view==='Sector'?24:12,18,18,14,16,18,18,19],
+  const analysis = sheet(analysisRows,last+2,[view==='Sector'?24:12,18,18,16,14,18,18,19],
     `<autoFilter ref="A3:H${last}"/>`,
     '<pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A4" sqref="A4"/>');
   return zip([

@@ -1,8 +1,9 @@
-import {completedPrices,valuationPrices} from './price-data.mjs?v=listed-holidays-20261014';
+import {completedPrices,valuationPrices} from './price-data.mjs?v=missing-recovery-20261028';
 // A failed price request is not evidence that a company is private.
 export function missingReturnReason(position) {
   const asset=String(position.asset || '').trim();
   if(/^cash(?:\b|$)/i.test(asset))return 'Cash income unavailable';
+  if(/^money market$/i.test(asset))return 'Money-market fund: share-class NAV and income required';
   if(/^(private|unlisted)(?: equity| company)?$/i.test(asset))return 'Private/unlisted holding: no exchange return';
   if(position.symbol)return 'Listed security: adjusted close or same-date FX unavailable';
   return 'Listing unresolved: no verified exchange symbol (not classified as private)';
@@ -11,6 +12,8 @@ export function missingReturnReason(position) {
 export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgress=()=>{}}={}) {
   let controller=new AbortController(), generation=0;
   const prices=new Map(), holdings=new Map();
+  const refreshSymbols=new Set();
+  let lastSnapshots=[],lastDownloaded=new Map(),lastCurrency='USD';
   async function get(path) {
     const response=await fetcher('./data/'+path,{credentials:'same-origin',cache:'no-store',signal:controller.signal});
     if(response.status===401){onUnauthorized();throw Error('Sign in to Arcus again.');}
@@ -20,13 +23,24 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
   }
   async function price(symbol,start,end) {
     const key=[symbol,start,end].join('|'),saved=prices.get(key);
-    if(saved && Date.now()-saved.at<15*60000)return saved.promise;
-    const promise=get('prices?'+new URLSearchParams({symbol,start,end})).then(raw=>completedPrices(raw,{symbol,start,end}));
+    const refresh=refreshSymbols.delete(symbol);
+    if(!refresh && saved && Date.now()-saved.at<15*60000)return saved.promise;
+    const promise=get('prices?'+new URLSearchParams({symbol,start,end,...(refresh?{refresh:'1'}:{})})).then(raw=>completedPrices(raw,{symbol,start,end}));
     const entry={at:Date.now(),promise};prices.set(key,entry);
     try{return await promise;}catch(e){if(prices.get(key)===entry)prices.delete(key);throw e;}
   }
   return {
-    clear(){generation++;controller.abort();controller=new AbortController();prices.clear();holdings.clear();},
+    clear(){generation++;controller.abort();controller=new AbortController();prices.clear();holdings.clear();refreshSymbols.clear();lastSnapshots=[];lastDownloaded.clear();},
+    retryMissing(missing=[]) {
+      const keys=new Set(missing.map(p=>p.fund+'|'+p.id));
+      for(const snap of lastSnapshots)for(const p of snap.positions)if(p.symbol && keys.has(snap.fund+'|'+p.id)) {
+        refreshSymbols.add(p.symbol);
+        const c=lastDownloaded.get(p.symbol)?.currency;
+        if(c && c!=='USD')refreshSymbols.add((c==='GBp'?'GBP':c)+'USD=X');
+      }
+      if(lastCurrency==='ZAR' && refreshSymbols.size)refreshSymbols.add('USDZAR=X');
+      return refreshSymbols.size;
+    },
     catalog:()=>get('catalog'),
     async calendar(){
       const now=new Date(),end=new Date(now.getTime()-86400000).toISOString().slice(0,10);
@@ -67,7 +81,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       const valuationDates=downloaded.get('SPY').points.map(([date])=>date);
       for(const [id,data] of downloaded) {
         const aligned=valuationPrices(data,valuationDates);
-        if(aligned.carried.length)priceNotes.push(id+': local adjusted close carried across verified Tokyo market closures ('+aligned.carried.map(p=>p.date+' uses '+p.priceDate).join('; ')+'); FX still uses each valuation date.');
+        if(aligned.carried.length)priceNotes.push(id+': local adjusted close carried across verified '+(data.timeZone==='Asia/Taipei'?'Taiwan':'Tokyo')+' market closures ('+aligned.carried.map(p=>p.date+' uses '+p.priceDate).join('; ')+'); FX still uses each valuation date.');
         if(data.currency==='USD' || id==='USDZAR=X') {
           for(const [date,value] of data.points)levels.push({id,date,value,currency:data.currency,basis:id.endsWith('=X')?'fx':'vendor-adjusted'});
         } else if(!id.endsWith('=X')) {
@@ -78,6 +92,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
         }
       }
       if(run!==generation)throw Error('Data request cancelled');
+      lastSnapshots=snapshots;lastDownloaded=downloaded;lastCurrency=currency;
       const returnReasons=Object.fromEntries(snapshots.flatMap(s=>s.positions.map(p=>[s.fund+'|'+p.id,missingReturnReason(p)])));
       return {manifest,snapshots,levels,returnReasons,priceNotes,priceFailures:failures,priceCheckedAt:new Date().toISOString()};
     }

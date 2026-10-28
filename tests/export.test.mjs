@@ -26,9 +26,10 @@ test('xlsx is a real OOXML package with numeric fractional percentages and full 
   const files=unzip(comparisonXlsx(result,options)),sheet=files.get('xl/worksheets/sheet2.xml');
   assert.equal(files.size,7);
   assert.match(sheet,/<c r="B4" s="1"><v>0\.05882359179<\/v>/);
-  assert.match(sheet,/<c r="E4" s="1"><v>-0\.00696562<\/v>/);
-  assert.match(sheet,/<c r="F4" s="1"><f>B4\*E4<\/f><v>/);
-  assert.match(sheet,/<c r="F5" s="5"\/>/);
+  assert.match(sheet,/<c r="D4" s="1"><v>-0\.00696562<\/v>/);
+  assert.match(sheet,/<c r="E4" s="1"><f>B4-C4<\/f>/);
+  assert.match(sheet,/<c r="F4" s="1"><f>B4\*D4<\/f><v>/);
+  assert.match(sheet,/<c r="F5" s="1"\/>/);
   assert.match(sheet,/<c r="G4" s="1"><f>0<\/f><v>0<\/v>/);
   assert.match(files.get('xl/styles.xml'),/numFmtId="10"/); // Excel's native 0.00%
   assert.match(files.get('xl/worksheets/sheet1.xml'),/<f>SUM\(Analysis!F4:F5\)<\/f>/);
@@ -37,9 +38,10 @@ test('two-sheet export keeps returns in row 1, headers in row 3, freeze below ro
   const files=unzip(comparisonXlsx(result,options)),sheet=files.get('xl/worksheets/sheet2.xml'),summary=files.get('xl/worksheets/sheet1.xml');
   assert.doesNotMatch(sheet+summary,/Holdings warning|Method \/ disclaimer|long disclaimer|Values below|Holdings method/);
   assert.match(sheet,/Avg weight · IBKR/);assert.match(sheet,/Contribution · BAI/);
-  assert.match(sheet,/autoFilter ref="A3:H5"/);assert.match(sheet,/showGridLines="0"/);
+  assert.match(sheet,/autoFilter ref="A3:H5"/);assert.match(sheet,/showGridLines="1"/);
+  assert.match(summary,/showGridLines="1"/);
   assert.match(sheet,/<col min="1" max="1" width="12"/);
-  assert.match(sheet,/zoomScale="90"/);
+  assert.match(sheet,/zoomScale="100"/);
   assert.match(sheet,/<pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/);
   assert.doesNotMatch(summary,/<pane|state="frozen"|xSplit|ySplit/);
   assert.match(sheet,/<c r="B1" s="7"><f>Summary!B4<\/f>/);
@@ -57,8 +59,8 @@ test('formula-like security names are explicit text, XML escaped, never executab
 test('sector export preserves grouped values, blanks and summaries without security product formulas',()=>{
   const files=unzip(comparisonXlsx(result,{...options,view:'Sector',rows:[{...row,ticker:'Industrials',securityReturn:null}]}));
   const sheet=files.get('xl/worksheets/sheet2.xml');
-  assert.doesNotMatch(sheet,/<f>B4\*E4<\/f>|SUMPRODUCT/);
-  assert.match(sheet,/<c r="E4" s="1"\/>/);
+  assert.doesNotMatch(sheet,/<f>B4\*D4<\/f>|SUMPRODUCT/);
+  assert.match(sheet,/<c r="D4" s="1"\/>/);
   assert.match(sheet,/<c r="F4" s="1"><v>/);
   assert.doesNotMatch(files.get('xl/worksheets/sheet1.xml'),/SUM\(Analysis!/);
 });

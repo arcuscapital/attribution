@@ -28,7 +28,7 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
   try {query=priceQuery(url.searchParams);} catch(e){return reply({error:e.message},400);}
   // Cache only public market data, behind authentication. One symbol per invocation.
   const key=new Request('https://analysis-market-cache.invalid/v1/'+encodeURIComponent(query.symbol)+'?start='+query.start+'&end='+query.end);
-  const cached=await cache?.match(key);
+  const cached=url.searchParams.get('refresh')==='1' ? null : await cache?.match(key);
   if(cached)return reply(await cached.json());
   const period1=Math.floor(Date.parse(query.start)/1000),period2=Math.min(Math.floor(Date.now()/1000),Math.floor(Date.parse(query.end)/1000)+2*86400);
   try {

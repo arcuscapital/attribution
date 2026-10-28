@@ -3,6 +3,8 @@ import { createSessionGuard } from './session.mjs';
 const $ = (id) => document.getElementById(id);
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
 let online = null, onlineMode = false;
+const fundPickers = new Map();
+let arcusReturns = new Map();
 let activeWorker = null, cancelCalculation = null, accessGeneration = 0;
 const session = createSessionGuard({onLock() {
   accessGeneration++;
@@ -12,7 +14,10 @@ const session = createSessionGuard({onLock() {
   folder = dataset = manifest = result = null; onlineMode = false;
   for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','message','price-status']) $(id).replaceChildren();
   for (const id of ['portfolio','benchmark']) { $(id).replaceChildren(); $(id).disabled = true; }
+  arcusReturns.clear();
+  for (const picker of fundPickers.values()) picker.clear();
   $('run').disabled = true;
+  $('missing-actions').hidden=true; $('assume-zero').checked=false;
   expandSelection();
   document.querySelector('main').hidden = true;
   $('session-lock').hidden = false;
@@ -163,6 +168,10 @@ function setup(m) {
   if (!restoreSelection(m) && m.funds.some(f => f.id === 'ARKK') && m.funds.some(f => f.id === 'BAI')) {
     $('portfolio').value = 'ARKK'; $('benchmark').value = 'BAI';
   }
+  for (const id of ['portfolio','benchmark']) {
+    if (!fundPickers.has(id)) fundPickers.set(id,createFundPicker(id));
+    fundPickers.get(id).render(m.funds);
+  }
   const available = m.funds.flatMap((f) => f.dates || []).sort();
   $("start").value = available.at(0) || "";
   $("end").value = available.at(-1) || "";
@@ -178,6 +187,103 @@ function setup(m) {
   $('source-status').textContent = `${m.funds.length} funds in this archive.` + ((m.pendingSources || []).length ? ' Source limitations: '+m.pendingSources.map(f=>f.id+' ('+f.reason+')').join('; ')+'.' : '');
   $("message").replaceChildren();
 }
+const FUND_THEMES = [
+  ['Portfolios',[]],
+  ['AI','BAI WCLD AIQ ARTY CHAT IGPT WTAI THNQ IVES IVEP AIS LRNZ JHAI GPT'.split(' ')],
+  ['Market benchmarks','QQQ RSP VOO QQEW IJR'.split(' ')],
+  ['Robotics','ARKQ BOTT BOTZ HUMN KOID ROBO'.split(' ')],
+  ['Semiconductors & photonics','SOXX DISK LAZR'.split(' ')],
+  ['Space','ARKX ROKT UFO WARP'.split(' ')],
+  ['Defence','ITA SHLD JEDI'.split(' ')],
+  ['Healthcare & biotech','ARKG CANC IBB XBI'.split(' ')],
+  ['Financials & fintech','ARKF FINX KRE'.split(' ')],
+  ['Industry & infrastructure','AIRR PAVE WELD IYT'.split(' ')],
+  ['Energy & resources','EART LIT URA'.split(' ')],
+  ['Consumer staples',['IYK']],
+  ['Growth & innovation','ARKK ARKW LOUP XT TEK FFND NITE'.split(' ')],
+  ['Factors & strategies','MTUM VLUE GRNY FCTE FFLS TIME'.split(' ')],
+];
+function fundTheme(fund) {
+  if (fund.id.startsWith('PORTFOLIO:')) return 'Portfolios';
+  return FUND_THEMES.find(([,ids])=>ids.includes(fund.id))?.[0] || 'Other ETFs';
+}
+function createFundPicker(id) {
+  const select=$(id), root=text('div','','fund-picker');
+  // The underlying select retains archive/selection semantics; the visible
+  // listbox supports bold groups and separately coloured daily-return labels.
+  select.hidden=true;
+  const trigger=text('button','','fund-trigger');trigger.type='button';
+  trigger.id=id+'-picker'; trigger.setAttribute('role','combobox');
+  trigger.setAttribute('aria-label',id==='portfolio'?'Portfolio':'Benchmark');
+  trigger.setAttribute('aria-haspopup','listbox');trigger.setAttribute('aria-expanded','false');
+  const popup=text('div','','fund-popup');popup.hidden=true;
+  const search=document.createElement('input');search.type='search';search.placeholder='Search ETFs or portfolios';
+  search.setAttribute('aria-label','Search '+id);search.autocomplete='off';
+  const note=text('p',integrated?'1D · Arcus completed daily return · USD':'Saved archive funds','fund-return-note');
+  const list=text('div','','fund-options');list.id=id+'-options';list.setAttribute('role','listbox');
+  list.setAttribute('aria-label',id==='portfolio'?'Portfolio funds':'Benchmark funds');
+  trigger.setAttribute('aria-controls',list.id);
+  popup.append(search,note,list);root.append(trigger,popup);select.after(root);
+  let funds=[];
+  const close=()=>{popup.hidden=true;trigger.setAttribute('aria-expanded','false');};
+  function label(f) {
+    const name=text('span',f.id.startsWith('PORTFOLIO:')?f.name:`${f.id} · ${f.name}`,'fund-name');
+    if(f.id.startsWith('PORTFOLIO:'))return [name];
+    const daily=arcusReturns.get(f.id), value=daily?.oneDayReturnPct;
+    const ret=text('span',Number.isFinite(value)?`${value>0?'+':''}${value.toFixed(2)}%`:f.id.startsWith('PORTFOLIO:')?'':'—','fund-return');
+    if(Number.isFinite(value))ret.classList.add(value>=0?'gain':'loss');
+    ret.title=daily?.oneDayDate?`Arcus 1D · ${daily.oneDayDate} · USD`:'Arcus 1D unavailable';
+    return [name,ret];
+  }
+  function sync(){const f=funds.find(f=>f.id===select.value);trigger.replaceChildren(...(f?label(f):[text('span','Choose a fund')]));trigger.disabled=select.disabled;}
+  function draw(){
+    list.replaceChildren();const query=search.value.trim().toLowerCase();
+    for(const theme of [...FUND_THEMES.map(([name])=>name),'Other ETFs']){
+      const matches=funds.filter(f=>fundTheme(f)===theme && `${f.id} ${f.name} ${theme}`.toLowerCase().includes(query)).sort((a,b)=>a.id.localeCompare(b.id));
+      if(!matches.length)continue;
+      const group=text('div','','fund-group');group.setAttribute('role','group');group.setAttribute('aria-label',theme);
+      group.append(text('strong',theme,'fund-group-title'));
+      for(const f of matches){
+        const option=text('button','','fund-option');option.type='button';option.tabIndex=-1;option.setAttribute('role','option');
+        option.setAttribute('aria-selected',String(f.id===select.value));option.dataset.fund=f.id;option.append(...label(f));
+        option.addEventListener('click',()=>{select.value=f.id;select.dispatchEvent(new Event('change',{bubbles:true}));sync();close();trigger.focus();});
+        group.append(option);
+      }
+      list.append(group);
+    }
+    if(!list.children.length)list.append(text('p','No matching funds.'));
+  }
+  function open(){if(trigger.disabled)return;for(const [other,picker] of fundPickers)if(other!==id)picker.close();popup.hidden=false;trigger.setAttribute('aria-expanded','true');search.value='';draw();search.focus();}
+  trigger.addEventListener('click',()=>popup.hidden?open():close());
+  trigger.addEventListener('keydown',e=>{if(['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();open();}});
+  search.addEventListener('input',draw);
+  popup.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){e.preventDefault();close();trigger.focus();return;}
+    if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;
+    if(e.target===search && ['Home','End'].includes(e.key))return;
+    const options=[...list.querySelectorAll('[role="option"]')];if(!options.length)return;
+    e.preventDefault();const at=options.indexOf(document.activeElement);
+    const next=e.key==='Home'?0:e.key==='End'?options.length-1:e.key==='ArrowDown'?(at+1)%options.length:(at<=0?options.length:at)-1;
+    options[next].focus();
+  });
+  root.addEventListener('focusout',e=>{if(!root.contains(e.relatedTarget))close();});
+  document.addEventListener('pointerdown',e=>{if(!root.contains(e.target))close();});
+  select.addEventListener('change',sync);
+  new MutationObserver(sync).observe(select,{attributes:true,attributeFilter:['disabled']});
+  return {close,render(values){funds=values;sync();draw();},clear(){funds=[];list.replaceChildren();close();sync();}};
+}
+async function refreshArcusReturns(){
+  if(!integrated)return;
+  const generation=accessGeneration;
+  try{
+    const response=await fetch('./data/arcus-funds',{credentials:'same-origin',cache:'no-store'});
+    if(response.status===401){session.lock();return;}
+    if(!response.ok)return;
+    const data=await response.json();if(generation!==accessGeneration || !manifest)return;
+    arcusReturns=new Map((data.funds || []).map(f=>[f.id,f]));
+    for(const picker of fundPickers.values())picker.render(manifest.funds);
+  }catch{} // Holdings/comparison remain available if the optional quote source fails.
+}
 function renderArchiveInfo() {
   $("archive-info").replaceChildren(
     ...manifest.funds.filter(f=>[$('portfolio').value,$('benchmark').value].includes(f.id)).map((f) => {
@@ -189,12 +295,13 @@ function renderArchiveInfo() {
           `${f.positions} positions · latest holdings ${f.latest || "not collected"} · ${onlineMode ? 'saved allocation' : f.dates.length+' saved dates'}`,
         ),
       );
+      if(f.allocationNote)card.append(text('p',f.allocationNote));
       return card;
     }),
   );
 }
 for(const id of ['portfolio','benchmark','currency','range','start','end']) $(id).addEventListener('change',()=>{
-  result=null;$('results').hidden=true;$('price-status').textContent='';$('message').replaceChildren();
+  result=null;$('missing-actions').hidden=true;$('results').hidden=true;$('price-status').textContent='';$('message').replaceChildren();
   saveSelection();
 });
 for(const id of ['portfolio','benchmark']) $(id).addEventListener('change', renderArchiveInfo);
@@ -289,6 +396,8 @@ $("controls").addEventListener("submit", async (e) => {
   $("run").textContent = "Calculating…";
   $("results").hidden = true;
   result = null;
+  $('missing-actions').hidden=true;
+  $('assume-zero').disabled=true;
   $('price-status').textContent='';
   const controls=[...$('controls').elements,$('connect-saved'),$('folder'),$('import')];
   const disabledBefore=controls.map(el=>el.disabled);controls.forEach(el=>el.disabled=true);
@@ -304,12 +413,13 @@ $("controls").addEventListener("submit", async (e) => {
     options.allowApproximateHoldings = true;
     options.allowPartialReturns = true;
     options.allowSnapshotResearch = onlineMode;
+    options.assumeMissingZero=$('assume-zero').checked;
     lastOptions = options;
     saveSelection();
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=weighted-excel-20261014", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=missing-recovery-20261028", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -329,6 +439,7 @@ $("controls").addEventListener("submit", async (e) => {
     });
     if (generation !== accessGeneration || !await session.check()) return;
     result = response;
+    $('missing-actions').hidden= !onlineMode || !result.missing?.length;
     result.notes=[...(result.notes || []),...(data.priceNotes || [])];
     if(data.returnReasons)result.missing=(result.missing || []).map(p=>({...p,reason:data.returnReasons[p.fund+'|'+p.id]}));
     if (!["complete", "partial"].includes(result.status)) {
@@ -371,6 +482,7 @@ $("controls").addEventListener("submit", async (e) => {
       message(
         `Research estimate. Missing figures stay blank. Return coverage (absolute source weight): ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. ${missingNames.length} holdings have missing returns. ${result.contributionMethod === 'average-weight-period' ? 'Portfolio returns sum average weight × security return for available holdings.' : result.contributionMethod === 'arithmetic-daily' ? 'Contributions sum daily estimates; they are not compounded returns.' : 'Contributions use reference-return linking.'}`,
       );
+      if(result.assumedReturns?.length)message(`Research estimate: ${result.assumedReturns.length} missing security returns assumed 0% in ${options.currency}. These are assumptions, not verified holidays. Measured return coverage: ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. Assumptions are marked in the table and Excel.`);
     }
     $("empty").hidden = true;
     $("results").hidden = false;
@@ -397,7 +509,7 @@ $("controls").addEventListener("submit", async (e) => {
     if(onlineMode) $('price-status').textContent = 'Adjusted daily returns · '+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
     $('research-note').replaceChildren(
       text('strong','Research estimate — use for ideas, not exact accounting.'),
-      text('p',onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Shares use adjusted closing prices and same-date FX. Across verified Tokyo market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
+      text('p',onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Shares use adjusted closing prices and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
       ...(result.holdingsWarnings || []).map(n => text('p',n)),
       ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. ${result.contributionMethod === 'average-weight-period' ? 'Your portfolio headline is the sum of available average weight × security return contributions. ETF headlines use observed fund returns; the contribution subtotal may differ.' : 'Missing returns stay blank; available headline figures are fund reference returns, not these subtotals.'} ${result.contributionMethod === 'arithmetic-daily' ? 'Both contribution columns use arithmetic daily sums because a complete reference series is unavailable.' : ''}`)] : []),
       ...(result.missing?.length ? [text('p','Missing returns: '+[...new Set(result.missing.map(p=>p.name+(p.reason ? ' — '+p.reason : '')))].join('; '))] : []),
@@ -411,8 +523,16 @@ $("controls").addEventListener("submit", async (e) => {
     controls.forEach((el,i)=>el.disabled = !manifest || disabledBefore[i]);
     $("run").disabled = !manifest;
     $("run").textContent = "Compare funds";
+    $('assume-zero').disabled=false;
   }
 });
+$('retry-missing').addEventListener('click',()=>{
+  if(!result || $('run').disabled)return;
+  const count=online?.retryMissing(result.missing);
+  if(count)$('controls').requestSubmit();
+  else message('These gaps need cash income, private valuations or a verified listing. There is no listed price to retry. Import verified return levels, or choose the explicit 0% assumption and compare again.');
+});
+$('assume-zero').addEventListener('change',()=>{if(manifest && !$('run').disabled)$('controls').requestSubmit();});
 const fmt = (v) =>
   v === null || v === undefined ? "—" : (v * 100).toFixed(2) + "%";
 function displayedRows() {
@@ -449,8 +569,8 @@ const columns = [
   ["ticker", "Security / sector"],
   ["weightA", "Avg weight · Portfolio"],
   ["weightB", "Avg weight · Benchmark"],
-  ["activeWeight", "Active weight"],
   ["securityReturn", "Security return"],
+  ["activeWeight", "Active weight"],
   ["ctrA", "Contribution · Portfolio"],
   ["ctrB", "Contribution · Benchmark"],
   ["activeCtr", "Difference (pp)"],
@@ -512,6 +632,7 @@ function renderRows() {
       for (const [key] of visible) {
         const cell = text("td", key === "ticker" ? r.ticker : fmt(r[key]));
         if (key === "ticker" && r.name !== r.ticker) cell.append(text("small", r.name));
+        if (key === 'ticker' && r.assumedZero)cell.append(text('small','Assumed 0%'));
         if (compact || ["ctrA", "ctrB", "activeCtr"].includes(key)) cell.className = signClass(key, r[key]);
         row.append(cell);
       }
@@ -619,7 +740,7 @@ $("download").addEventListener("click", async () => {
     const current = result, generation = accessGeneration;
     const selection = {portfolio:fundLabel(lastOptions.portfolio), benchmark:fundLabel(lastOptions.benchmark),
       rows:displayedRows(), view:$('group').value === 'security' ? 'Holdings' : 'Sector'};
-    const {comparisonXlsx} = await import('./export.mjs?v=weighted-excel-2-20261014');
+    const {comparisonXlsx} = await import('./export.mjs?v=themes-readability-20261028');
     if (!await session.check() || generation !== accessGeneration || current !== result) return;
     const blob = new Blob([comparisonXlsx(current, selection)],
       {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -634,7 +755,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=listed-holidays-20261014');
+  const {createOnlineSource}=await import('./online.mjs?v=missing-recovery-20261028');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;
@@ -649,6 +770,7 @@ async function connectSaved() {
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
     onlineMode=true;dataset=folder=null; setup(m);
+    void refreshArcusReturns();
     $('archive-title').textContent='Saved ETFs & portfolios';
     $('empty').hidden=true;
     $('range-note').textContent='Checking the latest completed US trading date…';

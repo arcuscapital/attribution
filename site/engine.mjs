@@ -105,6 +105,18 @@ function carino(a, b) {
     : (Math.log1p(a) - Math.log1p(b)) / (a - b);
 }
 export function compare(input, options) {
+  if(options.assumeMissingZero) {
+    const original=compare(input,{...options,assumeMissingZero:false});
+    if(!['complete','partial'].includes(original.status))return original;
+    const assumed=original.rows.filter(row=>row.securityReturn===null);
+    if(!assumed.length)return original;
+    const rows=original.rows.map(row=>row.securityReturn===null
+      ? {...row,securityReturn:0,ctrA:0,ctrB:0,assumedZero:true}:row);
+    const estimate=averageWeightReturns({...original,rows},options.portfolio,options.benchmark);
+    return {...estimate,status:'partial',coverage:original.coverage,missing:original.missing,
+      assumedReturns:assumed.map(row=>({id:row.id,name:row.name})),sectors:[],
+      notes:[...estimate.notes,'USER ASSUMPTION: missing security period returns are 0% in the selected reporting currency. These are not observed returns or verified holidays. All contributions use average weight × period return; measured coverage remains unchanged. Sector attribution is withheld.']};
+  }
   const data = validateDataset(input),
     { portfolio, benchmark, start, end, currency = "USD" } = options;
   if (portfolio === benchmark) throw Error("Choose two different funds.");

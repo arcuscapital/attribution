@@ -30,6 +30,13 @@ class PublishTests(unittest.TestCase):
                 publish(root,dict(node='node',wrangler='wrangler',authHome='fixture'),fail)
             self.assertEqual(len(calls),1)
             self.assertNotIn('catalog',calls[0])
+    def test_allocation_basis_is_visible_without_publishing_source_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report=self.fixture(Path(tmp));path=report/'2026-10.json';data=json.loads(path.read_text())
+            data['snapshots'][0]['weightBasis']='Reported market weights; dash weights derived from market values.'
+            path.write_text(json.dumps(data));rows,m=prepare(report,'1790000000000')
+            self.assertEqual(m['funds'][0]['allocationNote'],data['snapshots'][0]['weightBasis'])
+            self.assertNotIn('quantity',rows[0]['value'])
     def test_catalog_is_last_and_account_is_fixed(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.fixture(root);calls=[]

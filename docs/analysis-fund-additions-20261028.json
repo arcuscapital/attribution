@@ -1,0 +1,156 @@
+[
+  {
+    "fund": "UFO",
+    "date": "2026-09-03",
+    "positions": 66,
+    "weightTotal": 1.000002,
+    "resolved": 61,
+    "unmapped": 5,
+    "source": "https://etfdb.com/etf/UFO/#holdings"
+  },
+  {
+    "fund": "TIME",
+    "date": "2026-10-07",
+    "positions": 64,
+    "weightTotal": 1.0004,
+    "resolved": 62,
+    "unmapped": 0,
+    "source": "https://clockwisefunds.com/wp-content/uploads/data/TidalFG_Holdings_TIME.csv"
+  },
+  {
+    "fund": "GPT",
+    "date": "2026-09-03",
+    "positions": 76,
+    "weightTotal": 1,
+    "resolved": 75,
+    "unmapped": 1,
+    "source": "https://etfdb.com/etf/GPT/#holdings"
+  },
+  {
+    "fund": "WARP",
+    "date": "2026-09-07",
+    "positions": 22,
+    "weightTotal": 1,
+    "resolved": 21,
+    "unmapped": 0,
+    "source": "https://www.vaneck.com/us/en/investments/space-etf-warp/downloads/holdings/"
+  },
+  {
+    "fund": "KOID",
+    "date": "2026-09-08",
+    "positions": 60,
+    "weightTotal": 1.0003,
+    "resolved": 38,
+    "unmapped": 15,
+    "source": "https://kraneshares.com/csv/09_08_2026_koid_holdings.csv"
+  },
+  {
+    "fund": "URA",
+    "date": "2026-10-27",
+    "positions": 63,
+    "weightTotal": 1.0001,
+    "resolved": 56,
+    "unmapped": 4,
+    "source": "https://www.globalxetfs.com/funds/ura"
+  },
+  {
+    "fund": "BOTZ",
+    "date": "2026-10-27",
+    "positions": 86,
+    "weightTotal": 1.0005,
+    "resolved": 79,
+    "unmapped": 1,
+    "source": "https://www.globalxetfs.com/funds/botz"
+  },
+  {
+    "fund": "LIT",
+    "date": "2026-10-27",
+    "positions": 46,
+    "weightTotal": 1.0004,
+    "resolved": 41,
+    "unmapped": 0,
+    "source": "https://www.globalxetfs.com/funds/lit"
+  },
+  {
+    "fund": "PAVE",
+    "date": "2026-10-27",
+    "positions": 100,
+    "weightTotal": 1.0010000000000001,
+    "resolved": 98,
+    "unmapped": 0,
+    "source": "https://www.globalxetfs.com/funds/pave"
+  },
+  {
+    "fund": "IBB",
+    "date": "2026-10-27",
+    "positions": 248,
+    "weightTotal": 0.9996,
+    "resolved": 235,
+    "unmapped": 5,
+    "source": "https://www.ishares.com/us/products/239699/ishares-nasdaq-biotechnology-etf/latest-holdings.csv"
+  },
+  {
+    "fund": "IYK",
+    "date": "2026-10-26",
+    "positions": 57,
+    "weightTotal": 1.0003,
+    "resolved": 50,
+    "unmapped": 3,
+    "source": "https://www.ishares.com/us/products/239505/ishares-us-consumer-staples-etf/latest-holdings.csv"
+  },
+  {
+    "fund": "IYT",
+    "date": "2026-10-27",
+    "positions": 49,
+    "weightTotal": 0.9997,
+    "resolved": 43,
+    "unmapped": 1,
+    "source": "https://www.ishares.com/us/products/239501/ishares-transportation-average-etf/latest-holdings.csv"
+  },
+  {
+    "fund": "IJR",
+    "date": "2026-10-26",
+    "positions": 646,
+    "weightTotal": 1.000388353109399,
+    "resolved": 633,
+    "unmapped": 1,
+    "source": "https://www.ishares.com/us/products/239774/ishares-core-sp-smallcap-etf/latest-holdings.csv",
+    "weightBasis": "Reported market weights; dash weights derived from reported market values divided by total market value. Notional weights are not substituted."
+  },
+  {
+    "fund": "KRE",
+    "date": "2026-10-26",
+    "positions": 169,
+    "weightTotal": 0.99998556,
+    "resolved": 167,
+    "unmapped": 1,
+    "source": "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-kre.xlsx"
+  },
+  {
+    "fund": "XBI",
+    "date": "2026-10-26",
+    "positions": 167,
+    "weightTotal": 1.00009658,
+    "resolved": 157,
+    "unmapped": 9,
+    "source": "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xbi.xlsx"
+  },
+  {
+    "fund": "AIRR",
+    "date": "2026-10-26",
+    "positions": 56,
+    "weightTotal": 1.0002,
+    "resolved": 55,
+    "unmapped": 0,
+    "source": "https://www.ftportfolios.com/LoadHoldingsCsv.aspx?Ticker=AIRR"
+  },
+  {
+    "fund": "HUMN",
+    "date": "2026-10-28",
+    "positions": 48,
+    "weightTotal": 0.9998,
+    "resolved": 41,
+    "unmapped": 1,
+    "source": "https://www.roundhillinvestments.com/assets/data/FilepointRoundhill.40RU.RU_Holdings_{date}.csv"
+  }
+]

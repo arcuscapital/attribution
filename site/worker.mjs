@@ -1,4 +1,4 @@
-import { compare } from "./engine.mjs?v=weighted-excel-20261014";
+import { compare } from "./engine.mjs?v=missing-recovery-20261028";
 self.onmessage = ({ data }) => {
   try {
     self.postMessage({ ok: true, result: compare(data.dataset, data.options) });
