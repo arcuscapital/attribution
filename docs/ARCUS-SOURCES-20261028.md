@@ -20,7 +20,7 @@ The integrated analysis reads the same saved portfolio feed and dated USD return
 
 A one-time desktop-only issuer fetch validates 45 complete ETF allocations and seeds optional main-D1 keys, avoiding issuer downloads during comparison. The remaining 19 ETFs retain their explicitly dated archive allocation if Arcus has names but no complete weights. Failed/blocked issuer sources and incomplete derivative weights are not treated as current complete allocations. Source dates are displayed, including when the issuer's latest published snapshot is older. All 64 ETFs plus four portfolio choices remain available. The existing nightly holdings job preserves complete weights for subsequent refreshes; it adds no job types, messages, schedules, collectors or price providers.
 
-Current weights are applied to the selected period as a research comparison, not a reconstruction of historical trading. Recent exact-dated completed Arcus USD returns take priority; they are not described as verified dividend-reinvested total returns. If Arcus lacks the whole selected period for a security, its existing adjusted-price/same-date-FX fallback is used for the entire security period. No mixing of price bases or arbitrary zero filling. Existing explicit zero-assumption option, retry control, themed selectors/coloured returns, readable typography, column order and white/gridlined Excel remain.
+Current weights are applied to the selected period as a research comparison, not a reconstruction of historical trading. Recent exact-dated completed Arcus USD returns take priority; they are not described as verified dividend-reinvested total returns. If Arcus lacks the whole selected period for a security, its existing adjusted-price/same-date-FX fallback is used for the entire security period. No mixing of price bases or arbitrary filling of listed-share prices. Existing explicit zero-assumption option, retry control, themed selectors/coloured returns, readable typography, column order and white/gridlined Excel remain.
 
 ## Cloudflare Free constraints
 
@@ -58,7 +58,7 @@ Private production-data replay: IBKR 2026-10-27 (40 rows, 39 listed), BAI 2026-1
 | USD cash | Cash interest is not a stock return. Exact contribution needs the account's accrued interest; a labelled 0% assumption can be used for research. |
 | TWD CASH | Requires cash interest and the chosen reporting-currency effect. A missing data point is not proof of a holiday or zero return. In the current BAI allocation its weight rounds to zero, so it does not create a nonzero-weight return gap. |
 
-Verified Taiwan/Tokyo holidays retain the earlier explicit calendar rule. Unknown missing prices never silently become holidays. The remaining private/cash gaps cannot be eliminated honestly by a refresh button alone.
+Verified Taiwan/Tokyo holidays retain the earlier explicit calendar rule. Unknown missing prices never silently become holidays. At the user's subsequent request, these non-listed positions now use labelled 0% returns by default and sit at the bottom; a refresh cannot create an observed private valuation or cash-income record.
 
 ## Deployment and rollback order
 
@@ -103,3 +103,62 @@ The final follow-up passed all 959 Watchlists and 78 Attribution tests, includin
 
 
 Classifier evidence: ARK's [Q3 2026 issuer update](https://www.ark-funds.com/articles/etf/q3-26-market-update-summary) identifies OpenAI and Kalshi as private-company exposures. The source identities PPOPENAIC and PPKALSHIC are matched together with their exact names; a generic Private/Unmapped archive label alone does not establish private status. [Goldman Sachs' fund facts](https://am.gs.com/public-assets/documents/b7a57c0f-24de-11ef-ad18-bdd12dea47d8) identifies Treasury Obligations as a money-market fund. WTS, CVR, TRS and futures source descriptions are classified separately from ordinary shares. Currency balances and receivables/payables are retained with the user's labelled zero convention.
+
+
+## Production receipts
+
+All application commits below were pushed to the repository and branch identified above. Documentation-only receipt commits do not change deployed application content. Existing authentication, bridge secrets and account boundaries were preserved. The final compatible classification client was deployed in Attribution; the main SQL source revision remains independently compatible. No changes were deployed to notification, maintenance or price Workers.
+
+| Worker | Full application commit | Worker version | Deployment ID | Deployment UTC |
+| --- | --- | --- | --- | --- |
+| Watchlists, first source revision | 76700ccd058dc7257bb016d541f25f8dd08240fe | 642e49b6-9046-433a-a7f1-7311cee9335f | d453d8d4-da27-42c8-bb7d-c6fd00d2e8ac | 2026-10-28T10:16:12.827726Z |
+| Watchlists, SQL projection | 8b1e925c439c1e5a674b3744f4cc94f04ebc7490 | 73251e7f-bde4-4129-b8db-fe61e90f330f | be7df562-b441-433c-8f36-c75896e2d6f7 | 2026-10-28T10:31:34.773588Z |
+| Watchlists, FINAL | e31885d1cf4289576f00fd0d6e2531946f92c006 | b98930b6-77c4-45ee-a013-158f63073a3f | 1944f8e3-11d7-46d1-8bab-bf6172def319 | 2026-10-28T10:59:55.501402Z |
+| Holdings, FINAL | 76700ccd058dc7257bb016d541f25f8dd08240fe | 46c834e2-242c-46e0-909b-68d43b47f93c | 27363034-03b6-4036-9890-0ee2676d7501 | 2026-10-28T10:15:35.847266Z |
+| Attribution | 73f4617f5542af340b4523b0712fba1126f342f0 | 3a46616c-280a-4428-96b6-db61d57cebaa | 5838262d-8440-42d6-9b82-ed3c000a4313 | 2026-10-28T10:14:47.487228Z |
+| Attribution | e4c5f4ab317af1f0c8a1018dff35b7b11cdcb5c5 | 5a38263a-9b11-44f7-ad29-77da0b988b12 | 7a108bb7-8cd8-4d9f-8a26-bd03784e57cf | 2026-10-28T10:19:02.676482Z |
+| Attribution | 6f9d529418083e4670b95c02075b6a8bb1010eb9 | 2aefa16f-a5f3-48e2-96b9-ad9f9eb509da | 2e7cdb33-1620-42b9-8dc6-b4a95623c4f6 | 2026-10-28T10:32:20.382933Z |
+| Attribution | f814414c8b40931ca8158e00c7ae6c7b345988f8 | 5804601a-c92c-4342-b077-b59a1d232279 | 6101c718-aada-411d-88ca-d8e5aee94eff | 2026-10-28T10:39:18.143167Z |
+| Attribution | 593124eafad2ec7dbdfa73dd95cb3d52a0a1c194 | a9e5b434-ad78-4060-8006-c3a483ecf9e4 | b421d559-647e-4166-b522-bea0664dcdaa | 2026-10-28T10:59:23.607790Z |
+| Attribution | 72f739b9fa8e9375fc83172b164ee81d68f2c463 | 9468f617-e42f-4b42-a626-463ede5b1350 | 5d1f9e53-d74a-4f47-aa63-3c92723ba872 | 2026-10-28T11:02:34.839766Z |
+| Attribution, FINAL | 02836dbaa5b3f81f07cfeb0ab4f826ece2b90b16 | 1199d83b-3cb7-4fb2-ba7d-cd6a8bfbab7f | 5a0fa4f3-d26e-476f-9301-c468d722b61c | 2026-10-28T11:06:52.802987Z |
+
+## Final Cloudflare CPU evidence
+
+Brave Cloudflare Observability showed successful requests for final main version b98930b6-77c4-45ee-a013-158f63073a3f:
+
+| Source | UTC | CPU ms | Wall ms | Request ID |
+| --- | --- | ---: | ---: | --- |
+| VOO | 2026-10-28T11:00:56.497Z | 8 | 1736 | 5d375f9d19ea1add8a2d0d182776b7de |
+| VOO | 2026-10-28T11:02:41.330Z | 3 | 1172 | d4eb817d0db47652e96595cd779ad9c4 |
+| IBKR | 2026-10-28T11:01:44.275Z | 2 | 370 | a309cc17fcfeab81db6b4e5ebee82189 |
+| BAI | 2026-10-28T11:01:44.297Z | 2 | 387 | 580f263b831c0c4be89f5ae01889bebd |
+
+Earlier SQL revision 73251e7f also measured VOO 8/9 ms, IBKR 1 ms and BAI 2 ms. This confirms improvement over the initial 26 ms VOO request for the samples observed, not a guarantee about every cold request or unrelated overnight jobs. Database read time and network wall time are not Worker CPU. No new background jobs or price collectors were added.
+
+## Source coverage and honest limits
+
+Brave checked all 64 ETF source endpoints successfully; all four portfolios were exercised in full comparisons. Forty-five ETFs have complete issuer allocations retained in Arcus. Nineteen still use an explicitly dated archive allocation because current whole-fund issuer weights could not be obtained/validated: AIQ, FINX, SHLD, EART, IVES, IVEP, QQQ, IGPT, WCLD, WTAI, FFLS, UFO, TIME, GPT, URA, BOTZ, LIT, PAVE, IJR. The endpoint audit confirms responses and source shape; it does not claim every security in all 64 ETFs has a complete return for every period. VOO's source allocation remains its published 30 September snapshot; dates are not relabelled as today.
+
+Weave Communications (WEAV) remained a listed-share price gap in the EasyAI/WCLD one-day comparison. The manual Retry missing prices action was exercised in Brave and the provider still did not supply the required completed adjusted-price interval. This pre-existing provider gap is documented in the history-recovery release. It remains visible and blank by default; the separate explicit missing-zero option may include a labelled estimate. No missing open-market price was misrepresented as a holiday.
+
+
+## Final Brave and Excel verification
+
+Production final client 02836dbaa5b3f81f07cfeb0ab4f826ece2b90b16, main e31885d1cf4289576f00fd0d6e2531946f92c006; one-day USD interval 27 October 2026:
+
+| Comparison | Listed-share result | Displayed rows | Labelled non-listed zero rows |
+| --- | --- | ---: | ---: |
+| IBKR / BAI | No listed-share return gaps | 77 | 5 |
+| IBKR / Marlow | No listed-share return gaps | 46 | 1 |
+| Marlow / AIRR | No listed-share return gaps; prior unresolved AIRR listings recovered | 85 | 2 |
+| EasyGE / VOO | No listed-share return gaps | 538 | 19 |
+| EasyAI / WCLD | WEAV missing after manual retry; explicit archive allocation warning remains | 97 | 3 |
+| ARKK / SOXX | No listed-share return gaps | 72 | 6 |
+| RSP / VOO | No listed-share return gaps | 527 | 23 |
+
+These are real Brave DOM/browser checks, not Chrome, native PC control, emulator or physical-device tests. Final selectors contain 68 choices (64 ETFs plus four portfolios), bold theme headers (700), Arcus green/red daily returns (rgb 14,122,61 / 192,52,60), Segoe UI table font and dark text (rgb 23,33,47). Security return precedes Active weight, including the two-portfolio comparison. Non-listed rows stay at the bottom and show Assumed 0%. Current source dates remain visible; archived fallback dates are explicitly identified.
+
+All 959 Watchlists and 78 Attribution automated tests passed. A final synthetic XLSX generated by the actual exporter was reopened as OOXML: valid worksheet XML, showGridLines=1, fillId=0 for every data-row text/numeric style, Security return column D before Active weight E, and the assumed-zero row placed last even when supplied first. No native Excel session or new browser blob download is claimed; the browser connector cannot capture those downloads. Existing earlier workbook verification and export regression tests remain applicable.
+
+Anonymous Node HTTP checks returned 401 with private, no-store for the analysis root, arcus-source.mjs, catalogue and VOO source route. Python urllib requests were blocked earlier by the edge with 403; those are not presented as authentication-engine evidence. No private portfolio values, cookies, tokens or raw request headers were committed.
