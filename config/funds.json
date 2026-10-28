@@ -451,14 +451,14 @@
     "url": "https://www.ishares.com/us/products/239774/ishares-core-sp-smallcap-etf/latest-holdings.csv"
   },
   "KRE": {
-    "name": "State Street\u00c2\u00ae SPDR\u00c2\u00ae S&P\u00c2\u00ae Regional Banking ETF",
+    "name": "State Street SPDR S&P Regional Banking ETF",
     "provider": "generic",
     "currency": "USD",
     "manualOnly": true,
     "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-kre.xlsx"
   },
   "XBI": {
-    "name": "State Street\u00c2\u00ae SPDR\u00c2\u00ae S&P\u00c2\u00ae Biotech ETF",
+    "name": "State Street SPDR S&P Biotech ETF",
     "provider": "generic",
     "currency": "USD",
     "manualOnly": true,
