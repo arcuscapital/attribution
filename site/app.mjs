@@ -299,7 +299,7 @@ function renderArchiveInfo() {
         text("strong", f.id.startsWith('PORTFOLIO:') ? f.name : f.id),
         text(
           "p",
-          `${f.positions} positions · latest holdings ${f.latest || "not collected"} · ${onlineMode ? 'saved allocation' : f.dates.length+' saved dates'}`,
+          manifest.holdingsSource==='arcus' && !f.currentSource ? 'Current Arcus allocation checked when you compare.' : `${f.positions} positions · holdings ${f.latest || "not collected"} · ${f.currentSource || (onlineMode ? 'saved allocation' : f.dates.length+' saved dates')}`,
         ),
       );
       if(f.allocationNote)card.append(text('p',f.allocationNote));
@@ -519,7 +519,7 @@ $("controls").addEventListener("submit", async (e) => {
     );
     renderRows();
     renderMethod();
-    if(onlineMode) $('price-status').textContent = 'Adjusted daily returns · '+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
+    if(onlineMode) $('price-status').textContent = (data.arcusSource ? 'Arcus completed returns first · '+data.arcusReturnCount+' securities/funds reused · ' : 'Adjusted daily returns · ')+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
     $('research-note').replaceChildren(
       text('strong','Research estimate — use for ideas, not exact accounting.'),
       text('p',data.arcusSource ? 'Current holdings and completed USD daily returns come from Arcus. ETF weights come from its issuer sources, retaining cash and private holdings. Where Arcus does not hold the requested dated return history, adjusted-price history and same-date FX fill the gap. Current allocations are applied to the selected period; historical trades are not reconstructed. Any archive allocation fallback is disclosed below.' : onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Shares use adjusted closing prices and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
@@ -795,7 +795,7 @@ async function connectSaved() {
     if(generation!==accessGeneration || !onlineMode)return;
     manifest.valuationDates=calendar;
     $('range').value=preferredRange();applyRange();
-    $('range-note').textContent='Daily closing-price analysis through '+calendar.at(-1)+'. Today’s intraday session is excluded. Saved allocations may be older.';
+    $('range-note').textContent='Completed daily returns through '+calendar.at(-1)+'. Today’s intraday session is excluded. '+(m.holdingsSource==='arcus'?'Holdings dates are checked against Arcus when you compare.':'Saved allocations may be older.');
     message('');
   } catch(error){if(generation===accessGeneration)message(error.message+' You can refresh saved holdings or use an archive file.');}
   finally {$('connect-saved').disabled=false;}
