@@ -28,7 +28,8 @@ function nameMatches(expected, actual) {
 const portfolios={IBKR:'ibkr',MARLOW:'marlow',EASYAI:'easyai',EASYGE:'easyge'};
 const validDate=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'');
 const json=async response=>{if(!response.ok)throw Error('Arcus source unavailable');return response.json();};
-const cash=p=>/^(cash|currency)$/i.test(p.asset||'') || /^(USD|TWD|EUR|GBP|JPY|ZAR) CASH$/i.test(p.name||'');
+const cash=p=>/^(cash|currency)$/i.test(p.asset||'') || /^(USD|TWD|EUR|GBP|JPY|ZAR) CASH$/i.test(p.name||'') ||
+  (/^\$?USD$/.test(p.ticker||'') && /^US Dollar$/i.test(p.name||''));
 function asset(p){
   const description=(p.asset||'')+' '+(p.name||'');
   if(cash(p))return 'Cash';

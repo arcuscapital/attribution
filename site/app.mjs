@@ -428,7 +428,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=listed-focus-20261028", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=listed-focus-final-20261028", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -495,7 +495,6 @@ $("controls").addEventListener("submit", async (e) => {
       message(
         `Research estimate. Measured return coverage (absolute source weight): ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. ${missingNames.length ? missingNames.length+' listed/unresolved holdings have missing returns.' : 'No listed-share return gaps.'} ${result.assumedReturns?.length ? result.assumedReturns.length+' positions use a labelled 0% assumption. ' : ''}${result.contributionMethod === 'average-weight-period' ? 'Portfolio returns sum average weight × security return.' : result.contributionMethod === 'arithmetic-daily' ? 'Contributions sum daily estimates; they are not compounded returns.' : 'Contributions use reference-return linking.'}`,
       );
-      if(result.assumedReturns?.length)message(`Research estimate: ${result.assumedReturns.length} missing security returns assumed 0% in ${options.currency}. These are assumptions, not verified holidays. Measured return coverage: ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. Assumptions are marked in the table and Excel.`);
     }
     $("empty").hidden = true;
     $("results").hidden = false;
@@ -755,7 +754,7 @@ $("download").addEventListener("click", async () => {
     const current = result, generation = accessGeneration;
     const selection = {portfolio:fundLabel(lastOptions.portfolio), benchmark:fundLabel(lastOptions.benchmark),
       rows:displayedRows(), view:$('group').value === 'security' ? 'Holdings' : 'Sector'};
-    const {comparisonXlsx} = await import('./export.mjs?v=listed-focus-20261028');
+    const {comparisonXlsx} = await import('./export.mjs?v=listed-focus-final-20261028');
     if (!await session.check() || generation !== accessGeneration || current !== result) return;
     const blob = new Blob([comparisonXlsx(current, selection)],
       {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -772,7 +771,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=listed-focus-20261028');
+  const {createOnlineSource}=await import('./online.mjs?v=listed-focus-final-20261028');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;
