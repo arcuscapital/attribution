@@ -6,8 +6,14 @@ let online = null, onlineMode = false;
 const fundPickers = new Map();
 let arcusReturns = new Map();
 let activeWorker = null, cancelCalculation = null, accessGeneration = 0;
+let exportUrl=null;
+function clearExport(){
+  if(exportUrl)URL.revokeObjectURL(exportUrl);
+  exportUrl=null;$('download-ready').hidden=true;$('download-ready').removeAttribute('href');
+}
 const session = createSessionGuard({onLock() {
   accessGeneration++;
+  clearExport();
   online?.clear();
   activeWorker?.terminate(); activeWorker = null;
   cancelCalculation?.(); cancelCalculation = null;
@@ -152,6 +158,7 @@ function setup(m) {
     throw Error("Invalid archive manifest. At least two funds are required.");
   manifest = m;
   result = null;
+  clearExport();$('missing-actions').hidden=true;$('assume-zero').checked=false;
   $("results").hidden = true;
   $("empty").hidden = false;
   for (const id of ["portfolio", "benchmark"]) {
@@ -301,6 +308,7 @@ function renderArchiveInfo() {
   );
 }
 for(const id of ['portfolio','benchmark','currency','range','start','end']) $(id).addEventListener('change',()=>{
+  clearExport();
   result=null;$('missing-actions').hidden=true;$('results').hidden=true;$('price-status').textContent='';$('message').replaceChildren();
   saveSelection();
 });
@@ -392,6 +400,7 @@ async function loadRange(start, end) {
 }
 $("controls").addEventListener("submit", async (e) => {
   e.preventDefault();
+  clearExport();
   $("run").disabled = true;
   $("run").textContent = "Calculating…";
   $("results").hidden = true;
@@ -744,11 +753,13 @@ $("download").addEventListener("click", async () => {
     if (!await session.check() || generation !== accessGeneration || current !== result) return;
     const blob = new Blob([comparisonXlsx(current, selection)],
       {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-    const url = URL.createObjectURL(blob), link = document.createElement('a');
-    link.href = url;
+    clearExport();
+    exportUrl = URL.createObjectURL(blob);
+    const link = $('download-ready');
+    link.href = exportUrl;link.hidden=false;
     link.download = `arcus-comparison-${current.start}-${current.end}.xlsx`;
     link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    // Keep a direct user-gesture link available if a browser blocks the async download.
   } catch (error) { message('Excel download unavailable. '+error.message); }
   finally { $('download').disabled = false; }
 });
