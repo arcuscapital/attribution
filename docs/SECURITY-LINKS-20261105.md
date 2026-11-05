@@ -14,6 +14,12 @@ Validation before release: 83/83 JavaScript tests; Wrangler 4.128.0 dry run; dif
 
 Deploy only Attribution Worker `arcus-attribution` under account `5695cae2becf35e049eb5df3e2849ae2`, using the separate authentication profile. Main Watchlists account `42dd726446271f45425eab740741b864` is unchanged. Existing standalone password sessions and the server HMAC bridge remain compatible. No data migration or configuration/secret changes.
 
+## Production receipt and verification
+
+Application commit `fd15826d1612c1124beaea40280f236f0c47344f`, pushed before deployment. Worker version `d0a244c3-3bd7-4f4c-8f19-892f4df6018b`; deployment `4c980288-6578-4787-9aca-5fd99071e6f0`; UTC `2026-11-05T12:31:23.639016Z`; 100% traffic. Only app.mjs and style.css were uploaded as changed assets. This receipt is a later documentation-only commit.
+
+Live Brave: SOXX portfolio versus QQQ benchmark for 2026-11-04 in USD completed using 114 reused securities/fund series, 99.86% / 99.84% measured coverage, no listed-share gaps and eight disclosed non-listed zero assumptions. APP rendered as a link to `/?tab=watchlist&symbol=APP`. Clicking it opened a new tab showing `APP Applovin Corp`, its selected Chart tab, price/chart and the same company information tabs as Watchlists. The analysis remained in the original tab. Existing Watchlists logic selected its chart range; the new link does not override it. Anonymous requests to the integrated root, app module and catalogue each returned 401. No private portfolio was used. Screenshot capture was unavailable in the Brave extension (debugger unattached); verification is based on the actual UI DOM and navigation, not an image or physical-device test.
+
 ## Exact rollback
 
 Run in the Attribution checkout. The previous version is `8c1622a2-9b2f-497b-8ca9-4cbbc4f31657`, deployment `43bb18f2-af30-4547-aafd-ba91fc2dc92c`, deployed 2026-11-05T11:58:37.027479Z. This UI-only rollback needs no Watchlists rollback or data changes.
