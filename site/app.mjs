@@ -1,10 +1,12 @@
 import { dateRange } from './ranges.mjs';
 import { createSessionGuard } from './session.mjs';
+import { isNonListed } from './arcus-source.mjs';
 const $ = (id) => document.getElementById(id);
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
 let online = null, onlineMode = false;
 const fundPickers = new Map();
 let arcusReturns = new Map();
+let securityLinks = new Map();
 let activeWorker = null, cancelCalculation = null, accessGeneration = 0;
 let exportUrl=null;
 function clearExport(){
@@ -21,6 +23,7 @@ const session = createSessionGuard({onLock() {
   for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','message','price-status']) $(id).replaceChildren();
   for (const id of ['portfolio','benchmark']) { $(id).replaceChildren(); $(id).disabled = true; }
   arcusReturns.clear();
+  securityLinks.clear();
   for (const picker of fundPickers.values()) picker.clear();
   $('run').disabled = true;
   $('missing-actions').hidden=true; $('assume-zero').checked=false;
@@ -158,6 +161,7 @@ function setup(m) {
     throw Error("Invalid archive manifest. At least two funds are required.");
   manifest = m;
   result = null;
+  securityLinks.clear();
   clearExport();$('missing-actions').hidden=true;$('assume-zero').checked=false;
   $("results").hidden = true;
   $("empty").hidden = false;
@@ -450,6 +454,7 @@ $("controls").addEventListener("submit", async (e) => {
     });
     if (generation !== accessGeneration || !await session.check()) return;
     result = response;
+    securityLinks = buildSecurityLinks(data.snapshots);
     if(data.arcusSource) {
       for(const snap of data.snapshots){const fund=manifest.funds.find(f=>f.id===snap.fund);if(fund){fund.latest=snap.asOf;fund.positions=snap.positions.length;fund.currentSource=snap.source||'Archive fallback';}}
       renderArchiveInfo();
@@ -551,6 +556,19 @@ $('retry-missing').addEventListener('click',()=>{
 $('assume-zero').addEventListener('change',()=>{if(manifest && !$('run').disabled)$('controls').requestSubmit();});
 const fmt = (v) =>
   v === null || v === undefined ? "—" : (v * 100).toFixed(2) + "%";
+// Use resolved listing identities, not issuer display tickers (which may omit an exchange).
+function buildSecurityLinks(snapshots = []) {
+  const symbols = new Map();
+  for (const snapshot of snapshots) for (const position of snapshot.positions || []) {
+    const symbol = position.symbol;
+    if (isNonListed(position) || typeof symbol !== 'string' || !/^[A-Z0-9][A-Z0-9.\-^=]{0,24}$/.test(symbol)) continue;
+    if (!symbols.has(position.id)) symbols.set(position.id, symbol);
+    else if (symbols.get(position.id) !== symbol) symbols.set(position.id, null);
+  }
+  const base = integrated ? '/' : 'https://arcuscapital.co.za/';
+  return new Map([...symbols].filter(([, symbol]) => symbol).map(([id, symbol]) =>
+    [id, base + '?tab=watchlist&symbol=' + encodeURIComponent(symbol)]));
+}
 function displayedRows() {
   if ($("group").value === "security") return result.rows;
   const groups = new Map();
@@ -616,6 +634,7 @@ function renderRows() {
   $("table-hint").textContent = compact
     ? "Percentage points. Tap a row for weights and contributions; sort with the controls above."
     : "Contributions in percentage points. Tap a column to sort. Swipe the table for more columns.";
+  if ($('group').value === 'security' && securityLinks.size) $('table-hint').textContent += ' Tickers open Arcus Watchlists in a new tab.';
   const tr = document.createElement("tr");
   for (const [key, name] of visible) {
     const th = text(
@@ -647,6 +666,15 @@ function renderRows() {
       const row = document.createElement("tr");
       for (const [key] of visible) {
         const cell = text("td", key === "ticker" ? r.ticker : fmt(r[key]));
+        if (key === 'ticker' && $('group').value === 'security' && !r.nonListed && securityLinks.has(r.id)) {
+          const link = text('a', r.ticker, 'security-link');
+          link.href = securityLinks.get(r.id);
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.title = 'Open ' + r.ticker + ' in Arcus Watchlists (new tab)';
+          link.setAttribute('aria-label', link.title);
+          cell.replaceChildren(link);
+        }
         if (key === "ticker" && r.name !== r.ticker) cell.append(text("small", r.name));
         if (key === 'ticker' && r.assumedZero)cell.append(text('small','Assumed 0%'));
         if (compact || ["ctrA", "ctrB", "activeCtr"].includes(key)) cell.className = signClass(key, r[key]);
@@ -668,11 +696,13 @@ function renderRows() {
       row.className = "expandable";
       row.tabIndex = 0;
       row.setAttribute("aria-expanded", "false");
-      row.addEventListener("click", () => {
+      row.addEventListener("click", (e) => {
+        if (e.target.closest('a')) return;
         detail.hidden = !detail.hidden;
         row.setAttribute("aria-expanded", String(!detail.hidden));
       });
       row.addEventListener("keydown", (e) => {
+        if (e.target.closest('a')) return;
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); row.click(); }
       });
       return [row, detail];
