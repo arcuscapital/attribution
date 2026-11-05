@@ -210,7 +210,9 @@ const FUND_THEMES = [
   ['Growth & innovation','ARKK ARKW LOUP XT TEK FFND NITE'.split(' ')],
   ['Factors & strategies','MTUM VLUE GRNY FCTE FFLS TIME'.split(' ')],
 ];
-function fundTheme(fund) {
+const INDEX2 = 'QQQ RSP XLU IVW SLYV XLE XLY XLB XLK XLI XLF XLP XLV MDY VONE XLC SOXX IBIT'.split(' ');
+function fundTheme(fund, picker) {
+  if(picker==='benchmark' && INDEX2.includes(fund.id))return 'Indices 2';
   if (fund.id.startsWith('PORTFOLIO:')) return 'Portfolios';
   return FUND_THEMES.find(([,ids])=>ids.includes(fund.id))?.[0] || 'Other ETFs';
 }
@@ -245,8 +247,8 @@ function createFundPicker(id) {
   function sync(){const f=funds.find(f=>f.id===select.value);trigger.replaceChildren(...(f?label(f):[text('span','Choose a fund')]));trigger.disabled=select.disabled;}
   function draw(){
     list.replaceChildren();const query=search.value.trim().toLowerCase();
-    for(const theme of [...FUND_THEMES.map(([name])=>name),'Other ETFs']){
-      const matches=funds.filter(f=>fundTheme(f)===theme && `${f.id} ${f.name} ${theme}`.toLowerCase().includes(query)).sort((a,b)=>a.id.localeCompare(b.id));
+    for(const theme of [...FUND_THEMES.map(([name])=>name),'Other ETFs',...(id==='benchmark'?['Indices 2']:[])]){
+      const matches=funds.filter(f=>fundTheme(f,id)===theme && `${f.id} ${f.name} ${theme}`.toLowerCase().includes(query)).sort((a,b)=>a.id.localeCompare(b.id));
       if(!matches.length)continue;
       const group=text('div','','fund-group');group.setAttribute('role','group');group.setAttribute('aria-label',theme);
       group.append(text('strong',theme,'fund-group-title'));
@@ -771,7 +773,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=listed-focus-types-20261028');
+  const {createOnlineSource}=await import('./online.mjs?v=indices2-20261105-listed-focus-types-20261028');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;

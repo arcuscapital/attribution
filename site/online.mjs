@@ -72,17 +72,23 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
         return holdings.get(key);
       }
       const snapshots=await Promise.all(ids.map(async fund=>{
+        const entry=manifest.funds?.find(f=>f.id===fund);
+        if(entry?.referenceOnly && fund==='IBIT') {
+          sourceNotes.push(fund+': benchmark uses the index/fund return as one reference position; no constituent allocation or sector attribution is implied.');
+          return {fund,asOf:start,source:'Reference return',sourceDetail:'Index/fund return; no constituent allocation',positions:[{id:fund,symbol:fund,ticker:fund,name:entry.name,weight:1,asset:'Equity',currency:'USD',sector:'Reference benchmark'}]};
+        }
         if(arcus) {
           const packet=normalizeArcusPacket(await get('arcus-source?'+new URLSearchParams({fund})));
           arcusPackets.set(fund,packet);
           if(packet.warning)sourceNotes.push(fund+': '+packet.warning);
           if(packet.snapshot){
-            if(packet.snapshot.positions.some(p=>!p.symbol&&!isNonListed(p))) {
+            if(!entry?.arcusOnly && packet.snapshot.positions.some(p=>!p.symbol&&!isNonListed(p))) {
               try{resolveArchiveListings(packet.snapshot,await archive(fund));}
               catch(e){if(controller.signal.aborted)throw e;sourceNotes.push(fund+': saved listing identities unavailable; unresolved listed shares remain visible.');}
             }
             return packet.snapshot;
           }
+          if(entry?.arcusOnly)throw Error(fund+': complete dated issuer weights are temporarily unavailable.');
           sourceNotes.push(fund+': archive allocation fallback; current Arcus constituents dated '+packet.arcusHoldingsAsOf+'.');
         }
         return archive(fund);
