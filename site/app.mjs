@@ -236,7 +236,7 @@ function createFundPicker(id) {
   let funds=[];
   const close=()=>{popup.hidden=true;trigger.setAttribute('aria-expanded','false');};
   function label(f) {
-    const name=text('span',f.id.startsWith('PORTFOLIO:')?f.name:`${f.id} · ${f.name}`,'fund-name');
+    const name=text('span',f.id.startsWith('PORTFOLIO:')?f.name:`${f.id} · ${f.name}${id==='benchmark'&&f.id==='SOXX'?' · SOX ETF proxy':''}`,'fund-name');
     if(f.id.startsWith('PORTFOLIO:'))return [name];
     const daily=arcusReturns.get(f.id), value=daily?.oneDayReturnPct;
     const ret=text('span',Number.isFinite(value)?`${value>0?'+':''}${value.toFixed(2)}%`:f.id.startsWith('PORTFOLIO:')?'':'—','fund-return');
