@@ -53,6 +53,16 @@ export function historyReturn(raw,symbol,baseline,end){
  if(!first||!last)throw Error('Exact adjusted-price endpoints unavailable');
  return (last/first-1)*100;
 }
+// These two ZAR ETNs have live quotes but no usable daily Yahoo history.
+// Keep the public closing-price fallback explicit; never call it adjusted history.
+export const ETN_PRICE_ONLY=new Set(['NEWSLV.JO','SBCOP.JO']);
+export function etnPriceReturn(raw,symbol,baseline,end){
+ if(!ETN_PRICE_ONLY.has(symbol)||raw?.code!==symbol.slice(0,-3)||typeof raw.chart!=='string'||raw.chart.length>200000)throw Error('ETN price identity unavailable');
+ const days=new Map();
+ for(const point of JSON.parse('['+raw.chart+']'))if(Array.isArray(point)&&Number.isFinite(point[0])&&Number.isFinite(point[1])&&point[1]>0)days.set(iso(point[0]+7200000),point[1]);
+ if(!days.has(baseline)||!days.has(end))throw Error('Exact ETN closing-price endpoints unavailable');
+ return (days.get(end)/days.get(baseline)-1)*100;
+}
 export function liveReturn(q,baseline,now=Date.now()){
  if(!q||!(q.p>0)||!Number.isFinite(q.t)||!Number.isFinite(q.at)||q.at>now+60000||now-q.at>90000||q.t>now+60000||iso(q.t+7200000)<baseline)throw Error('Missing or stale live quote');
  // The previous regular close may belong to the prior day until today's first trade.

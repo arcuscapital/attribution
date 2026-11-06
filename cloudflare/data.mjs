@@ -31,6 +31,19 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
   if(route!=='prices')return reply({error:'Not found'},404);
   let query;
   try {query=priceQuery(url.searchParams);} catch(e){return reply({error:e.message},400);}
+  if(url.searchParams.get('source')==='sharenet'){
+    if(!['NEWSLV.JO','SBCOP.JO'].includes(query.symbol))return reply({error:'Unsupported ETN'},400);
+    const code=query.symbol.slice(0,-3),key=new Request('https://analysis-market-cache.invalid/etn-closes-v1/'+code);
+    const saved=await cache?.match(key);if(saved)return new Response(saved.body,{headers:{'Content-Type':'application/json','Cache-Control':'private, no-store'}});
+    try{
+      const response=await fetcher('https://www.sharenet.co.za/v3/frontend/quickshare_ajax.php?sharecode='+code+'&range=chart10y&compare=none',{signal:AbortSignal.timeout(15000)});
+      if(!response.ok)throw Error('ETN closing-price source unavailable');
+      const body=await response.text();if(body.length>200000)throw Error('Invalid ETN history');
+      const data=JSON.parse(body);if(data.code!==code||typeof data.chart!=='string')throw Error('ETN history identity mismatch');
+      if(cache){const write=cache.put(key,new Response(body,{headers:{'Cache-Control':'public, max-age=900'}}));if(ctx.waitUntil)ctx.waitUntil(write);else await write;}
+      return new Response(body,{headers:{'Content-Type':'application/json','Cache-Control':'private, no-store'}});
+    }catch{return reply({error:'ETN closing-price history unavailable'},502);}
+  }
   // Cache only public market data, behind authentication. One symbol per invocation.
   const key=new Request('https://analysis-market-cache.invalid/v1/'+encodeURIComponent(query.symbol)+'?start='+query.start+'&end='+query.end);
   const cached=url.searchParams.get('refresh')==='1' ? null : await cache?.match(key);

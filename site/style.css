@@ -459,16 +459,35 @@ summary::before{content:'›';font-size:25px;margin-right:12px;flex:none}details
 .zero-option{display:flex;align-items:center;gap:10px;color:var(--text);font-size:14px}.zero-option input{width:18px;height:18px;margin:0}#missing-actions{margin:16px 0}#missing-actions p{max-width:90ch;font-size:14px}
 
 /* This table is only mounted for Rise versus Swix. Port/Bmrk remain columns. */
-.rise-swix[hidden]{display:none}.rise-swix .rise-scroll{overflow-x:auto;margin-top:16px}
+.rise-swix{--rise-divider:#748279;--rise-total:#2c3b30}
+.light .rise-swix{--rise-divider:#8c9aa9;--rise-total:#e9eff6}
+.rise-swix[hidden]{display:none}
+.rise-swix .rise-scroll{overflow-x:auto;overscroll-behavior-x:contain;margin-top:16px;border:1px solid var(--border);border-radius:6px}
 .rise-swix table{min-width:920px;width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-.rise-swix th,.rise-swix td{padding:12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border)}
-.rise-swix th:first-child,.rise-swix td:first-child{text-align:left;min-width:260px;white-space:normal;background:var(--panel)}
-.rise-swix td:nth-child(2){text-align:left;font-size:12px;color:var(--muted)}
-.rise-swix thead tr:first-child th[colspan]{text-align:center;border-left:2px solid var(--border)}
-.rise-swix td:nth-child(3),.rise-swix td:nth-child(5),.rise-swix td:nth-child(7){border-left:2px solid var(--border)}
-.rise-swix .rise-total{font-weight:700;background:var(--field)}.rise-swix .rise-total td{border-bottom:2px solid var(--border)}
-.rise-swix .rise-sector button{border:0;background:none;color:inherit;padding:0;display:flex;gap:10px;text-align:left;width:100%;min-height:30px;font-weight:600}
-.rise-swix .rise-holding td:first-child{padding-left:32px;font-size:12px}.rise-swix .rise-holding td{font-size:13px}
+.rise-swix th,.rise-swix td{min-width:90px;padding:12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border)}
+.rise-swix thead th{color:inherit;background:var(--table-head);font-weight:600;cursor:default}
+.rise-swix thead tr:first-child th:first-child,.rise-swix tbody td:first-child{text-align:left;min-width:260px;white-space:normal}
+.rise-swix tbody td:first-child{background:var(--panel)}
+.rise-swix thead tr:first-child th:nth-child(2),.rise-swix td:nth-child(2){text-align:left;font-size:12px;color:var(--muted)}
+.rise-swix thead tr:first-child th[colspan]{text-align:center;border-left:3px solid var(--rise-divider);padding-block:14px 10px;font-size:13px;font-weight:700}
+/* The first subheader is Port, not the frozen Name column. */
+.rise-swix thead tr:nth-child(2) th{position:static;left:auto;min-width:90px;max-width:none;box-shadow:none;padding-block:8px 12px;font-size:12px;border-bottom:2px solid var(--rise-divider)}
+.rise-swix thead tr:nth-child(2) th:nth-child(odd),.rise-swix td:nth-child(3),.rise-swix td:nth-child(5),.rise-swix td:nth-child(7){border-left:3px solid var(--rise-divider)}
+.rise-swix .rise-total td{font-weight:700;background:var(--rise-total);border-bottom:2px solid var(--rise-divider);padding-block:15px}
+.rise-swix .rise-total td:first-child{background:var(--rise-total)}
+.rise-swix .rise-sector td{font-weight:600;background:var(--field);border-top:1px solid var(--rise-divider)}
+.rise-swix .rise-sector td:first-child{background:var(--field)}
+.rise-swix .rise-sector button{border:0;background:none;color:inherit;padding:0;display:flex;align-items:center;gap:10px;text-align:left;width:100%;min-height:34px;font-size:14px;font-weight:700}
+.rise-swix .rise-sector button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+.rise-swix .rise-sector button span:first-child{flex:none;color:var(--muted)}
+.rise-swix .rise-holding td{font-size:13px}
+.rise-swix .rise-holding td:first-child{padding-left:34px;font-size:13px}
 .rise-swix .positive{color:#35D17C}.rise-swix .negative{color:#F2606A}
 .light .rise-swix .positive{color:#0E7A3D}.light .rise-swix .negative{color:#C0343C}
-@media(max-width:600px){.rise-swix{padding:14px}.rise-swix th:first-child,.rise-swix td:first-child{position:sticky;left:0;min-width:170px;max-width:180px;z-index:1}.rise-swix table{min-width:870px}.rise-swix .rise-sector button{min-height:44px}.rise-swix p{font-size:12px}}
+@media(max-width:600px){
+ .rise-swix{padding:14px}
+ .rise-swix thead tr:first-child th:first-child,.rise-swix tbody td:first-child{position:sticky;left:0;min-width:170px;max-width:180px;z-index:1;box-shadow:2px 0 var(--rise-divider)}
+ .rise-swix table{min-width:870px}
+ .rise-swix .rise-sector button{min-height:44px}
+ .rise-swix p{font-size:12px}
+}

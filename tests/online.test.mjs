@@ -61,3 +61,12 @@ test('session expiry stops data loading and does not continue fetching prices',a
  assert.ok(requests<=2);
 });
 
+test('ETN fallback is bounded, checks identity and caches only public price data',async()=>{
+ const url='https://test/data/prices?symbol=NEWSLV.JO&start=2026-10-30&end=2026-11-05&source=sharenet';let target,puts=0;
+ const cache={match:async()=>null,put:async()=>{puts++;}};
+ const ok=await dataResponse(new Request(url),{},{},async u=>{target=u;return Response.json({code:'NEWSLV',chart:'[1793372400000,782],[1793890800000,810]'});},cache);
+ assert.equal(ok.status,200);assert.equal(puts,1);assert.match(target,/^https:\/\/www.sharenet.co.za\/v3\/frontend\/quickshare_ajax.php\?sharecode=NEWSLV&range=chart10y&compare=none$/);
+ assert.match(ok.headers.get('cache-control'),/private, no-store/);
+ assert.equal((await dataResponse(new Request(url.replace('NEWSLV.JO','TEST.JO')),{},{},()=>assert.fail('Unexpected fetch'),cache)).status,400);
+ assert.equal((await dataResponse(new Request(url),{},{},async()=>Response.json({code:'OTHER',chart:'[]'}),cache)).status,502);assert.equal(puts,1);
+});

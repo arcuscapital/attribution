@@ -1,4 +1,4 @@
-import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous} from './rise-swix-core.mjs';
+import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn} from './rise-swix-core.mjs';
 import {dateRange} from './ranges.mjs';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
 export function createRiseSwix({check,lock}){
@@ -55,13 +55,13 @@ export function createRiseSwix({check,lock}){
   head.append(a,b);const body=el('tbody');body.append(row(value.total,'rise-total'));
   value.groups.forEach((g,i)=>{body.append(row(g,'rise-sector',i));if(opened.has(i))g.children.forEach(c=>body.append(row(c,'rise-holding')));});table.replaceChildren(head,body);scroll.scrollLeft=x;
   note.textContent='Port = Rise · Bmrk = Swix · '+value.start+' to '+value.end+' · ZAR · '+value.basis;
-  foot.textContent=value.exact?'Source: Bloomberg report, 4–5 November 2026. Reported sector totals and source blanks retained.':'Holdings-based estimate. The 4–5 November 2026 report’s average weights are assumed across the selected period; trades and actual average holdings are not reconstructed. ZAR cash is held constant with 0% assumed income. '+(value.live?'Live uses price returns; intraday distributions are not included.':'Listed positions use vendor-adjusted returns.')+' All figures are in ZAR. Swipe horizontally for more columns.';
+  foot.textContent=value.exact?'Source: Bloomberg report, 4–5 November 2026. Reported sector totals and source blanks retained.':'Holdings-based estimate. The 4–5 November 2026 report’s average weights are assumed across the selected period; trades and actual average holdings are not reconstructed. ZAR cash is held constant with 0% assumed income. '+(value.live?'Live uses price returns; intraday distributions are not included. Provider quotes may be delayed; Updated is the fetch time.':'Shares use vendor-adjusted returns. NEWSLV and SBCOP use Sharenet closing-price returns (price-only estimates).')+' All figures are in ZAR. Swipe horizontally for more columns.';
   panel.hidden=false;$('empty').hidden=true;$('results').hidden=true;
  }
  async function calculation(returns){return new Promise((resolve,reject)=>{worker=new Worker(new URL('./rise-swix-worker.mjs',import.meta.url),{type:'module'});rejectWorker=reject;worker.onmessage=({data})=>{worker.terminate();worker=null;rejectWorker=null;data.ok?resolve(data.result):reject(Error(data.error));};worker.onerror=()=>{worker?.terminate();worker=null;rejectWorker=null;reject(Error('Calculation unavailable'));};worker.postMessage({report,returns});});}
  async function loadHistory(symbol,baseline,end){
   const key=[symbol,baseline,end].join('|');if(prices.has(key))return prices.get(key);
-  const raw=await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end}));const value=historyReturn(raw,symbol,baseline,end);prices.set(key,value);return value;
+  const raw=await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end,...(ETN_PRICE_ONLY.has(symbol)?{source:'sharenet'}:{})}));const value=(ETN_PRICE_ONLY.has(symbol)?etnPriceReturn:historyReturn)(raw,symbol,baseline,end);prices.set(key,value);return value;
  }
  async function run(){
   if(!isActive()||busy||document.hidden)return;busy=true;clearTimeout(timer);const began=Date.now(),gen=generation,liveMode=$('range').value==='live';

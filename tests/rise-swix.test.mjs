@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {estimate,validateReport,liveReturn,historyReturn,completeQuotes,period,previous,reported} from '../site/rise-swix-core.mjs';
+import {estimate,validateReport,liveReturn,historyReturn,completeQuotes,period,previous,reported,etnPriceReturn} from '../site/rise-swix-core.mjs';
 const report=()=>({schemaVersion:1,version:'test',currency:'ZAR',period:['2026-11-04','2026-11-05'],total:{values:[100,100,2,3,2,3]},groups:[{name:'Example',values:[100,100,2,3,2,3],children:[{id:'A',name:'Synthetic A',symbol:'TEST.JO',values:[60,20,2,3,1.2,.6]},{id:'B',name:'Synthetic B',symbol:'OTHER.JO',values:[40,80,2,3,.8,2.4]}]}]});
 test('report reconciles and rejects modified sector, currency and duplicates',()=>{validateReport(report());for(const change of [r=>r.currency='USD',r=>r.groups[0].values[0]=90,r=>r.groups[0].children[1].id='A']){const r=report();change(r);assert.throws(()=>validateReport(r));}});
 test('fixed weights reconcile holdings, sectors and both funds',()=>{const r=estimate(report(),{'TEST.JO':10,'OTHER.JO':-5});assert.deepEqual(r.total.values,[100,100,4,-2,4,-2]);assert.equal(r.groups[0].children[0].values[4],6);assert.equal(r.groups[0].children[1].values[4],-2);});
@@ -9,3 +9,10 @@ test('JSE holiday baseline and exact report window',()=>{assert.equal(previous('
 test('live uses prior close until first trade then previous-close denominator',()=>{const now=Date.parse('2026-11-06T10:00Z'),base={p:110,pc:100,at:now,t:Date.parse('2026-11-06T09:59Z')};assert.ok(Math.abs(liveReturn(base,'2026-11-05',now)-10)<1e-10);assert.equal(liveReturn({...base,t:Date.parse('2026-11-05T15:00Z')},'2026-11-05',now),0);assert.throws(()=>liveReturn({...base,at:now-100000},'2026-11-05',now));assert.throws(()=>liveReturn({...base,t:Date.parse('2026-11-03T15:00Z')},'2026-11-05',now));});
 test('adjusted returns require exact dates and ZAR listing identity',()=>{const r={meta:{symbol:'TEST.JO',currency:'ZAc'},timestamp:[Date.parse('2026-11-03')/1000,Date.parse('2026-11-05')/1000],indicators:{adjclose:[{adjclose:[100,110]}]}};assert.ok(Math.abs(historyReturn(r,'TEST.JO','2026-11-03','2026-11-05')-10)<1e-10);assert.throws(()=>historyReturn(r,'TEST.JO','2026-11-02','2026-11-05'));r.meta.currency='USD';assert.throws(()=>historyReturn(r,'TEST.JO','2026-11-03','2026-11-05'));});
 test('all quote batches needed, cycle identities checked, shared symbols deduplicated',async()=>{const symbols=Array.from({length:126},(_,i)=>'T'+i+'.JO');let calls=0;const fn=async(b,cycleId)=>{calls++;return {ok:true,cycleId,collectedAt:123,patch:Object.fromEntries(b.map(s=>[s,{p:1}]))};};const quotes=await completeQuotes([...symbols,symbols[0]],fn,'a');assert.equal(Object.keys(quotes).length,126);assert.equal(quotes[symbols[0]].at,123);assert.equal(calls,2);await assert.rejects(completeQuotes(symbols,async()=>({ok:true,cycleId:'wrong',patch:{}}),'a'));await assert.rejects(completeQuotes(symbols,async(b,cycleId)=>({ok:true,cycleId,patch:{}}),'a'));});
+
+test('ETN fallback requires allowlisted identity and exact closing dates',()=>{
+ const raw={code:'NEWSLV',chart:[['2026-10-30',782],['2026-11-05',810]].map(([d,p])=>JSON.stringify([Date.parse(d+'T15:00Z'),p])).join(',')};
+ assert.ok(Math.abs(etnPriceReturn(raw,'NEWSLV.JO','2026-10-30','2026-11-05')-(810/782-1)*100)<1e-10);
+ assert.throws(()=>etnPriceReturn(raw,'SBCOP.JO','2026-10-30','2026-11-05'));
+ assert.throws(()=>etnPriceReturn(raw,'NEWSLV.JO','2026-10-29','2026-11-05'));
+});
