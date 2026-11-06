@@ -13,9 +13,14 @@ export function priceQuery(params) {
 export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=globalThis.caches?.default) {
   const url=new URL(request.url), route=url.pathname.split('/').at(-1);
   if(request.method!=='GET')return reply({error:'GET required'},405);
+  if(route==='rise-swix') {
+    const report=await env.HOLDINGS_ARCHIVE?.get('rise-swix:report:v1');
+    return report ? new Response(report,{headers:{'Content-Type':'application/json','Cache-Control':'private, no-store'}}) : reply({error:'Rise/Swix report unavailable'},404);
+  }
   if(route==='catalog') {
     const catalog=await env.HOLDINGS_ARCHIVE?.get('catalog','json');
-    return catalog ? reply(catalog) : reply({error:'Saved holdings are not available yet.'},503);
+    const ready=await env.HOLDINGS_ARCHIVE?.get('rise-swix:ready');
+    return catalog ? reply({...catalog,...(ready?{riseSwixAvailable:true}:{})}) : reply({error:'Saved holdings are not available yet.'},503);
   }
   if(route==='holdings') {
     const fund=url.searchParams.get('fund'), version=url.searchParams.get('version');

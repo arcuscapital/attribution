@@ -4,6 +4,7 @@ import { isNonListed } from './arcus-source.mjs';
 const $ = (id) => document.getElementById(id);
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
 let online = null, onlineMode = false;
+let riseSwix=null;
 const fundPickers = new Map();
 let arcusReturns = new Map();
 let securityLinks = new Map();
@@ -14,6 +15,7 @@ function clearExport(){
   exportUrl=null;$('download-ready').hidden=true;$('download-ready').removeAttribute('href');
 }
 const session = createSessionGuard({onLock() {
+  riseSwix?.clear();
   accessGeneration++;
   clearExport();
   online?.clear();
@@ -104,12 +106,13 @@ function saveSelection() {
 function savedSelection() {
   try { const saved = JSON.parse(localStorage.getItem(SELECTION_KEY) || 'null'); return saved && typeof saved === 'object' ? saved : null; } catch { return null; }
 }
+const fundsForRole=(funds,id)=>funds.filter(f=>!f.reportOnly || f.id===(id==='portfolio'?'PORTFOLIO:RISE':'PORTFOLIO:SWIX'));
 const hasOption = (id, value) => [...$(id).options].some(o => o.value === value);
 function restoreSelection(m) {
   const saved = savedSelection();
   if (!saved) return false;
   const ids = new Set(m.funds.map(f => f.id));
-  if (!ids.has(saved.portfolio) || !ids.has(saved.benchmark) || saved.portfolio === saved.benchmark) return false;
+  if (!ids.has(saved.portfolio) || !ids.has(saved.benchmark) || !hasOption('portfolio',saved.portfolio) || !hasOption('benchmark',saved.benchmark) || saved.portfolio === saved.benchmark) return false;
   $('portfolio').value = saved.portfolio; $('benchmark').value = saved.benchmark;
   if (hasOption('currency', saved.currency)) $('currency').value = saved.currency;
   if (hasOption('group', saved.group)) $('group').value = saved.group;
@@ -157,6 +160,7 @@ async function readFile(handle) {
   return JSON.parse(await file.text());
 }
 function setup(m) {
+  riseSwix?.clear();
   if (m?.schemaVersion !== 1 || !Array.isArray(m.funds) || m.funds.length < 2)
     throw Error("Invalid archive manifest. At least two funds are required.");
   manifest = m;
@@ -167,7 +171,7 @@ function setup(m) {
   $("empty").hidden = false;
   for (const id of ["portfolio", "benchmark"]) {
     $(id).replaceChildren(
-      ...m.funds.map((f) => {
+      ...fundsForRole(m.funds,id).map((f) => {
         const o = text("option", f.id.startsWith('PORTFOLIO:') ? `${f.name} · My portfolio` : `${f.id} · ${f.name}`);
         o.value = f.id;
         return o;
@@ -181,7 +185,7 @@ function setup(m) {
   }
   for (const id of ['portfolio','benchmark']) {
     if (!fundPickers.has(id)) fundPickers.set(id,createFundPicker(id));
-    fundPickers.get(id).render(m.funds);
+    fundPickers.get(id).render(fundsForRole(m.funds,id));
   }
   const available = m.funds.flatMap((f) => f.dates || []).sort();
   $("start").value = available.at(0) || "";
@@ -197,6 +201,7 @@ function setup(m) {
   renderArchiveInfo();
   $('source-status').textContent = `${m.funds.length} funds in this archive.` + ((m.pendingSources || []).length ? ' Source limitations: '+m.pendingSources.map(f=>f.id+' ('+f.reason+')').join('; ')+'.' : '');
   $("message").replaceChildren();
+  riseSwix?.syncSelection();
 }
 const FUND_THEMES = [
   ['Portfolios',[]],
@@ -294,7 +299,7 @@ async function refreshArcusReturns(){
     if(!response.ok)return;
     const data=await response.json();if(generation!==accessGeneration || !manifest)return;
     arcusReturns=new Map((data.funds || []).map(f=>[f.id,f]));
-    for(const picker of fundPickers.values())picker.render(manifest.funds);
+    for(const [id,picker] of fundPickers)picker.render(fundsForRole(manifest.funds,id));
   }catch{} // Holdings/comparison remain available if the optional quote source fails.
 }
 function renderArchiveInfo() {
@@ -305,7 +310,7 @@ function renderArchiveInfo() {
         text("strong", f.id.startsWith('PORTFOLIO:') ? f.name : f.id),
         text(
           "p",
-          manifest.holdingsSource==='arcus' && !f.currentSource ? 'Current Arcus allocation checked when you compare.' : `${f.positions} positions · holdings ${f.latest || "not collected"} · ${f.currentSource || (onlineMode ? 'saved allocation' : f.dates.length+' saved dates')}`,
+          f.reportOnly ? 'Bloomberg report · 4–5 Nov 2026 · ZAR' : manifest.holdingsSource==='arcus' && !f.currentSource ? 'Current Arcus allocation checked when you compare.' : `${f.positions} positions · holdings ${f.latest || "not collected"} · ${f.currentSource || (onlineMode ? 'saved allocation' : f.dates.length+' saved dates')}`,
         ),
       );
       if(f.allocationNote)card.append(text('p',f.allocationNote));
@@ -320,6 +325,7 @@ for(const id of ['portfolio','benchmark','currency','range','start','end']) $(id
 });
 for(const id of ['portfolio','benchmark']) $(id).addEventListener('change', renderArchiveInfo);
 function applyRange() {
+  if(riseSwix?.isActive()){riseSwix.syncRange();return;}
   const dates = manifest?.valuationDates || [];
   const range = dateRange($('range').value, dates);
   if (range) { $('start').value = range.start; $('end').value = range.end; }
@@ -817,6 +823,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';
@@ -826,8 +833,9 @@ async function connectSaved() {
     const calendar=await online.calendar(m);
     if(generation!==accessGeneration || !onlineMode)return;
     manifest.valuationDates=calendar;
-    $('range').value=preferredRange();applyRange();
+    $('range').value=riseSwix?.isActive()?'day':preferredRange();applyRange();
     $('range-note').textContent='Completed daily returns through '+calendar.at(-1)+'. Today’s intraday session is excluded. '+(m.holdingsSource==='arcus'?'Holdings dates are checked against Arcus when you compare.':'Saved allocations may be older.');
+    riseSwix?.syncSelection();
     message('');
   } catch(error){if(generation===accessGeneration)message(error.message+' You can refresh saved holdings or use an archive file.');}
   finally {$('connect-saved').disabled=false;}

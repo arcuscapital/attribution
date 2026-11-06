@@ -1,9 +1,9 @@
 // Optional server-to-server access for Arcus. Standalone password access is unchanged.
-const ASSETS = new Set(['index.html','style.css','app.mjs','session.mjs','worker.mjs','engine.mjs','ranges.mjs','online.mjs','price-data.mjs','export.mjs','arcus-source.mjs']);
+const ASSETS = new Set(['index.html','style.css','app.mjs','session.mjs','worker.mjs','engine.mjs','ranges.mjs','online.mjs','price-data.mjs','export.mjs','arcus-source.mjs','rise-swix.mjs','rise-swix-core.mjs','rise-swix-worker.mjs']);
 export async function bridgeAsset(request, env, now = Date.now()) {
   const url = new URL(request.url), path = url.pathname;
   const asset = path.slice('/arcus-bridge/'.length);
-  if (!path.startsWith('/arcus-bridge/') || !(ASSETS.has(asset) || ['data/catalog','data/holdings','data/prices'].includes(asset)) || !['GET','HEAD'].includes(request.method) || !env.ANALYSIS_BRIDGE_KEY) return null;
+  if (!path.startsWith('/arcus-bridge/') || !(ASSETS.has(asset) || ['data/catalog','data/holdings','data/prices','data/rise-swix'].includes(asset)) || !['GET','HEAD'].includes(request.method) || !env.ANALYSIS_BRIDGE_KEY) return null;
   const timestamp = request.headers.get('X-Arcus-Time') || '';
   const signature = request.headers.get('X-Arcus-Signature') || '';
   if (!/^\d{10}$/.test(timestamp) || !/^[a-f0-9]{64}$/.test(signature)) return null;

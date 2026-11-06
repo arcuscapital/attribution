@@ -22,7 +22,7 @@ test('price endpoint validates bounded dates and caches only after success',asyn
 });
 test('private data requires login or fresh query-bound bridge signature',async()=>{
  const env={PASSWORD_PEPPER:'fixture',PASSWORD_VERIFIER:'fixture',SESSION_KEY:'fixture',LOGIN_LIMITER:{},ANALYSIS_BRIDGE_KEY:'test-key',HOLDINGS_ARCHIVE:{get:async()=>({schemaVersion:1,funds:[]})}};
- for(const path of ['/data/catalog','/data/holdings?fund=ARKK&version=1790000000000','/data/prices?symbol=ABC'])assert.equal((await worker.fetch(new Request('https://test'+path),env)).status,401);
+ for(const path of ['/data/catalog','/data/rise-swix','/data/holdings?fund=ARKK&version=1790000000000','/data/prices?symbol=ABC'])assert.equal((await worker.fetch(new Request('https://test'+path),env)).status,401);
  const seconds=String(Math.floor(Date.now()/1000)),path='/arcus-bridge/data/holdings?fund=ARKK&version=1790000000000';
  const signature=await sign(env.ANALYSIS_BRIDGE_KEY,'arcus-attribution:v1\nGET\n'+path+'\n'+seconds);
  const headers={'X-Arcus-Time':seconds,'X-Arcus-Signature':signature};

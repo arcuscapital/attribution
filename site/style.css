@@ -457,3 +457,18 @@ summary::before{content:'›';font-size:25px;margin-right:12px;flex:none}details
 @media(max-width:600px){.fund-popup{width:100%;max-width:100%;}.fund-trigger{font-size:15px}}
 
 .zero-option{display:flex;align-items:center;gap:10px;color:var(--text);font-size:14px}.zero-option input{width:18px;height:18px;margin:0}#missing-actions{margin:16px 0}#missing-actions p{max-width:90ch;font-size:14px}
+
+/* This table is only mounted for Rise versus Swix. Port/Bmrk remain columns. */
+.rise-swix[hidden]{display:none}.rise-swix .rise-scroll{overflow-x:auto;margin-top:16px}
+.rise-swix table{min-width:920px;width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.rise-swix th,.rise-swix td{padding:12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border)}
+.rise-swix th:first-child,.rise-swix td:first-child{text-align:left;min-width:260px;white-space:normal;background:var(--panel)}
+.rise-swix td:nth-child(2){text-align:left;font-size:12px;color:var(--muted)}
+.rise-swix thead tr:first-child th[colspan]{text-align:center;border-left:2px solid var(--border)}
+.rise-swix td:nth-child(3),.rise-swix td:nth-child(5),.rise-swix td:nth-child(7){border-left:2px solid var(--border)}
+.rise-swix .rise-total{font-weight:700;background:var(--field)}.rise-swix .rise-total td{border-bottom:2px solid var(--border)}
+.rise-swix .rise-sector button{border:0;background:none;color:inherit;padding:0;display:flex;gap:10px;text-align:left;width:100%;min-height:30px;font-weight:600}
+.rise-swix .rise-holding td:first-child{padding-left:32px;font-size:12px}.rise-swix .rise-holding td{font-size:13px}
+.rise-swix .positive{color:#35D17C}.rise-swix .negative{color:#F2606A}
+.light .rise-swix .positive{color:#0E7A3D}.light .rise-swix .negative{color:#C0343C}
+@media(max-width:600px){.rise-swix{padding:14px}.rise-swix th:first-child,.rise-swix td:first-child{position:sticky;left:0;min-width:170px;max-width:180px;z-index:1}.rise-swix table{min-width:870px}.rise-swix .rise-sector button{min-height:44px}.rise-swix p{font-size:12px}}
