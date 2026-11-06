@@ -90,7 +90,7 @@ export function estimate(report,returns){
 // All batches resolve before a caller may commit a valuation. No row-level patches.
 export async function completeQuotes(symbols,fetchBatch,cycle){
  const unique=[...new Set(symbols)],batches=[];
- for(let i=0;i<unique.length;i+=64)batches.push(unique.slice(i,i+64));
+ for(let i=0;i<unique.length;i+=32)batches.push(unique.slice(i,i+32));
  const results=await Promise.all(batches.map(b=>fetchBatch(b,cycle)));
  const patch={};for(const r of results){if(!r.ok||r.cycleId!==cycle||!Number.isFinite(r.collectedAt))throw Error('Incomplete price cycle');for(const [symbol,q] of Object.entries(r.patch||{}))patch[symbol]={...q,at:r.collectedAt};}
  if(unique.some(s=>!patch[s]))throw Error('One or more holdings has no quote. Keeping the previous complete valuation.');return patch;
