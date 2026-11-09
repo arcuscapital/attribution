@@ -638,7 +638,7 @@ function renderRows() {
   if (!$("sort").options.length) $("sort").replaceChildren(...columns.map(([key, name]) => { const o = text("option", key === "ticker" ? "Name" : name); o.value = key; return o; }));
   syncSortControls();
   $("table-hint").textContent = compact
-    ? "Percentage points. Tap a row for weights and contributions; sort with the controls above."
+    ? "Percentage points. Tap a heading to sort, or a row for weights and contributions."
     : "Contributions in percentage points. Tap a column to sort. Swipe the table for more columns.";
   if ($('group').value === 'security' && securityLinks.size) $('table-hint').textContent += ' Tickers open Arcus Watchlists in a new tab.';
   const tr = document.createElement("tr");
@@ -648,13 +648,14 @@ function renderRows() {
       columnLabel(key, name) + (sortKey === key ? (sortDirection === 1 ? " ↑" : " ↓") : ""),
     );
     th.tabIndex = 0;
+    th.setAttribute("aria-sort", sortKey === key ? (sortDirection === 1 ? "ascending" : "descending") : "none");
     th.addEventListener("click", () => {
-      sortDirection = sortKey === key ? -sortDirection : -1;
+      sortDirection = sortKey === key ? -sortDirection : key === "ticker" ? 1 : -1;
       sortKey = key;
       renderRows();
     });
     th.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") th.click();
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); th.click(); }
     });
     tr.append(th);
   }
@@ -823,7 +824,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=header-sort-20261109');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';

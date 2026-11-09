@@ -42,6 +42,23 @@ export function period(start,end){
  if(through<start)throw Error('No JSE trading session in this range');
  return {baseline:previous(start),end:through};
 }
+// Display order for the Rise vs Swix table. sort is null (report order) or {key,dir}: key 'name', 'ticker'
+// or a value column 0-5, dir 1 ascending or -1 descending. Sectors sort by the column first, then the
+// holdings inside each sector by the same column. Ticker sorts sectors by name. Blanks stay last in
+// both directions; ties fall back to name A to Z, then report order. Returns each sector's report index.
+export function sortRiseGroups(groups,sort){
+ const text=(a,b)=>String(a??'').localeCompare(String(b??''),'en',{sensitivity:'base',numeric:true});
+ const blank=v=>v===null||v===undefined||!Number.isFinite(v);
+ const compare=holding=>(a,b)=>{
+  const x=a.item,y=b.item;let r=0;
+  if(sort.key==='name'||(sort.key==='ticker'&&!holding))r=sort.dir*text(x.name,y.name);
+  else if(sort.key==='ticker')r=sort.dir*text(x.ticker||x.name,y.ticker||y.name);
+  else{const p=x.values[sort.key],q=y.values[sort.key];r=blank(p)?(blank(q)?0:1):blank(q)?-1:sort.dir*(p-q);}
+  return r||text(x.name,y.name)||a.order-b.order;
+ };
+ const order=(items,holding)=>{const list=items.map((item,order)=>({item,order}));if(sort)list.sort(compare(holding));return list;};
+ return order(groups,false).map(({item,order:index})=>({group:item,index,children:order(item.children,true).map(c=>c.item)}));
+}
 export function reported(report,start,end){
  return end===report.period[1]&&start>=report.period[0]&&start<=report.period[1];
 }

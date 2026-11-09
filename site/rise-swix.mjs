@@ -1,9 +1,10 @@
-import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn} from './rise-swix-core.mjs';
+import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups} from './rise-swix-core.mjs?v=header-sort-20261109';
 import {dateRange} from './ranges.mjs';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
 export function createRiseSwix({check,lock}){
  let generation=0,controller=new AbortController(),timer,report=null,busy=false,worker=null,rejectWorker=null,last=null,priorCurrency=null,entered=false,syncing=false;
  const prices=new Map(),opened=new Set();
+ let sort=null,refocus=null;
  const panel=el('section',null,'panel rise-swix');panel.id='rise-swix';panel.hidden=true;$('results').before(panel);
  const title=el('h2','Rise vs Swix'),note=el('p'),status=el('p'),scroll=el('div',null,'rise-scroll'),table=el('table'),foot=el('p'),download=el('button','Download CSV');download.type='button';
  scroll.append(table);panel.append(title,note,status,download,scroll,foot);
@@ -31,7 +32,7 @@ export function createRiseSwix({check,lock}){
   else if(p.value!==RISE&&b.value===SWIX)choose(b,ordinary(b,p.value));
   else if(b.value!==SWIX&&p.value===RISE)choose(p,ordinary(p,b.value));
   const active=isActive();live.hidden=live.disabled=!active;$('range').options[0].textContent=active?'1D':'One Day';
-  if(active){if(!entered){priorCurrency=$('currency').value;entered=true;$('range').value='day';opened.clear();}syncRange();}
+  if(active){if(!entered){priorCurrency=$('currency').value;entered=true;$('range').value='day';opened.clear();sort=null;}syncRange();}
   else{panel.hidden=true;if(entered){entered=false;$('currency').disabled=false;$('currency').value=priorCurrency||'USD';if($('range').value==='live')$('range').value='day';$('range').dispatchEvent(new Event('change'));}}
   $('assume-zero').closest('label').hidden=active;
   syncing=false;
@@ -50,10 +51,20 @@ export function createRiseSwix({check,lock}){
  function render(value){
   if(!value)return;last=value;const x=scroll.scrollLeft;
   const head=el('thead'),a=el('tr'),b=el('tr');
-  for(const text of ['Name','Ticker']){const th=el('th',text);th.rowSpan=2;th.scope='col';a.append(th);}
-  for(const text of ['Avg % weight','Total return (%)','CTR (pp)']){const th=el('th',text);th.colSpan=2;th.scope='colgroup';a.append(th);for(const label of ['Port','Bmrk']){const sub=el('th',label);sub.scope='col';b.append(sub);}}
+  // Every column heading sorts: sectors first, then the holdings inside each open sector. Total stays on top.
+  const sortable=(th,key,label,name)=>{
+   const active=sort?.key===key,button=el('button',label);button.type='button';button.dataset.sort=String(key);
+   th.setAttribute('aria-sort',active?(sort.dir===1?'ascending':'descending'):'none');
+   button.setAttribute('aria-label','Sort by '+name+(active?(sort.dir===1?', ascending':', descending'):''));
+   if(active)button.append(el('span',sort.dir===1?' ↑':' ↓','rise-sort-mark'));
+   button.addEventListener('click',()=>{sort=active?{key,dir:-sort.dir}:{key,dir:typeof key==='string'?1:-1};refocus=String(key);render(last);});
+   th.append(button);return th;
+  };
+  for(const [text,key] of [['Name','name'],['Ticker','ticker']]){const th=el('th');th.rowSpan=2;th.scope='col';a.append(sortable(th,key,text,text));}
+  ['Avg % weight','Total return (%)','CTR (pp)'].forEach((text,g)=>{const th=el('th',text);th.colSpan=2;th.scope='colgroup';a.append(th);['Port','Bmrk'].forEach((label,s)=>{const sub=el('th');sub.scope='col';b.append(sortable(sub,g*2+s,label,text+' '+label));});});
   head.append(a,b);const body=el('tbody');body.append(row(value.total,'rise-total'));
-  value.groups.forEach((g,i)=>{body.append(row(g,'rise-sector',i));if(opened.has(i))g.children.forEach(c=>body.append(row(c,'rise-holding')));});table.replaceChildren(head,body);scroll.scrollLeft=x;
+  sortRiseGroups(value.groups,sort).forEach(({group,index,children})=>{body.append(row(group,'rise-sector',index));if(opened.has(index))children.forEach(c=>body.append(row(c,'rise-holding')));});table.replaceChildren(head,body);scroll.scrollLeft=x;
+  if(refocus!==null){table.querySelector('[data-sort="'+refocus+'"]')?.focus();refocus=null;}
   note.textContent='Port = Rise · Bmrk = Swix · '+value.start+' to '+value.end+' · ZAR · '+value.basis;
   foot.textContent=value.exact?'Source: Bloomberg report, 4–5 November 2026. Reported sector totals and source blanks retained.':'Holdings-based estimate. The 4–5 November 2026 report’s average weights are assumed across the selected period; trades and actual average holdings are not reconstructed. ZAR cash is held constant with 0% assumed income. '+(value.live?'Live uses price returns; intraday distributions are not included. Provider quotes may be delayed; Updated is the fetch time.':'Shares use vendor-adjusted returns. NEWSLV and SBCOP use Sharenet closing-price returns (price-only estimates).')+' All figures are in ZAR. Swipe horizontally for more columns.';
   panel.hidden=false;$('empty').hidden=true;$('results').hidden=true;
