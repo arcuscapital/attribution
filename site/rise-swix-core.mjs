@@ -59,6 +59,16 @@ export function sortRiseGroups(groups,sort){
  const order=(items,holding)=>{const list=items.map((item,order)=>({item,order}));if(sort)list.sort(compare(holding));return list;};
  return order(groups,false).map(({item,order:index})=>({group:item,index,children:order(item.children,true).map(c=>c.item)}));
 }
+// Bloomberg leaves a share's return blank on the side that does not hold it. When both sides hold a share
+// its return is identical on both, so the blank side shows the share's own return for reference. Those
+// columns are listed in reference; weights, contributions, sector and total figures are unchanged.
+export function withShareReturns(groups){
+ return groups.map(g=>({...g,children:g.children.map(p=>{
+  if(p.cash)return p;const values=[...p.values],reference=[];
+  for(const [own,other,weight] of [[2,3,0],[3,2,1]])if(values[own]===null&&values[weight]===null&&Number.isFinite(values[other])){values[own]=values[other];reference.push(own);}
+  return reference.length?{...p,values,reference}:p;
+ })}));
+}
 export function reported(report,start,end){
  return end===report.period[1]&&start>=report.period[0]&&start<=report.period[1];
 }
@@ -110,5 +120,7 @@ export async function completeQuotes(symbols,fetchBatch,cycle){
  for(let i=0;i<unique.length;i+=32)batches.push(unique.slice(i,i+32));
  const results=await Promise.all(batches.map(b=>fetchBatch(b,cycle)));
  const patch={};for(const r of results){if(!r.ok||r.cycleId!==cycle||!Number.isFinite(r.collectedAt))throw Error('Incomplete price cycle');for(const [symbol,q] of Object.entries(r.patch||{}))patch[symbol]={...q,at:r.collectedAt};}
- if(unique.some(s=>!patch[s]))throw Error('One or more holdings has no quote. Keeping the previous complete valuation.');return patch;
+ const missing=unique.filter(s=>!patch[s]);
+ if(missing.length)throw Object.assign(Error('No complete live snapshot: '+missing.length+' of '+unique.length+' holdings have no quote. No holdings have been dropped.'),{missing});
+ return patch;
 }

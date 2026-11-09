@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {estimate,validateReport,liveReturn,historyReturn,completeQuotes,period,previous,reported,etnPriceReturn,sortRiseGroups} from '../site/rise-swix-core.mjs';
+import {estimate,validateReport,liveReturn,historyReturn,completeQuotes,period,previous,reported,etnPriceReturn,sortRiseGroups,withShareReturns} from '../site/rise-swix-core.mjs';
 const report=()=>({schemaVersion:1,version:'test',currency:'ZAR',period:['2026-11-04','2026-11-05'],total:{values:[100,100,2,3,2,3]},groups:[{name:'Example',values:[100,100,2,3,2,3],children:[{id:'A',name:'Synthetic A',symbol:'TEST.JO',values:[60,20,2,3,1.2,.6]},{id:'B',name:'Synthetic B',symbol:'OTHER.JO',values:[40,80,2,3,.8,2.4]}]}]});
 test('report reconciles and rejects modified sector, currency and duplicates',()=>{validateReport(report());for(const change of [r=>r.currency='USD',r=>r.groups[0].values[0]=90,r=>r.groups[0].children[1].id='A']){const r=report();change(r);assert.throws(()=>validateReport(r));}});
 test('fixed weights reconcile holdings, sectors and both funds',()=>{const r=estimate(report(),{'TEST.JO':10,'OTHER.JO':-5});assert.deepEqual(r.total.values,[100,100,4,-2,4,-2]);assert.equal(r.groups[0].children[0].values[4],6);assert.equal(r.groups[0].children[1].values[4],-2);});
@@ -62,3 +62,25 @@ function sortFixture(){
   {name:'Financials',values:[30,35,2.2,null,0.6,null],children:[]},
  ];
 }
+test('a side that does not hold a share shows the share return for reference; nothing else changes',()=>{
+ const holding=(id,values,extra={})=>({id,name:'Synthetic '+id,ticker:id+' SJ',symbol:id+'.JO',values,...extra});
+ const groups=[{name:'Example',values:[60,100,1,2,.6,2],children:[
+  holding('SWIXONLY',[null,40,null,3,null,1.2]),
+  holding('RISEONLY',[20,null,-1.5,null,-.3,null]),
+  holding('BOTH',[40,60,2,2,.8,1.2]),
+  holding('ZERO',[null,0,null,0,null,0]),
+  holding('NORETURN',[null,5,null,null,null,null]),
+  {id:'ZARCASH',name:'ZAR cash',ticker:'',cash:true,values:[1,null,0,null,0,null]}]}];
+ const before=JSON.stringify(groups),out=withShareReturns(groups),[swix,rise,both,zero,none,cash]=out[0].children;
+ assert.equal(JSON.stringify(groups),before);
+ assert.deepEqual(swix.values,[null,40,3,3,null,1.2]);assert.deepEqual(swix.reference,[2]);
+ assert.deepEqual(rise.values,[20,null,-1.5,-1.5,-.3,null]);assert.deepEqual(rise.reference,[3]);
+ assert.deepEqual(zero.values,[null,0,0,0,null,0]);assert.deepEqual(zero.reference,[2]);
+ for(const unchanged of [both,none,cash])assert.equal(unchanged.reference,undefined);
+ assert.deepEqual(none.values,[null,5,null,null,null,null]);assert.deepEqual(cash.values,[1,null,0,null,0,null]);
+ assert.deepEqual(out[0].values,groups[0].values);
+});
+test('a missing quote names every holding without one and still rejects the snapshot',async()=>{
+ const symbols=['A.JO','B.JO','C.JO'];
+ await assert.rejects(completeQuotes(symbols,async(b,cycleId)=>({ok:true,cycleId,collectedAt:1,patch:{'B.JO':{p:1}}}),'c'),e=>{assert.deepEqual(e.missing,['A.JO','C.JO']);assert.match(e.message,/2 of 3 holdings have no quote/);return true;});
+});
