@@ -1,21 +1,23 @@
-import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups} from './rise-swix-core.mjs?v=header-sort-20261109';
+import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups} from './rise-swix-core.mjs?v=live-refresh-20261109';
 import {dateRange} from './ranges.mjs';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
 export function createRiseSwix({check,lock}){
  let generation=0,controller=new AbortController(),timer,report=null,busy=false,worker=null,rejectWorker=null,last=null,priorCurrency=null,entered=false,syncing=false;
  const prices=new Map(),opened=new Set();
- let sort=null,refocus=null;
+ let sort=null,refocus=null,cooldown;
  const panel=el('section',null,'panel rise-swix');panel.id='rise-swix';panel.hidden=true;$('results').before(panel);
  const title=el('h2','Rise vs Swix'),note=el('p'),status=el('p'),scroll=el('div',null,'rise-scroll'),table=el('table'),foot=el('p'),download=el('button','Download CSV');download.type='button';
- scroll.append(table);panel.append(title,note,status,download,scroll,foot);
+ // Live only: refresh now without clearing the table; disabled while refreshing and for 5 s after a press.
+ const refresh=el('button','Refresh'),actions=el('div',null,'rise-actions');refresh.type='button';refresh.hidden=true;refresh.setAttribute('aria-label','Refresh live prices now');actions.append(download,refresh);
+ scroll.append(table);panel.append(title,note,status,actions,scroll,foot);
  const live=el('option','Live');live.value='live';live.hidden=true;live.disabled=true;$('range').options[0].after(live);
  const isActive=()=>isRisePair($('portfolio').value,$('benchmark').value);
- function cancel(clear=false){generation++;controller.abort();controller=new AbortController();clearTimeout(timer);worker?.terminate();worker=null;rejectWorker?.(Error('Selection changed'));rejectWorker=null;busy=false;$('run').disabled=false;if(clear){report=null;prices.clear();last=null;table.replaceChildren();panel.hidden=true;opened.clear();}}
+ function cancel(clear=false){generation++;controller.abort();controller=new AbortController();clearTimeout(timer);clearTimeout(cooldown);refresh.disabled=false;worker?.terminate();worker=null;rejectWorker?.(Error('Selection changed'));rejectWorker=null;busy=false;$('run').disabled=false;if(clear){report=null;prices.clear();last=null;table.replaceChildren();panel.hidden=true;opened.clear();}}
  async function get(path){const r=await fetch(path,{credentials:'same-origin',cache:'no-store',signal:controller.signal});if(r.status===401){lock();throw Error('Sign in again.');}if(!r.ok)throw Error('Data unavailable. Please retry.');return r.json();}
  function syncRange(){
   if(!isActive())return;
   $('currency').value='ZAR';$('currency').disabled=true;
-  const range=$('range').value;
+  const range=$('range').value;refresh.hidden=range!=='live';
   if(range==='live'){$('start').value=$('end').value=sessionDate();}
   else if(range!=='custom'){const dates=dateRange(range,completedCalendar());if(dates){$('start').value=dates.start;$('end').value=dates.end;}}
   $('controls').classList.toggle('preset',range!=='custom');
@@ -75,7 +77,7 @@ export function createRiseSwix({check,lock}){
   const raw=await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end,...(ETN_PRICE_ONLY.has(symbol)?{source:'sharenet'}:{})}));const value=(ETN_PRICE_ONLY.has(symbol)?etnPriceReturn:historyReturn)(raw,symbol,baseline,end);prices.set(key,value);return value;
  }
  async function run(){
-  if(!isActive()||busy||document.hidden)return;busy=true;clearTimeout(timer);const began=Date.now(),gen=generation,liveMode=$('range').value==='live';
+  if(!isActive()||busy||document.hidden)return;busy=true;clearTimeout(timer);clearTimeout(cooldown);refresh.disabled=true;const began=Date.now(),gen=generation,liveMode=$('range').value==='live';
   $('run').disabled=true;status.textContent=last?'Refreshing all holdings…':'Checking all holdings…';panel.hidden=false;
   try{
    if(!await check()||gen!==generation)return;
@@ -103,12 +105,13 @@ export function createRiseSwix({check,lock}){
    if(gen!==generation||!isActive()||!await check())return;
    const at=new Date().toISOString();render({...value,start,end,at});status.textContent='Updated '+new Date(at).toLocaleTimeString()+(liveMode?' · Complete snapshot · 35s refresh':'');
   }catch(e){if(gen===generation){status.textContent=(last?'Keeping the previous complete result from '+new Date(last.at).toLocaleTimeString()+'. ':'')+e.message;}}
-  finally{if(gen===generation){busy=false;$('run').disabled=false;$('run').textContent='Compare funds';if(liveMode&&isActive()&&!document.hidden)timer=setTimeout(run,Math.max(1000,35000-(Date.now()-began)));}}
+  finally{if(gen===generation){busy=false;$('run').disabled=false;$('run').textContent='Compare funds';cooldown=setTimeout(()=>{refresh.disabled=false;},Math.max(0,5000-(Date.now()-began)));if(liveMode&&isActive()&&!document.hidden)timer=setTimeout(run,Math.max(1000,35000-(Date.now()-began)));}}
  }
  $('controls').addEventListener('submit',e=>{if(!isActive())return;e.preventDefault();e.stopImmediatePropagation();cancel();last=null;table.replaceChildren();void run();},true);
  for(const id of ['portfolio','benchmark','currency','range','start','end'])$(id).addEventListener('change',e=>{cancel();last=null;table.replaceChildren();note.textContent='';foot.textContent='';status.textContent='';syncSelection(e);if(isActive()&&['range','start','end'].includes(id))syncRange();});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)cancel();else if(isActive()&&$('range').value==='live'){syncRange();void run();}});
  window.addEventListener('pagehide',()=>cancel(true));
+ refresh.addEventListener('click',()=>{if(busy||refresh.disabled||!isActive()||$('range').value!=='live')return;clearTimeout(timer);void run();});
  download.addEventListener('click',async()=>{
   const value=last,gen=generation;if(!value||!await check()||generation!==gen)return;
   const rows=[['Name','Ticker','Avg % weight Port','Avg % weight Bmrk','Total return % Port','Total return % Bmrk','CTR pp Port','CTR pp Bmrk'],[value.basis+'; ZAR; '+value.start+' to '+value.end],...([value.total,...value.groups.flatMap(g=>[g,...g.children])].map(r=>[r.name,r.ticker||'',...r.values.map(v=>v??'')]))];
