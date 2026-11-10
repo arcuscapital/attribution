@@ -1,4 +1,4 @@
-import { compare } from "./engine.mjs?v=reconciliation-20261110";
+import { compare } from "./engine.mjs?v=reconciliation2-20261110";
 self.onmessage = ({ data }) => {
   try {
     self.postMessage({ ok: true, result: compare(data.dataset, data.options) });

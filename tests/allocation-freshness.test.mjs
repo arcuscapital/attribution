@@ -14,3 +14,15 @@ test('a failed latest-source verification remains visible with the retained date
  const result=normalizeArcusPacket({kind:'etf',fund:'TEST',allocationCheck:{warning:'Latest source unavailable; saved weights may be stale.'},source:{fund:{asOf:'2026-11-06',positions:[{name:'Alpha',rawSymbol:'ABC'}],allocation:{asOf:'2026-11-06',positions:[{name:'Alpha',ticker:'ABC',weight:100}]}}}});
  assert.match(result.warning,/may be stale/);assert.equal(result.snapshot.asOf,'2026-11-06');
 });
+
+test('name-only source holdings reuse their own verified security listing without guessing or bypassing explicit candidates',async()=>{
+ const {allocationSnapshot}=await import('../site/arcus-source.mjs');
+ const allocation={asOf:'2026-11-05',positions:[{name:'Samsung Electronics Co Ltd',weight:100}]};
+ const members=[{id:'name:samsung',name:'Samsung Electronics Co Ltd',candidates:[]}];
+ const index=[{id:'name:samsung',symbol:'005930.KS',status:'ready'}];
+ assert.equal(allocationSnapshot('ETF',allocation,members,index).positions[0].symbol,'005930.KS');
+ assert.equal(allocationSnapshot('ETF',allocation,members,[{...index[0],status:'pending'}]).positions[0].symbol,null);
+ assert.equal(allocationSnapshot('ETF',allocation,[{...members[0],candidates:['DIFFERENT']}],index).positions[0].symbol,null);
+ assert.equal(allocationSnapshot('ETF',allocation,[...members,{...members[0],id:'other'}],index).positions[0].symbol,null);
+ for(const name of ['Net Current Assets','BNY Dreyfus Treasury Oblgtns Csh Mgt Ins'])assert(isNonListed({name}),name);
+});

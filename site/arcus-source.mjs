@@ -29,11 +29,11 @@ const portfolios={IBKR:'ibkr',MARLOW:'marlow',EASYAI:'easyai',EASYGE:'easyge'};
 const validDate=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'');
 const json=async response=>{if(!response.ok)throw Error('Arcus source unavailable');return response.json();};
 const cash=p=>/^(cash|currency)$/i.test(p.asset||'') || /^(USD|TWD|EUR|GBP|JPY|ZAR) CASH$/i.test(p.name||'') ||
-  /^(?:(?:US|CANADIAN|AUSTRALIAN|HONG KONG|(?:NEW )?TAIWAN) DOLLARS?|SWISS FRANC|EURO|(?:SOUTH )?KOREAN WON|JAPANESE YEN|BRITISH STERLING POUND|GREAT BRITISH POUND|SWEDISH KRONA|SOUTH AFRICAN RAND|TURKISH LIRA|ISRAELI SHEKEL|CHINESE YUAN RENMINBI|OTHER ASSETS AND LIABILITIES|OTHER PAYABLE & RECEIVABLES|Receivables\/Payables|Cash & Other)$/i.test(p.name||'');
+  /^(?:(?:US|CANADIAN|AUSTRALIAN|HONG KONG|(?:NEW )?TAIWAN) DOLLARS?|SWISS FRANC|EURO|(?:SOUTH )?KOREAN WON|JAPANESE YEN|BRITISH STERLING POUND|GREAT BRITISH POUND|SWEDISH KRONA|SOUTH AFRICAN RAND|TURKISH LIRA|ISRAELI SHEKEL|CHINESE YUAN RENMINBI|OTHER ASSETS AND LIABILITIES|NET CURRENT ASSETS|OTHER PAYABLE & RECEIVABLES|Receivables\/Payables|Cash & Other)$/i.test(p.name||'');
 function asset(p){
   const description=(p.asset||'')+' '+(p.name||'');
   if(cash(p))return 'Cash';
-  if(/money market|cash collateral|short.term reserves|market liquidity|\bMKTLIQ\b|\bSLBBH1142\b/i.test(description+' '+p.ticker) || /^(?:GOLDMAN FS TRSY OBLIG INST 468|DREYFUS TRSY OBLIG CASH MGMT CL INS)$/i.test(p.name||''))return 'Money Market';
+  if(/money market|cash collateral|short.term reserves|market liquidity|treasury.*(?:cash|csh) (?:mgmt|mgt)|\bMKTLIQ\b|\bSLBBH1142\b/i.test(description+' '+p.ticker) || /^(?:GOLDMAN FS TRSY OBLIG INST 468|DREYFUS TRSY OBLIG CASH MGMT CL INS)$/i.test(p.name||''))return 'Money Market';
   // ARK issuer identities, verified against its Q3 2026 private-company disclosure.
   const identity=p.identity||String(p.id||'').split(':').at(-1);
   const knownPrivate=(identity==='PPOPENAIC'&&/^OPENAI GROUP PBC SERIES C$/i.test(p.name||'')) ||
@@ -55,8 +55,10 @@ export function allocationSnapshot(fund,allocation,members=[],index=[]) {
   const positions=allocation.positions.map((p,i)=>{
     if(!Number.isFinite(p.weight))throw Error('Invalid source allocation');
     const matches=(p.ticker ? byTicker.get(p.ticker)||[] : byName.get(p.name)||[]).filter(m=>p.name===m.name || nameMatches(p.name,m.sourceName||m.name));
+    // Name-only public sources have no candidates. Their own security identity
+    // can still have a verified listing from Arcus's name-checked resolver.
     const refs=matches.length===1 ? (byId.get(matches[0].id)||[]).filter(r=>r.status==='ready' &&
-      matches[0].candidates?.includes(r.symbol)) : [];
+      (!matches[0].candidates?.length || matches[0].candidates.includes(r.symbol))) : [];
     const kind=asset({...p,corporateAction:matches[0]?.corporateAction}),symbol=!isNonListed({asset:kind}) ? (refs.length===1?refs[0].symbol:null) : null;
     let id=symbol||fund+':'+(p.identity||p.ticker||i);
     // Repeated verified listings share returns and are aggregated by the engine.

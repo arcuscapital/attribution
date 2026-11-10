@@ -1,6 +1,6 @@
 import { dateRange } from './ranges.mjs';
 import { createSessionGuard } from './session.mjs';
-import { isNonListed } from './arcus-source.mjs?v=reconciliation-20261110';
+import { isNonListed } from './arcus-source.mjs?v=reconciliation2-20261110';
 const $ = (id) => document.getElementById(id);
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
 let online = null, onlineMode = false;
@@ -455,7 +455,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=reconciliation-20261110", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=reconciliation2-20261110", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -955,7 +955,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=reconciliation-20261110');
+  const {createOnlineSource}=await import('./online.mjs?v=reconciliation2-20261110');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;
@@ -969,7 +969,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=reconciliation-20261110');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=reconciliation2-20261110');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';
