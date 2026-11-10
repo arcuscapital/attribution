@@ -29,7 +29,7 @@ const portfolios={IBKR:'ibkr',MARLOW:'marlow',EASYAI:'easyai',EASYGE:'easyge'};
 const validDate=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'');
 const json=async response=>{if(!response.ok)throw Error('Arcus source unavailable');return response.json();};
 const cash=p=>/^(cash|currency)$/i.test(p.asset||'') || /^(USD|TWD|EUR|GBP|JPY|ZAR) CASH$/i.test(p.name||'') ||
-  /^(?:US DOLLAR|SWISS FRANC|EURO|KOREAN WON|JAPANESE YEN|CANADIAN DOLLAR|BRITISH STERLING POUND|TURKISH LIRA|ISRAELI SHEKEL|CHINESE YUAN RENMINBI|OTHER PAYABLE & RECEIVABLES|Receivables\/Payables)$/i.test(p.name||'');
+  /^(?:(?:US|CANADIAN|AUSTRALIAN|HONG KONG|(?:NEW )?TAIWAN) DOLLARS?|SWISS FRANC|EURO|(?:SOUTH )?KOREAN WON|JAPANESE YEN|BRITISH STERLING POUND|GREAT BRITISH POUND|SWEDISH KRONA|SOUTH AFRICAN RAND|TURKISH LIRA|ISRAELI SHEKEL|CHINESE YUAN RENMINBI|OTHER ASSETS AND LIABILITIES|OTHER PAYABLE & RECEIVABLES|Receivables\/Payables|Cash & Other)$/i.test(p.name||'');
 function asset(p){
   const description=(p.asset||'')+' '+(p.name||'');
   if(cash(p))return 'Cash';
@@ -85,9 +85,10 @@ export function completedReturns(data,today=new Date().toISOString().slice(0,10)
 export function resolveKnownListings(snapshot,companies) {
   const known=new Map(companies.map(c=>[c.ticker,c]));
   for(const p of snapshot.positions) {
-    const c=known.get(p.ticker);
+    const c=known.get(p.symbol||p.ticker);
     if(!p.symbol && !isNonListed(p) && c && nameMatches(p.name,c.name))
       Object.assign(p,{id:c.ticker,symbol:c.ticker});
+    if(c && (p.symbol===c.ticker || nameMatches(p.name,c.name))) p.theme=[...new Set((c.memberships||[]).map(m=>m[0]).filter(Boolean))];
   }
   return snapshot;
 }
@@ -107,7 +108,7 @@ export function resolveArchiveListings(snapshot,archive) {
 export function normalizeArcusPacket(packet) {
   if(!packet.kind)return packet; // Backward-compatible rollout and standalone fixtures.
   const {fund,source,seed,main={}}=packet;
-  let snapshot,warning=null,returns={};
+  let snapshot,warning=packet.allocationCheck?.warning||null,returns={};
   if(packet.kind==='portfolio') {
     snapshot=portfolioSnapshot(fund,source.portfolio);
     for(const [symbol,data] of Object.entries(source.stocks||{}))returns[symbol]=completedReturns(data);
@@ -122,5 +123,5 @@ export function normalizeArcusPacket(packet) {
   }
   if(snapshot)resolveKnownListings(snapshot,main.companies||[]);
   for(const [symbol,data] of Object.entries(main.returns||{}))returns[symbol]={...(returns[symbol]||{}),...completedReturns(data)};
-  return {snapshot:snapshot||null,returns,warning,arcusHoldingsAsOf:source.fund?.asOf,checkedAt:packet.checkedAt,returnBasis:'Arcus completed-session USD returns'};
+  return {snapshot:snapshot||null,returns,companies:main.companies||[],warning,arcusHoldingsAsOf:source.fund?.asOf,checkedAt:packet.checkedAt,returnBasis:'Arcus completed-session USD returns'};
 }

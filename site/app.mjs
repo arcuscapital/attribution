@@ -1,6 +1,6 @@
 import { dateRange } from './ranges.mjs';
 import { createSessionGuard } from './session.mjs';
-import { isNonListed } from './arcus-source.mjs';
+import { isNonListed } from './arcus-source.mjs?v=reconciliation-20261110';
 const $ = (id) => document.getElementById(id);
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
 let online = null, onlineMode = false;
@@ -23,6 +23,8 @@ const session = createSessionGuard({onLock() {
   cancelCalculation?.(); cancelCalculation = null;
   folder = dataset = manifest = result = null; onlineMode = false;
   for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','message','price-status']) $(id).replaceChildren();
+  $('rows').closest('table')?.tFoot?.replaceChildren();
+  $('results').hidden = true;
   for (const id of ['portfolio','benchmark']) { $(id).replaceChildren(); $(id).disabled = true; }
   arcusReturns.clear();
   securityLinks.clear();
@@ -114,7 +116,7 @@ function restoreSelection(m) {
   const ids = new Set(m.funds.map(f => f.id));
   if (!ids.has(saved.portfolio) || !ids.has(saved.benchmark) || !hasOption('portfolio',saved.portfolio) || !hasOption('benchmark',saved.benchmark) || saved.portfolio === saved.benchmark) return false;
   $('portfolio').value = saved.portfolio; $('benchmark').value = saved.benchmark;
-  if (hasOption('currency', saved.currency)) $('currency').value = saved.currency;
+  $('currency').value = saved.benchmark === 'PORTFOLIO:SWIX' ? 'ZAR' : 'USD';
   if (hasOption('group', saved.group)) $('group').value = saved.group;
   return true;
 }
@@ -183,6 +185,7 @@ function setup(m) {
   if (!restoreSelection(m) && m.funds.some(f => f.id === 'ARKK') && m.funds.some(f => f.id === 'BAI')) {
     $('portfolio').value = 'ARKK'; $('benchmark').value = 'BAI';
   }
+  $('currency').value = $('benchmark').value === 'PORTFOLIO:SWIX' ? 'ZAR' : 'USD';
   for (const id of ['portfolio','benchmark']) {
     if (!fundPickers.has(id)) fundPickers.set(id,createFundPicker(id));
     fundPickers.get(id).render(fundsForRole(m.funds,id));
@@ -319,6 +322,7 @@ function renderArchiveInfo() {
   );
 }
 for(const id of ['portfolio','benchmark','currency','range','start','end']) $(id).addEventListener('change',()=>{
+  if(id==='benchmark')$('currency').value=$('benchmark').value==='PORTFOLIO:SWIX'?'ZAR':'USD';
   clearExport();
   result=null;$('missing-actions').hidden=true;$('results').hidden=true;$('price-status').textContent='';$('message').replaceChildren();
   saveSelection();
@@ -425,6 +429,17 @@ $("controls").addEventListener("submit", async (e) => {
   try {
     if (!await session.check()) return;
     const generation = accessGeneration;
+    if(onlineMode) {
+      $('run').textContent='Checking latest saved holdings…';
+      const latest=await online.refreshManifest(manifest);
+      if(generation!==accessGeneration)return;
+      const selected=[$('portfolio').value,$('benchmark').value];
+      if(selected.some(id=>!latest.funds.some(f=>f.id===id)))throw Error('A selected fund is no longer available. Refresh saved holdings and select again.');
+      Object.assign(manifest,latest);
+      manifest.valuationDates=await online.calendar(manifest);
+      if($('range').value!=='custom')applyRange();
+      await refreshArcusReturns();
+    }
     const options = Object.fromEntries(
       ["portfolio", "benchmark", "start", "end", "currency"].map((id) => [
         id,
@@ -440,7 +455,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=listed-focus-types-20261028", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=reconciliation-20261110", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -528,6 +543,7 @@ $("controls").addEventListener("submit", async (e) => {
         else { const [labelNode, noteNode] = [...body.childNodes]; card.append(labelNode, figure, noteNode); }
         return card;
       }),
+      renderReconciliation(result, options),
     );
     renderRows();
     renderMethod();
@@ -562,6 +578,52 @@ $('retry-missing').addEventListener('click',()=>{
 $('assume-zero').addEventListener('change',()=>{if(manifest && !$('run').disabled)$('controls').requestSubmit();});
 const fmt = (v) =>
   v === null || v === undefined ? "—" : (v * 100).toFixed(2) + "%";
+function reconciliationSide(comparison, options, side) {
+  const role = side === 'A' ? 'portfolio' : 'benchmark', fund = options[role];
+  const rows = comparison.rows || [], values = rows.map(row => row['ctr' + side]).filter(Number.isFinite);
+  const contribution = Object.hasOwn(comparison, 'knownContribution' + side)
+    ? comparison['knownContribution' + side] : values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+  const reference = comparison['fundReturn' + side] ?? null;
+  const residual = Object.hasOwn(comparison, 'residual' + side) ? comparison['residual' + side]
+    : Number.isFinite(reference) && Number.isFinite(contribution) ? reference - contribution : null;
+  const coverage = comparison.coverage?.[role] ?? rows.reduce((sum, row) =>
+    sum + (!row.assumedZero && Number.isFinite(row['ctr' + side]) && Number.isFinite(row['weight' + side]) ? Math.abs(row['weight' + side]) : 0), 0);
+  const missing = new Set((comparison.missing || []).filter(item => item.fund === fund).map(item => item.id)).size;
+  const account = fund.startsWith('PORTFOLIO:');
+  const method = comparison['returnMethod' + side];
+  return {role, fund, reference, contribution, residual, coverage, missing, account,
+    basis: method === 'weighted-estimate' ? 'Weighted portfolio estimate' : method === 'reference' ? 'Observed fund reference' : 'Holdings estimate'};
+}
+const fmtPoints = value => !Number.isFinite(value) ? '—' : (value > 0 ? '+' : '') + (value * 100).toFixed(2) + ' pp';
+function renderReconciliation(comparison, options) {
+  const section = text('section', '', 'return-reconciliation');
+  section.setAttribute('aria-label', 'Return reconciliation');
+  section.append(text('h2', 'Return reconciliation'), text('p', 'Fund returns and holdings contributions are shown separately. Contributions are not rescaled to close a gap.'));
+  const grid = text('div', '', 'reconciliation-grid');
+  for (const side of ['A', 'B']) {
+    const data = reconciliationSide(comparison, options, side), card = text('article', '', 'reconciliation-fund');
+    card.append(text('h3', (data.role === 'portfolio' ? 'Portfolio · ' : 'Benchmark · ') + fundLabel(data.fund)), text('p', data.basis + ' · ' + options.currency));
+    const list = text('dl');
+    const fields = [
+      [data.account ? 'Observed account reference' : 'Observed fund return', fmt(data.reference)],
+      ['Holdings contribution subtotal', fmtPoints(data.contribution)],
+      ['Reference less contributions', fmtPoints(data.residual)],
+      ['Measured weight coverage', fmt(data.coverage)],
+      ['Missing security returns', String(data.missing)],
+    ];
+    for (const [label, value] of fields) {
+      const term = text('dt', label), amount = text('dd', value);
+      if (label === 'Reference less contributions') { term.className = 'reconciliation-gap'; amount.className = 'reconciliation-gap'; }
+      if (label === 'Measured weight coverage') term.title = 'Absolute source weight with measured security returns; excludes assumed returns.';
+      list.append(term, amount);
+    }
+    card.append(list);
+    if (!Number.isFinite(data.reference)) card.append(text('small', 'No independent reference return is available, so a reconciliation gap cannot be calculated.'));
+    grid.append(card);
+  }
+  section.append(grid);
+  return section;
+}
 // Use resolved listing identities, not issuer display tickers (which may omit an exchange).
 function buildSecurityLinks(snapshots = []) {
   // The Marlow-only Arcus login gets this page with the back link replaced by an empty span
@@ -588,6 +650,7 @@ function displayedRows() {
       ticker: r.sector,
       name: "Sector aggregate",
       sector: r.sector,
+      themes: new Set(),
       weightA: 0,
       weightB: 0,
       ctrA: 0,
@@ -605,6 +668,8 @@ function displayedRows() {
       "activeCtr",
     ])
       g[key] = g[key] === null || r[key] === null ? null : g[key] + r[key];
+    g.themes.add(themeLabel(r));
+    g.theme = [...g.themes].sort().join(' / ');
     groups.set(r.sector, g);
   }
   return [...groups.values()];
@@ -618,7 +683,79 @@ const columns = [
   ["ctrA", "Contribution · Portfolio"],
   ["ctrB", "Contribution · Benchmark"],
   ["activeCtr", "Difference (pp)"],
+  ["theme", "Theme"],
 ];
+const textColumn = key => key === 'ticker' || key === 'theme';
+function themeLabel(row) {
+  const value = Array.isArray(row.theme) ? row.theme.filter(Boolean).join(' / ') : row.theme;
+  return typeof value === 'string' && value.trim() ? value.trim() : 'Unclassified';
+}
+// Sum original values, not displayed/rounded cells or incomplete sector groups.
+function tableTotals(rows) {
+  const totals = {}, missing = {};
+  for (const key of ['weightA', 'weightB', 'activeWeight', 'ctrA', 'ctrB', 'activeCtr']) {
+    const values = rows.map(row => row[key]).filter(Number.isFinite);
+    totals[key] = values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+    missing[key] = rows.length - values.length;
+  }
+  return {totals, missing};
+}
+function tableCellValue(row, key) {
+  return key === 'ticker' ? row.ticker : key === 'theme' ? themeLabel(row) : fmt(row[key]);
+}
+function renderTableTotals(table, visible) {
+  const foot = table.tFoot || table.createTFoot(), tr = document.createElement('tr');
+  const {totals, missing} = tableTotals(result.rows);
+  for (const [key] of visible) {
+    const cell = text(key === 'ticker' ? 'th' : 'td', key === 'ticker' ? 'Total' : textColumn(key) || key === 'securityReturn' ? '—' : fmt(totals[key]));
+    if (key === 'ticker') {
+      cell.scope = 'row';
+      cell.append(text('small', 'Available values · unrounded sums'));
+    } else if (key === 'securityReturn') cell.title = 'Individual security returns cannot be added together.';
+    else if (!textColumn(key)) {
+      cell.className = signClass(key, totals[key]);
+      cell.title = missing[key] ? `Sum of available values; ${missing[key]} missing. Calculated before rounding.` : 'Sum calculated before rounding.';
+      if (missing[key]) cell.append(text('small', `${missing[key]} missing`));
+    }
+    tr.append(cell);
+  }
+  foot.replaceChildren(tr);
+}
+function wireTableScroll(table) {
+  const scroll = table.closest('.scroll');
+  if (!scroll) return;
+  scroll.id = 'holdings-table-scroll';
+  scroll.tabIndex = 0;
+  scroll.setAttribute('role', 'region');
+  scroll.setAttribute('aria-label', 'Holdings comparison. Scroll within the table to keep column headings visible.');
+  scroll.setAttribute('aria-describedby', 'table-scroll-status');
+  let nav = document.getElementById('table-scroll-nav');
+  if (!nav) {
+    nav = text('div', '', 'table-scroll-nav'); nav.id = 'table-scroll-nav';
+    const status = text('span', '', 'table-scroll-status'); status.id = 'table-scroll-status';
+    const left = text('button', '← Scroll left'), right = text('button', 'Scroll right →');
+    for (const button of [left, right]) { button.type = 'button'; button.setAttribute('aria-controls', scroll.id); }
+    left.dataset.direction = 'left'; right.dataset.direction = 'right';
+    left.onclick = () => scroll.scrollBy({left: -Math.max(240, scroll.clientWidth * .75), behavior: 'smooth'});
+    right.onclick = () => scroll.scrollBy({left: Math.max(240, scroll.clientWidth * .75), behavior: 'smooth'});
+    nav.append(status, left, right); scroll.before(nav);
+    const update = () => {
+      const overflow = scroll.scrollWidth > scroll.clientWidth + 2;
+      left.hidden = right.hidden = !overflow;
+      left.disabled = scroll.scrollLeft <= 1;
+      right.disabled = scroll.scrollLeft + scroll.clientWidth >= scroll.scrollWidth - 2;
+      status.textContent = overflow ? (right.disabled ? 'End of columns · scroll left to return' : 'More columns to the right, including Theme') : 'Scroll rows below · column headings stay visible';
+    };
+    scroll.addEventListener('scroll', update, {passive: true});
+    scroll._updateTableScroll = update;
+    if (typeof ResizeObserver !== 'undefined') {
+      scroll._tableResizeObserver = new ResizeObserver(update);
+      scroll._tableResizeObserver.observe(scroll);
+      scroll._tableResizeObserver.observe(table);
+    }
+  }
+  scroll._updateTableScroll?.();
+}
 // Phones show three columns; the remaining figures open under the tapped row.
 const phoneColumns = () => $("group").value === "sector"
   ? [["ticker", "Sector"], ["activeWeight", "Active wt"], ["activeCtr", "Diff (pp)"]]
@@ -631,7 +768,7 @@ function columnLabel(key, name) {
 }
 function syncSortControls() {
   $("sort").value = sortKey;
-  $("sort-direction").textContent = sortKey === "ticker"
+  $("sort-direction").textContent = textColumn(sortKey)
     ? (sortDirection === 1 ? "↓ A to Z" : "↑ Z to A")
     : (sortDirection === -1 ? "↓ Largest first" : "↑ Smallest first");
 }
@@ -643,7 +780,7 @@ function renderRows() {
   syncSortControls();
   $("table-hint").textContent = compact
     ? "Percentage points. Tap a heading to sort, or a row for weights and contributions."
-    : "Contributions in percentage points. Tap a column to sort. Swipe the table for more columns.";
+    : "Contributions in percentage points. Click a heading to sort. Scroll inside the table; totals are below the last security. Totals use unrounded values.";
   if ($('group').value === 'security' && securityLinks.size) $('table-hint').textContent += ' Tickers open Arcus Watchlists in a new tab.';
   const tr = document.createElement("tr");
   for (const [key, name] of visible) {
@@ -654,7 +791,7 @@ function renderRows() {
     th.tabIndex = 0;
     th.setAttribute("aria-sort", sortKey === key ? (sortDirection === 1 ? "ascending" : "descending") : "none");
     th.addEventListener("click", () => {
-      sortDirection = sortKey === key ? -sortDirection : key === "ticker" ? 1 : -1;
+      sortDirection = sortKey === key ? -sortDirection : textColumn(key) ? 1 : -1;
       sortKey = key;
       renderRows();
     });
@@ -667,8 +804,8 @@ function renderRows() {
   const rows = [...displayedRows()].sort(
     (a, b) =>
       Number(!!a.nonListed)-Number(!!b.nonListed) || sortDirection *
-      (typeof a[sortKey] === "string"
-        ? a[sortKey].localeCompare(b[sortKey])
+      (textColumn(sortKey)
+        ? String(tableCellValue(a, sortKey)).localeCompare(String(tableCellValue(b, sortKey)))
         : (a[sortKey] ?? -Infinity) - (b[sortKey] ?? -Infinity)),
   );
   renderContributionChart(rows);
@@ -676,7 +813,8 @@ function renderRows() {
     ...rows.flatMap((r) => {
       const row = document.createElement("tr");
       for (const [key] of visible) {
-        const cell = text("td", key === "ticker" ? r.ticker : fmt(r[key]));
+        const cell = text("td", tableCellValue(r, key));
+        if (key === 'theme') cell.classList.add('theme-cell');
         if (key === 'ticker' && $('group').value === 'security' && !r.nonListed && securityLinks.has(r.id)) {
           const link = text('a', r.ticker, 'security-link');
           link.href = securityLinks.get(r.id);
@@ -700,7 +838,7 @@ function renderRows() {
       const list = document.createElement("dl");
       for (const [key, name] of columns) {
         if (key === "ticker" || visible.some(([k]) => k === key)) continue;
-        list.append(text("dt", columnLabel(key, name)), text("dd", fmt(r[key]), signClass(key, r[key])));
+        list.append(text("dt", columnLabel(key, name)), text("dd", tableCellValue(r, key), signClass(key, r[key])));
       }
       cell.append(list);
       detail.append(cell);
@@ -719,10 +857,13 @@ function renderRows() {
       return [row, detail];
     }),
   );
+  const table = $('rows').closest('table');
+  renderTableTotals(table, visible);
+  wireTableScroll(table);
 }
 $("sort").addEventListener("change", () => {
   sortKey = $("sort").value;
-  sortDirection = sortKey === "ticker" ? 1 : -1;
+  sortDirection = textColumn(sortKey) ? 1 : -1;
   if (result) renderRows();
 });
 $("sort-direction").addEventListener("click", () => {
@@ -814,7 +955,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=indices2-20261105-listed-focus-types-20261028');
+  const {createOnlineSource}=await import('./online.mjs?v=reconciliation-20261110');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;
@@ -828,7 +969,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=share-returns-20261109');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=reconciliation-20261110');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';

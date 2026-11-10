@@ -41,7 +41,7 @@ export function createRiseSwix({check,lock}){
   else if(b.value!==SWIX&&p.value===RISE)choose(p,ordinary(p,b.value));
   const active=isActive();live.hidden=live.disabled=!active;$('range').options[0].textContent=active?'1D':'One Day';
   if(active){if(!entered){priorCurrency=$('currency').value;entered=true;$('range').value='day';opened.clear();sort=null;}syncRange();}
-  else{panel.hidden=true;if(entered){entered=false;$('currency').disabled=false;$('currency').value=priorCurrency||'USD';if($('range').value==='live')$('range').value='day';$('range').dispatchEvent(new Event('change'));}}
+  else{panel.hidden=true;if(entered){entered=false;$('currency').disabled=false;$('currency').value=$('benchmark').value===SWIX?'ZAR':'USD';if($('range').value==='live')$('range').value='day';$('range').dispatchEvent(new Event('change'));}}
   $('assume-zero').closest('label').hidden=active;
   syncing=false;
  }
@@ -119,7 +119,9 @@ export function createRiseSwix({check,lock}){
   }catch(e){if(gen===generation){status.textContent=(last?'Keeping the previous complete result from '+new Date(last.at).toLocaleTimeString()+'. ':'')+e.message;showMissing(e.missing);}}
   finally{if(gen===generation){busy=false;$('run').disabled=false;$('run').textContent='Compare funds';cooldown=setTimeout(()=>{refresh.disabled=false;},Math.max(0,5000-(Date.now()-began)));if(liveMode&&isActive()&&!document.hidden)timer=setTimeout(run,Math.max(1000,35000-(Date.now()-began)));}}
  }
- $('controls').addEventListener('submit',e=>{if(!isActive())return;e.preventDefault();e.stopImmediatePropagation();cancel();last=null;table.replaceChildren();void run();},true);
+ // An explicit Compare rechecks the published report; live price refreshes keep
+ // its stated report dates and do not start a holdings collector or poller.
+ $('controls').addEventListener('submit',e=>{if(!isActive())return;e.preventDefault();e.stopImmediatePropagation();cancel();report=null;last=null;table.replaceChildren();void run();},true);
  for(const id of ['portfolio','benchmark','currency','range','start','end'])$(id).addEventListener('change',e=>{cancel();last=null;table.replaceChildren();note.textContent='';foot.textContent='';status.textContent='';showMissing();syncSelection(e);if(isActive()&&['range','start','end'].includes(id))syncRange();});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)cancel();else if(isActive()&&$('range').value==='live'){syncRange();void run();}});
  window.addEventListener('pagehide',()=>cancel(true));

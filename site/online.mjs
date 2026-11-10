@@ -1,4 +1,4 @@
-import {normalizeArcusPacket,resolveArchiveListings,isNonListed} from './arcus-source.mjs?v=listed-focus-types-20261028';
+import {normalizeArcusPacket,resolveArchiveListings,resolveKnownListings,isNonListed} from './arcus-source.mjs?v=reconciliation-20261110';
 import {completedPrices,valuationPrices} from './price-data.mjs?v=missing-recovery-20261028';
 // A failed price request is not evidence that a company is private.
 export function missingReturnReason(position) {
@@ -55,6 +55,12 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       return refreshSymbols.size;
     },
     catalog:()=>get('catalog'),
+    async refreshManifest(manifest) {
+      const latest=await get('catalog');
+      if(latest?.schemaVersion!==1 || !Array.isArray(latest.funds))throw Error('Could not verify latest saved holdings. Compare again.');
+      if(latest.version!==manifest.version)holdings.clear();
+      return latest;
+    },
     async calendar(manifest){
       if(manifest?.holdingsSource==='arcus' && manifest.valuationDates?.length)return manifest.valuationDates;
       const now=new Date(),end=new Date(now.getTime()-86400000).toISOString().slice(0,10);
@@ -91,7 +97,8 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
           if(entry?.arcusOnly)throw Error(fund+': complete dated issuer weights are temporarily unavailable.');
           sourceNotes.push(fund+': archive allocation fallback; current Arcus constituents dated '+packet.arcusHoldingsAsOf+'.');
         }
-        return archive(fund);
+        const saved=await archive(fund);
+        return resolveKnownListings(structuredClone(saved),arcusPackets.get(fund)?.companies||[]);
       }));
       // A shared listing must not change when the two requests finish in a
       // different order. Prefer the selected portfolio's dated facts on overlap.
