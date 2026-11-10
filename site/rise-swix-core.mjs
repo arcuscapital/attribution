@@ -114,13 +114,26 @@ export function estimate(report,returns){
  const ctr=[4,5].map(c=>groups.reduce((n,g)=>n+(g.values[c]??0),0));
  return {groups,total:{...report.total,values:[report.total.values[0],report.total.values[1],...ctr,...ctr]}};
 }
-// All batches resolve before a caller may commit a valuation. No row-level patches.
-export async function completeQuotes(symbols,fetchBatch,cycle){
+// All batches resolve before a caller may commit a valuation. No row-level patches. A failed or
+// mismatched batch rejects the cycle; symbols a successful batch did not return are listed in missing.
+export async function collectQuotes(symbols,fetchBatch,cycle){
  const unique=[...new Set(symbols)],batches=[];
  for(let i=0;i<unique.length;i+=32)batches.push(unique.slice(i,i+32));
  const results=await Promise.all(batches.map(b=>fetchBatch(b,cycle)));
  const patch={};for(const r of results){if(!r.ok||r.cycleId!==cycle||!Number.isFinite(r.collectedAt))throw Error('Incomplete price cycle');for(const [symbol,q] of Object.entries(r.patch||{}))patch[symbol]={...q,at:r.collectedAt};}
- const missing=unique.filter(s=>!patch[s]);
- if(missing.length)throw Object.assign(Error('No complete live snapshot: '+missing.length+' of '+unique.length+' holdings have no quote. No holdings have been dropped.'),{missing});
+ return {patch,missing:unique.filter(s=>!patch[s]),count:unique.length};
+}
+// Live Rise vs Swix: a holding without a usable quote (missing or stale) counts as a 0% return and is
+// reported, so one thinly traded share cannot block the table. If more than half the holdings have no
+// usable quote, treat it as a price outage instead of showing a mostly-zero valuation.
+export function liveReturns(symbols,patch,baseline,now=Date.now()){
+ const unique=[...new Set(symbols)],returns={},zero=[];
+ for(const symbol of unique){try{returns[symbol]=liveReturn(patch[symbol],baseline,now);}catch{returns[symbol]=0;zero.push(symbol);}}
+ if(zero.length*2>unique.length)throw Object.assign(Error('Live prices unavailable: '+zero.length+' of '+unique.length+' holdings have no usable quote.'),{missing:zero});
+ return {returns,zero};
+}
+export async function completeQuotes(symbols,fetchBatch,cycle){
+ const {patch,missing,count}=await collectQuotes(symbols,fetchBatch,cycle);
+ if(missing.length)throw Object.assign(Error('No complete live snapshot: '+missing.length+' of '+count+' holdings have no quote. No holdings have been dropped.'),{missing});
  return patch;
 }

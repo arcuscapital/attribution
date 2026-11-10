@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {estimate,validateReport,liveReturn,historyReturn,completeQuotes,period,previous,reported,etnPriceReturn,sortRiseGroups,withShareReturns} from '../site/rise-swix-core.mjs';
+import {estimate,validateReport,liveReturn,historyReturn,completeQuotes,period,previous,reported,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns} from '../site/rise-swix-core.mjs';
 const report=()=>({schemaVersion:1,version:'test',currency:'ZAR',period:['2026-11-04','2026-11-05'],total:{values:[100,100,2,3,2,3]},groups:[{name:'Example',values:[100,100,2,3,2,3],children:[{id:'A',name:'Synthetic A',symbol:'TEST.JO',values:[60,20,2,3,1.2,.6]},{id:'B',name:'Synthetic B',symbol:'OTHER.JO',values:[40,80,2,3,.8,2.4]}]}]});
 test('report reconciles and rejects modified sector, currency and duplicates',()=>{validateReport(report());for(const change of [r=>r.currency='USD',r=>r.groups[0].values[0]=90,r=>r.groups[0].children[1].id='A']){const r=report();change(r);assert.throws(()=>validateReport(r));}});
 test('fixed weights reconcile holdings, sectors and both funds',()=>{const r=estimate(report(),{'TEST.JO':10,'OTHER.JO':-5});assert.deepEqual(r.total.values,[100,100,4,-2,4,-2]);assert.equal(r.groups[0].children[0].values[4],6);assert.equal(r.groups[0].children[1].values[4],-2);});
@@ -83,4 +83,15 @@ test('a side that does not hold a share shows the share return for reference; no
 test('a missing quote names every holding without one and still rejects the snapshot',async()=>{
  const symbols=['A.JO','B.JO','C.JO'];
  await assert.rejects(completeQuotes(symbols,async(b,cycleId)=>({ok:true,cycleId,collectedAt:1,patch:{'B.JO':{p:1}}}),'c'),e=>{assert.deepEqual(e.missing,['A.JO','C.JO']);assert.match(e.message,/2 of 3 holdings have no quote/);return true;});
+});
+test("live: a missing or stale quote counts as 0% and is reported; most quotes missing is an outage",async()=>{
+ const now=Date.parse("2026-11-10T13:00:00Z"),fresh={p:110,pc:100,t:now-60000,at:now-1000};
+ const symbols=["A.JO","B.JO","C.JO","D.JO"];
+ const {patch,missing,count}=await collectQuotes(symbols,async(b,cycleId)=>({ok:true,cycleId,collectedAt:now-1000,patch:{"A.JO":{p:110,pc:100,t:now-60000},"B.JO":{p:50,pc:50,t:Date.parse("2026-11-05T14:00:00Z")},"C.JO":{p:99,pc:100,t:now-60000}}}),"z");
+ assert.deepEqual(missing,["D.JO"]);assert.equal(count,4);
+ const out=liveReturns(symbols,patch,"2026-11-09",now);
+ assert.ok(Math.abs(out.returns["A.JO"]-10)<1e-9);assert.ok(Math.abs(out.returns["C.JO"]+1)<1e-9);
+ assert.equal(out.returns["B.JO"],0);assert.equal(out.returns["D.JO"],0);assert.deepEqual(out.zero,["B.JO","D.JO"]);
+ assert.throws(()=>liveReturns(symbols,{"A.JO":fresh},"2026-11-09",now),e=>{assert.deepEqual(e.missing,["B.JO","C.JO","D.JO"]);assert.match(e.message,/3 of 4 holdings/);return true;});
+ await assert.rejects(collectQuotes(symbols,async(b,cycleId)=>({ok:false,cycleId,collectedAt:1,patch:{}}),"z"),/Incomplete price cycle/);
 });

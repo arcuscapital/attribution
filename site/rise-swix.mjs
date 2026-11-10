@@ -1,4 +1,4 @@
-import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,withShareReturns} from './rise-swix-core.mjs?v=share-returns-20261109';
+import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns} from './rise-swix-core.mjs?v=live-zero-20261110';
 import {dateRange} from './ranges.mjs';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
 export function createRiseSwix({check,lock}){
@@ -12,9 +12,9 @@ export function createRiseSwix({check,lock}){
  // Red list of holdings without a usable price in the latest attempt; hidden when every holding is priced.
  const missingNote=el('p',null,'rise-missing');missingNote.hidden=true;
  scroll.append(table);panel.append(title,note,status,missingNote,actions,scroll,foot);
- function showMissing(symbols=[]){
+ function showMissing(symbols=[],zeroed=false){
   const names=new Map((report?.groups||[]).flatMap(g=>g.children).filter(p=>!p.cash).map(p=>[p.symbol,p.name+' ('+p.ticker+')'])),list=[...new Set(symbols)].map(s=>names.get(s)||s);
-  missingNote.textContent=list.length?'Not getting prices for '+list.length+(list.length===1?' share: ':' shares: ')+list.join(', '):'';missingNote.hidden=!list.length;
+  missingNote.textContent=list.length?(zeroed?'No live price, counted as 0% return: ':'Not getting prices for '+list.length+(list.length===1?' share: ':' shares: '))+list.join(', '):'';missingNote.hidden=!list.length;
  }
  const live=el('option','Live');live.value='live';live.hidden=true;live.disabled=true;$('range').options[0].after(live);
  const isActive=()=>isRisePair($('portfolio').value,$('benchmark').value);
@@ -56,6 +56,7 @@ export function createRiseSwix({check,lock}){
   x.values.forEach((v,i)=>{
    const td=el('td',format(v),i>1&&v!==null&&v!==0?(v>0?'positive':'negative'):'');
    if(x.reference?.includes(i)){td.classList.add('rise-reference');td.title=(i===2?'Rise':'Swix')+' does not hold this share. Its own return, for reference.';}
+   if(x.zeroed&&(i===2||i===3)&&v!==null){td.classList.add('rise-zeroed');td.title='No live price: counted as 0% return.';}
    tr.append(td);
   });
   return tr;
@@ -79,7 +80,7 @@ export function createRiseSwix({check,lock}){
   if(refocus!==null){table.querySelector('[data-sort="'+refocus+'"]')?.focus();refocus=null;}
   note.textContent='Port = Rise · Bmrk = Swix · '+value.start+' to '+value.end+' · ZAR · '+value.basis;
   const reference=' Italic returns are for shares that side does not hold: the share’s own return, for reference, with no weight or contribution.';
-  foot.textContent=value.exact?'Source: Bloomberg report, 4–5 November 2026. Reported sector totals and source blanks retained, except share returns where one side does not hold the share.'+reference:'Holdings-based estimate. The 4–5 November 2026 report’s average weights are assumed across the selected period; trades and actual average holdings are not reconstructed. ZAR cash is held constant with 0% assumed income. '+(value.live?'Live uses price returns; intraday distributions are not included. Provider quotes may be delayed; Updated is the fetch time.':'Shares use vendor-adjusted returns. NEWSLV and SBCOP use Sharenet closing-price returns (price-only estimates).')+reference+' All figures are in ZAR. Swipe horizontally for more columns.';
+  foot.textContent=value.exact?'Source: Bloomberg report, 4–5 November 2026. Reported sector totals and source blanks retained, except share returns where one side does not hold the share.'+reference:'Holdings-based estimate. The 4–5 November 2026 report’s average weights are assumed across the selected period; trades and actual average holdings are not reconstructed. ZAR cash is held constant with 0% assumed income. '+(value.live?'Live uses price returns; intraday distributions are not included. Provider quotes may be delayed; Updated is the fetch time.'+(value.zero?.length?' Shares without a usable live price count as 0% return and are listed in red.':''):'Shares use vendor-adjusted returns. NEWSLV and SBCOP use Sharenet closing-price returns (price-only estimates).')+reference+' All figures are in ZAR. Swipe horizontally for more columns.';
   panel.hidden=false;$('empty').hidden=true;$('results').hidden=true;
  }
  async function calculation(returns){return new Promise((resolve,reject)=>{worker=new Worker(new URL('./rise-swix-worker.mjs',import.meta.url),{type:'module'});rejectWorker=reject;worker.onmessage=({data})=>{worker.terminate();worker=null;rejectWorker=null;data.ok?resolve(data.result):reject(Error(data.error));};worker.onerror=()=>{worker?.terminate();worker=null;rejectWorker=null;reject(Error('Calculation unavailable'));};worker.postMessage({report,returns});});}
@@ -98,24 +99,26 @@ export function createRiseSwix({check,lock}){
    let value;
    if(!liveMode&&reported(report,start,end))value={groups:withShareReturns(report.groups),total:report.total,exact:true,basis:'Bloomberg reported'};
    else{
-    const positions=report.groups.flatMap(g=>g.children).filter(p=>!p.cash),symbols=[...new Set(positions.map(p=>p.symbol))],returns={};
+    const positions=report.groups.flatMap(g=>g.children).filter(p=>!p.cash),symbols=[...new Set(positions.map(p=>p.symbol))],returns={};let zero=[];
     if(liveMode){
-     const cycle=crypto.randomUUID(),patch=await completeQuotes(symbols,async(batch,id)=>{
+     const cycle=crypto.randomUUID(),{patch}=await collectQuotes(symbols,async(batch,id)=>{
       const r=await fetch('/api/live-prices/shard',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(12000)]),body:JSON.stringify({symbols:batch,cycleId:id})});
       if(r.status===401){lock();throw Error('Sign in again.');}if(!r.ok)throw Error('Quote batch failed.');return r.json();
      },cycle);
-     const stale=[];for(const symbol of symbols){try{returns[symbol]=liveReturn(patch[symbol],previous(sessionDate()));}catch{stale.push(symbol);}}
-     if(stale.length)throw Object.assign(Error('No complete live snapshot: '+stale.length+' of '+symbols.length+' holdings have a missing or stale quote. No holdings have been dropped.'),{missing:stale});
+     const live=liveReturns(symbols,patch,previous(sessionDate()));Object.assign(returns,live.returns);zero=live.zero;
     }else{
      const dates=period(start,end);if(dates.end>completedCalendar().at(-1))throw Error('Choose a completed session, or select Live.');
      let next=0,done=0;const missing=[];
      await Promise.all([0,1,2].map(async()=>{while(next<symbols.length){const s=symbols[next++];if(gen!==generation)return;try{returns[s]=await loadHistory(s,dates.baseline,dates.end);}catch(e){if(controller.signal.aborted)throw e;missing.push(s);}status.textContent='Checking prices '+(++done)+' / '+symbols.length;}}));
      if(missing.length)throw Object.assign(Error('Complete valuation unavailable: '+missing.length+' of '+symbols.length+' holdings have no adjusted prices for these dates. No holdings have been dropped.'),{missing});
     }
-    const result=await calculation(returns);value={...result,groups:withShareReturns(result.groups),basis:liveMode?'Live price-return estimate':'Holdings-based estimate',live:liveMode};
+    const result=await calculation(returns),zeroSet=new Set(zero);
+    const groups=zeroSet.size?result.groups.map(g=>({...g,children:g.children.map(p=>zeroSet.has(p.symbol)?{...p,zeroed:true}:p)})):result.groups;
+    value={...result,groups:withShareReturns(groups),basis:liveMode?'Live price-return estimate':'Holdings-based estimate',live:liveMode,zero};
    }
    if(gen!==generation||!isActive()||!await check())return;
-   const at=new Date().toISOString();render({...value,start,end,at});showMissing();status.textContent='Updated '+new Date(at).toLocaleTimeString()+(liveMode?' · Complete snapshot · 35s refresh':'');
+   const at=new Date().toISOString(),zeroCount=value.zero?.length||0;render({...value,start,end,at});showMissing(value.zero||[],true);
+   status.textContent='Updated '+new Date(at).toLocaleTimeString()+(liveMode?(zeroCount?' · '+zeroCount+(zeroCount===1?' share':' shares')+' at 0% (no live price)':' · Complete snapshot')+' · 35s refresh':'');
   }catch(e){if(gen===generation){status.textContent=(last?'Keeping the previous complete result from '+new Date(last.at).toLocaleTimeString()+'. ':'')+e.message;showMissing(e.missing);}}
   finally{if(gen===generation){busy=false;$('run').disabled=false;$('run').textContent='Compare funds';cooldown=setTimeout(()=>{refresh.disabled=false;},Math.max(0,5000-(Date.now()-began)));if(liveMode&&isActive()&&!document.hidden)timer=setTimeout(run,Math.max(1000,35000-(Date.now()-began)));}}
  }

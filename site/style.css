@@ -513,6 +513,7 @@ summary::before{content:'›';font-size:25px;margin-right:12px;flex:none}details
 .rise-swix .rise-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 .rise-swix .rise-missing{color:#F2606A;font-weight:600}.light .rise-swix .rise-missing{color:#A3262D}
 .rise-swix .rise-reference{font-style:italic}
+.rise-swix td.rise-zeroed{color:#F2606A;font-weight:600}.light .rise-swix td.rise-zeroed{color:#A3262D}
 .rise-swix .rise-holding td:first-child{padding-left:34px;font-size:13px}
 /* Gains and losses: dark theme about 12:1 (green) and 9:1 (red) on table rows; light theme above 7:1 on white. They read as easily as the plain figures at the same weight. */
 .rise-swix .positive{color:#6CF0AF}.rise-swix .negative{color:#FFA3A9}
