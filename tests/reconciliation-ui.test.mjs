@@ -45,6 +45,46 @@ test('explicit missing totals/residuals stay unavailable and genuine zero remain
   assert.ok(copy.includes('0.00%')); assert.ok(copy.includes('—'));
 });
 
+test('market references disclose that their valuation basis is not NAV', () => {
+  for (const basis of ['vendor-adjusted', 'arcus-completed-session']) {
+    const ctx = harness(), result = {...fixture(), fundReturnBasisB:basis};
+    const side = ctx.reconciliationSide(result, options, 'B');
+    assert.equal(side.referenceLabel, 'Observed fund market return');
+    assert.equal(side.basis, 'Observed fund market return');
+    assert.equal(side.marketReference, true);
+    const cards = ctx.renderReconciliation(result, options).children.at(-1).children;
+    assert.ok(strings(cards[1]).includes('Market-price return is not NAV return.'));
+    assert.ok(!strings(cards[0]).includes('Market-price return is not NAV return.'), 'the market note belongs only to the market reference fund');
+    assert.equal(side.reference, .08); assert.equal(side.contribution, .035); assert.equal(side.residual, .045);
+  }
+});
+
+test('verified, mixed and unknown reference sources retain their own labels without a market claim', () => {
+  for (const [basis, label] of [
+    ['verified-total-return', 'Imported verified total return'],
+    ['mixed', 'Observed fund reference (mixed sources)'],
+    [undefined, 'Observed fund reference'],
+    ['future-source', 'Observed fund reference'],
+  ]) {
+    const ctx = harness(), result = {...fixture(), fundReturnBasisB:basis};
+    const side = ctx.reconciliationSide(result, options, 'B');
+    assert.equal(side.referenceLabel, label); assert.equal(side.marketReference, false);
+    const copy = strings(ctx.renderReconciliation(result, options));
+    assert.ok(copy.includes(label)); assert.ok(!copy.includes('Market-price return is not NAV return.'));
+  }
+});
+
+test('account references and unavailable fund references do not make a market-price claim', () => {
+  const ctx = harness(), result = {...fixture(), fundReturnA:.07, fundReturnBasisA:'vendor-adjusted', fundReturnB:null, fundReturnBasisB:'vendor-adjusted'};
+  const side = ctx.reconciliationSide(result, options, 'A');
+  assert.equal(side.referenceLabel, 'Observed account reference'); assert.equal(side.marketReference, false);
+  assert.equal(side.basis, 'Weighted portfolio estimate');
+  const copy = strings(ctx.renderReconciliation(result, options));
+  assert.ok(copy.includes('Observed account reference'));
+  assert.ok(!copy.includes('Market-price return is not NAV return.'));
+  assert.ok(copy.some(value => value.includes('No independent reference return')));
+});
+
 test('reconciliation is always alongside metrics and session locking also clears table totals', () => {
   const metrics = app.slice(app.indexOf('$("metrics").replaceChildren('), app.indexOf('    renderRows();', app.indexOf('$("metrics").replaceChildren(')));
   assert.match(metrics, /renderReconciliation\(result, options\)/);

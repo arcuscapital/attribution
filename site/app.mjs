@@ -1,6 +1,6 @@
 import { dateRange } from './ranges.mjs';
 import { createSessionGuard } from './session.mjs';
-import { isNonListed } from './arcus-source.mjs?v=reconciliation2-20261110';
+import { isNonListed } from './arcus-source.mjs?v=reconciliation3-20261110';
 const $ = (id) => document.getElementById(id);
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
 let online = null, onlineMode = false;
@@ -455,7 +455,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=reconciliation2-20261110", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=reconciliation3-20261110", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -591,8 +591,13 @@ function reconciliationSide(comparison, options, side) {
   const missing = new Set((comparison.missing || []).filter(item => item.fund === fund).map(item => item.id)).size;
   const account = fund.startsWith('PORTFOLIO:');
   const method = comparison['returnMethod' + side];
-  return {role, fund, reference, contribution, residual, coverage, missing, account,
-    basis: method === 'weighted-estimate' ? 'Weighted portfolio estimate' : method === 'reference' ? 'Observed fund reference' : 'Holdings estimate'};
+  const referenceBasis = comparison['fundReturnBasis' + side];
+  const marketReference = !account && ['vendor-adjusted', 'arcus-completed-session'].includes(referenceBasis);
+  const referenceLabel = account ? 'Observed account reference' : marketReference ? 'Observed fund market return'
+    : referenceBasis === 'verified-total-return' ? 'Imported verified total return'
+    : referenceBasis === 'mixed' ? 'Observed fund reference (mixed sources)' : 'Observed fund reference';
+  return {role, fund, reference, contribution, residual, coverage, missing, account, referenceLabel, marketReference,
+    basis: method === 'weighted-estimate' ? 'Weighted portfolio estimate' : method === 'reference' ? referenceLabel : 'Holdings estimate'};
 }
 const fmtPoints = value => !Number.isFinite(value) ? '—' : (value > 0 ? '+' : '') + (value * 100).toFixed(2) + ' pp';
 function renderReconciliation(comparison, options) {
@@ -605,7 +610,7 @@ function renderReconciliation(comparison, options) {
     card.append(text('h3', (data.role === 'portfolio' ? 'Portfolio · ' : 'Benchmark · ') + fundLabel(data.fund)), text('p', data.basis + ' · ' + options.currency));
     const list = text('dl');
     const fields = [
-      [data.account ? 'Observed account reference' : 'Observed fund return', fmt(data.reference)],
+      [data.referenceLabel, fmt(data.reference)],
       ['Holdings contribution subtotal', fmtPoints(data.contribution)],
       ['Reference less contributions', fmtPoints(data.residual)],
       ['Measured weight coverage', fmt(data.coverage)],
@@ -618,6 +623,7 @@ function renderReconciliation(comparison, options) {
       list.append(term, amount);
     }
     card.append(list);
+    if (data.marketReference && Number.isFinite(data.reference)) card.append(text('small', 'Market-price return is not NAV return.'));
     if (!Number.isFinite(data.reference)) card.append(text('small', 'No independent reference return is available, so a reconciliation gap cannot be calculated.'));
     grid.append(card);
   }
@@ -955,7 +961,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=reconciliation2-20261110');
+  const {createOnlineSource}=await import('./online.mjs?v=reconciliation3-20261110');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;
@@ -969,7 +975,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=reconciliation2-20261110');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=reconciliation3-20261110');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';

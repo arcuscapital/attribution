@@ -230,3 +230,17 @@ test('explicit saved-allocation research permits historical periods without fabr
  assert.equal(JSON.stringify(d),original);
  close(r.rows.find(row=>row.id==='X').securityReturn,-.01);
 });
+
+test('reference return provenance distinguishes imported, market, mixed and unavailable returns',()=>{
+ const imported=compare(fixture(),options);assert.equal(imported.fundReturnBasisA,'verified-total-return');
+ const d=fixture();d.levels.forEach(l=>{if(l.id==='A'||l.id==='B')l.basis='vendor-adjusted';});
+ assert.equal(compare(d,options).fundReturnBasisB,'vendor-adjusted');
+ d.levels=d.levels.filter(l=>l.id!=='Y');
+ assert.equal(compare(d,{...options,allowPartialReturns:true}).fundReturnBasisA,'vendor-adjusted');
+ const midpoint=d.levels.find(l=>l.id==='A'&&l.date==='2026-10-02');
+ d.levels.push({...midpoint,basis:'arcus-completed-session'});
+ d.levels.find(l=>l.id==='A'&&l.date==='2026-10-05').basis='arcus-completed-session';
+ assert.equal(compare(d,{...options,allowPartialReturns:true}).fundReturnBasisA,'mixed');
+ d.levels=d.levels.filter(l=>l.id!=='A');
+ assert.equal(compare(d,{...options,allowPartialReturns:true}).fundReturnBasisA,null);
+});

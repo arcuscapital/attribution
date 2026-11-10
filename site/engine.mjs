@@ -339,6 +339,8 @@ export function compare(input, options) {
     activeReturn: returnA - returnB,
     fundReturnA: fundA?.value ?? null,
     fundReturnB: fundB?.value ?? null,
+    fundReturnBasisA: fundA?.basis ?? null,
+    fundReturnBasisB: fundB?.basis ?? null,
     residualA: fundA ? fundA.value - returnA : null,
     residualB: fundB ? fundB.value - returnB : null,
     rows: results.sort((a, b) => b.activeCtr - a.activeCtr),
@@ -417,6 +419,11 @@ function partialComparison(prices, history, options, baseline, missing) {
     wealthB = 1;
   const referenceA = history.every(d => levelReturn(prices, portfolio, d.from, d.to, currency));
   const referenceB = history.every(d => levelReturn(prices, benchmark, d.from, d.to, currency));
+  const referenceBasis = (fund, available) => {
+    if (!available) return null;
+    const bases = [...new Set(history.map(d => levelReturn(prices, fund, d.from, d.to, currency).basis))];
+    return bases.length === 1 ? bases[0] : 'mixed';
+  };
   if ((!referenceA || !referenceB) && !options.allowPartialReturns) return null;
   // Use one common linking basis for both sides, so their difference stays comparable.
   const linked = referenceA && referenceB;
@@ -472,6 +479,8 @@ function partialComparison(prices, history, options, baseline, missing) {
     activeReturn: linked ? wealthA - wealthB : null,
     fundReturnA: referenceA ? wealthA - 1 : null,
     fundReturnB: referenceB ? wealthB - 1 : null,
+    fundReturnBasisA: referenceBasis(portfolio, referenceA),
+    fundReturnBasisB: referenceBasis(benchmark, referenceB),
     residualA: linked ? wealthA - 1 - explainedA : null,
     residualB: linked ? wealthB - 1 - explainedB : null,
     contributionMethod: linked ? 'reference-linked' : 'arithmetic-daily',
