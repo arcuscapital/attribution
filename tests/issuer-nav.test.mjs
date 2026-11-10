@@ -47,11 +47,12 @@ test('First Trust uses NAV column and WisdomTree isolates its NAV block',async()
 test('request fetches only its fixed issuer source, caches public data, and does not invent unavailable values',async()=>{
   const saved=new Map();let calls=0;
   const cache={match:async k=>saved.get(k.url)?.clone(),put:async(k,v)=>saved.set(k.url,v.clone())};
-  const fetcher=async(url,opts)=>{calls++;assert.match(url,/^https:\/\/www.globalxetfs.com\/funds\/aiq/);assert.equal(opts.redirect,'error');assert.equal(opts.headers.Cookie,undefined);return new Response(globalx);};
+  const fetcher=async(url,opts)=>{calls++;assert.match(url,/^https:\/\/www.globalxetfs.com\/funds\/aiq/);assert.equal(opts.redirect,'manual');assert.equal(opts.headers.Cookie,undefined);return new Response(globalx);};
   assert.equal((await issuerNav(query,{fetcher,cache})).return,.0297);
   assert.equal((await issuerNav(query,{fetcher,cache})).return,.0297);assert.equal(calls,1);
   const missing=await issuerNav({...query,fund:'UNKNOWN'},{fetcher,cache});assert.equal(missing.return,null);assert.equal(calls,1);
   assert.equal((await issuerNav(query,{fetcher:async()=>new Response('blocked',{status:403}),cache:null})).status,'no-data');
+  assert.equal((await issuerNav(query,{fetcher:async()=>new Response('',{status:302,headers:{Location:'https://other.invalid'}}),cache:null})).status,'no-data');
   assert.equal((await issuerNav(query,{fetcher,cache:{match:async()=>{throw Error('cache unavailable');},put:async()=>{throw Error('cache unavailable');}}})).return,.0297);
 });
 

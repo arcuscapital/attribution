@@ -91,7 +91,9 @@ export async function issuerNav(query,{fetcher=fetch,cache=globalThis.caches?.de
     let parsed=null;
     try {const saved=await cache?.match(key);parsed=saved?await saved.json():null;} catch {}
     if(!parsed){
-      const response=await fetcher(source.url,{headers:{'User-Agent':'Mozilla/5.0','Accept':source.type.endsWith('history')?'application/json':'*/*'},redirect:'error',signal:AbortSignal.timeout(14000)});
+      // Workers supports manual/follow, not the browser's redirect:error mode.
+      // Refuse every redirect here; registry entries are canonical issuer URLs.
+      const response=await fetcher(source.url,{headers:{'User-Agent':'Mozilla/5.0','Accept':source.type.endsWith('history')?'application/json':'*/*'},redirect:'manual',signal:AbortSignal.timeout(14000)});
       if(!response.ok)throw Error('Issuer unavailable');
       parsed=await parseNavSource(source,await boundedBody(response,source.type==='ssga'),query.fund);
       parsed.checkedAt=base.checkedAt;

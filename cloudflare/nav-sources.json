@@ -187,13 +187,13 @@
   "CHAT": {
     "type": "roundhill",
     "issuer": "Roundhill",
-    "url": "https://www.roundhillinvestments.com/assets/data/FilepointRoundhill.40RU.RU_CHAT_Daily.csv",
+    "url": "https://www.roundhillinvestments.com/assets/data/filepointroundhill.40ru.ru_chat_daily.csv",
     "page": "https://www.roundhillinvestments.com/etf/chat/"
   },
   "HUMN": {
     "type": "roundhill",
     "issuer": "Roundhill",
-    "url": "https://www.roundhillinvestments.com/assets/data/FilepointRoundhill.40RU.RU_HUMN_Daily.csv",
+    "url": "https://www.roundhillinvestments.com/assets/data/filepointroundhill.40ru.ru_humn_daily.csv",
     "page": "https://www.roundhillinvestments.com/etf/humn/"
   },
   "QQEW": {
