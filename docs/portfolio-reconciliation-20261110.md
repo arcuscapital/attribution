@@ -57,3 +57,42 @@ Public source probes: WTAI Schwab November 5, 54 allocation rows, 99.99%; ARKK i
 
 Deployment receipts and live Brave results are appended below after verification. No private portfolio reports, credentials or cookies are included.
 
+## Deployment receipts (UTC)
+
+| Worker / account | Full application commit | Worker version | Deployment ID | Deployment UTC |
+| --- | --- | --- | --- | --- |
+| arcus-attribution / 5695cae2becf35e049eb5df3e2849ae2 | e911a1348fc01ce119aad9777a424b865904bb3a | c9a219f2-c42a-41ec-871d-9bafebe0844f | 9ea24a3e-1ee7-46c0-aa9e-fb2fe0dacca3 | 2026-11-10T08:57:33.747328Z |
+| arcus-etf-holdings / 42dd726446271f45425eab740741b864 | c441a8557f2854e265c16329ac05c682d6e4634e | 402b101f-9e1e-4153-818e-aa73d6af4bb9 | dd712095-f20f-403b-b6c3-0613e2889f3d | 2026-11-10T08:58:11.257991Z |
+| arcus-watchlists / 42dd726446271f45425eab740741b864 | c441a8557f2854e265c16329ac05c682d6e4634e | 9ca89bf9-6a67-42be-a4e1-99b1b0cce577 | 26cd1274-4352-44d1-a69f-0ca32761c103 | 2026-11-10T08:58:43.55465Z |
+| arcus-attribution / 5695cae2becf35e049eb5df3e2849ae2 | cf9cd321dc873b4c1e3b0a5b71f76494fb32212c | f855a4b1-71db-41ed-abb2-6bd8733a10b7 | ca0a209e-9ecb-4a28-8d77-eabcb06ca3a9 | 2026-11-10T09:02:29.976055Z |
+| arcus-attribution / 5695cae2becf35e049eb5df3e2849ae2 | 54921a7ce69c1ddd49e20d1e1b8cfc2f212e10e7 | ec6367e6-4281-44d9-a630-fcb1864c39c6 | 1eb27562-787a-4a3b-a9c2-b31afd60679a | 2026-11-10T09:08:58.712718Z |
+
+The final two Attribution revisions are backward compatible with the already deployed Arcus packet. The first recovers unique verified name-only listings (empty candidates) without bypassing explicit candidate restrictions; it also recognises public-source cash/money-market labels. The second carries reference basis through the calculation and visibly distinguishes market-price references from verified imported total returns and mixed sources. It does not alter return values.
+
+## Live validation and limits
+
+Actual Brave desktop, DOM controls only, no desktop takeover. Root tested IBKR/WTAI, BAI/VOO, BAI/WTAI; design agent independently tested ARKK/QQQ in a separate public-only tab. Both freshly loaded Watchlist and Analysis showed WTAI +6.34% for November 9. Repeated comparisons reused the recent valid WTAI allocation check from 08:59:26 UTC, rather than writing/downloading holdings on every click. The live QQQ issuer check succeeded in Cloudflare at 09:00:54 UTC and retained November 8 holdings; the HTTP406 mentioned above occurred in the local source probe.
+
+Public ETF one-day USD results on November 9:
+
+| Fund | Observed market reference | Holdings subtotal | Reference less contributions | Measured weight coverage | Missing listed returns |
+| --- | --- | --- | --- | --- | --- |
+| WTAI | 6.34% | 4.76 pp | 1.59 pp | 99.71% | 0 |
+| ARKK | 4.66% | 4.73 pp | -0.07 pp | 94.06% | 0 |
+| QQQ | 3.54% | 3.39 pp | 0.15 pp | 99.83% | 0 |
+| BAI | 6.14% | 5.76 pp | 0.39 pp | 92.07% | 0 |
+| VOO | 2.35% | 2.55 pp | -0.20 pp | 99.85% | 1 |
+
+Values are independently rounded; totals and residuals use unrounded numbers. Measured coverage excludes explicitly assumed non-listed returns; it is not a count of positions. WTAI's allocation totals 99.99% across 54 rows. The final BAI/WTAI footer showed allocation totals 100.03%/99.99% and contribution totals 5.76%/4.76%, matching the reconciliation cards. Verified Arcus theme memberships were populated; absent classifications remain explicitly Unclassified, not guessed.
+
+WTAI's remaining 1.59 pp is not claimed to be fully reconciled or forced to zero. [WisdomTree's November 9 NAV return](https://www.wisdomtree.com/us/products/megatrends/wtai) was 4.94%, versus the 6.34% market reference. Thus about 1.40 pp separates market price and published NAV returns, while about 0.18 pp separates published NAV and the holdings estimate. This arithmetic comparison is not proof of the precise causes of the latter difference. The available complete fallback weights are dated November 5; the issuer website shows November 6 top holdings. Different close/valuation bases, cash income, changes in weights and trading can affect the estimate. No NAV time series or fabricated balancing contribution was added.
+
+VOO's 0.05% Kenvue holding remains explicitly unavailable after its last October 30 price. [Kimberly-Clark confirmed the acquisition closed November 2 and KVUE ceased trading](https://www.investor.kimberly-clark.com/news-releases/news-release-details/kimberly-clark-completes-acquisition-kenvue-creating-preeminent). The September 30 source snapshot does not reconstruct the actual cash/stock transaction; the application does not invent its return or substitute KMB as though it were the same security. This is a documented attribution limitation.
+
+Design agent verified sticky headers at internal scroll positions 436 and 11700.8, totals below 138 securities, and the upward boundary: Home returned the table to its first row while outer page position stayed unchanged; subsequent PageUp scrolled the outer page. Horizontal buttons exposed Theme after Difference and disabled at the correct boundary. SWIX selection chose ZAR; leaving SWIX restored USD. Dark mode text, headers and rows were visually readable. Long theme lists wrap and may increase row height. Public-only screenshot is retained outside Git at C:/Users/Skrom/AppData/Local/Temp/arcus-public-table-design-qa.png.
+
+Final Attribution Node suite: 128/128 passed, including new reference-provenance tests; Python remains 21/21 (Python unchanged after its run). Watchlists full suite: 1038/1039, with only the unchanged TipRanks fixture failure; the final refresh/bridge subset passed 9/9. Anonymous requests to Analysis HTML, module and holdings data each returned 401. No physical device, Android emulator, mobile touch, complete historical-trade reconstruction or universal provider availability was tested or claimed.
+
+Final application commits are the last deployment for each Worker in the table. Documentation-only receipt commits are not application deployments. Both release branches are pushed; original working branches and rollback points remain unchanged.
+
+
