@@ -43,4 +43,37 @@ npx --yes wrangler@4.128.0 deployments status --config wrangler.jsonc --json
 
 Do not reset either user's working branch. Preserve Treasury-original application `d51ae4d0a9757eb6ec2d0a969697f76fecface57` / Worker `98c4a615-05c3-4213-bd07-f69702de43c9`, and graphs-only application `2828e1a8b3a6bebd4dc04d55a3b62e119f38f091` / Worker `42785cce-8059-4716-a5ef-882e5f47dc59`.
 
-Application commit IDs, deployment IDs and UTC times are recorded in the deployment receipt after rollout.
+## Deployment receipt
+
+Final production application versions (100% traffic):
+
+| Application | Repository / branch | Full application commit | Worker version | Deployment ID | Deployment UTC |
+| --- | --- | --- | --- | --- | --- |
+| Attribution | https://github.com/arcuscapital/attribution.git / `codex/nav-1d-attribution-20261110` | `2e492aeb0d4f73cb8ae4fb3ec221ca0349bd47ab` | `90a65ba3-0665-44ef-8de3-688e10bbd4ad` | `ce067e92-1b9e-4652-9a8d-26054a3315b2` | `2026-11-10T10:34:39.921239Z` |
+| Watchlists | https://github.com/arcuscapital/arcus-watchlists.git / `codex/nav-1d-watchlists-20261110` | `cf5b2e54cd12ac7434836f691768cb9072316692` | `9b88dcb0-53f2-4a50-af81-db649d82f609` | `950a68c5-18c9-4b1a-b913-04678be12142` | `2026-11-10T10:21:42.970925Z` |
+
+Initial Attribution deployment: application `2facaa232e4f6bfaee83b019f4df20a7bb88d9e8`, version `302ebb9e-436b-4b28-8d1e-019323f04762`, deployment `ed622ea8-ff24-4169-871e-bf7f30c508cd`, UTC `2026-11-10T10:21:14.191833Z`. Live testing caught Workers rejecting `redirect:error`; all NAV sources therefore safely returned No data. The correction uses supported `redirect:manual` and rejects non-2xx responses, retaining the no-redirect policy. Roundhill's canonical lowercase CSV paths were also corrected.
+
+Runtime correction: application `dd22ca9a20781b435b4c29eaf9f482656455c0a4`, version `5eb0e1cc-9ddf-4412-8666-d864c01bc90e`, deployment `0b8d039b-db3c-4f5a-8ac5-ffe22fdd048d`, UTC `2026-11-10T10:27:27.266468Z`. The final application above additionally uses IBB's current canonical issuer URL. Watchlists remained compatible throughout. No database, secret, holdings archive, existing queue or cron configuration changed.
+
+## Completed validation and limits
+
+- Final Attribution application: Node 140/140. Python 21/21 passed before the subsequent issuer-request-only corrections; Python code was unchanged. Watchlists targeted analysis/bridge tests: 29/29. Both builds, asset manifest and whitespace checks passed.
+- Local Workers-runtime probe reproduced the unsupported redirect mode, then successfully fetched and parsed iShares, Global X, State Street, First Trust and Roundhill sources. The pinned local runtime supports compatibility dates through 2026-09-07; production uses 2026-10-01. Final verification therefore also used the deployed Workers.
+- Actual Brave desktop, dark mode: IBKR/WTAI, BAI/CHAT and ARKK/WTAI comparisons; USD and ZAR; repeated Compare; month-to-date comparison without 1D NAV rows. ARKK displayed No data while its existing market return and contributions remained available. Browser console had no errors at completion.
+- All 44 configured issuer sources were requested through the authenticated live route for 2026-11-09 against 2026-11-06. 43 returned valid dated NAV changes. XLI returned No data from the deployed source despite its local issuer workbook parsing successfully. This is a point-in-time access check, not a guarantee of future issuer availability. The remaining 35 of 79 ETFs have no configured verified NAV adapter and return No data; ARKK was checked live as an example.
+- Live dated-source isolation: BAI's current-only source returned No data for 2026-11-06, while XLK history returned the exact 2026-11-06 change against 2026-11-05. No newer observation was carried backward.
+- Live WTAI on 2026-11-09: market return 6.34%, issuer NAV per-share change 4.94%, holdings contribution subtotal 4.76 pp, NAV less contributions +0.18 pp, market return less NAV +1.40 pp. Gaps use unrounded values; separately rounded rows can differ by 0.01 pp.
+- Unauthenticated requests to both integrated and standalone NAV routes returned 401. Existing signed-query and Marlow fund-scope restrictions passed tests. No auth cookies or secrets were exported to tests or issuer requests.
+- No physical device, Android emulator or Android release was tested. The full unrelated Watchlists suite was not rerun; no assertion is made about its earlier TipRanks fixture result.
+- Public-data live screenshot and local history artifacts are outside Git at `C:/Users/Skrom/OneDrive - FIRST WORLD TRADER (PTY) LTD/Documents/Arcus Research/NAV History 2026-11-10/`.
+
+## Local historical research only
+
+`Arcus NAV history.html` is a self-contained local table with 81,277 dated observations: 19 multi-year issuer histories, plus current-month AIRR and QQEW data. The table includes all 79 ETF identities, exact summary endpoints, missing-data labels, issuer links, daily pagination, a separate raw-observation JSON and a 60-fund Bloomberg request list with names. WTAI/WCLD pre-inception observations were excluded using issuer inception dates.
+
+Five confirmed 2:1 splits effective 2025-12-05 (XLB, XLE, XLK, XLU, XLY) are adjusted in this local table using the [State Street notice](https://www.ssga.com/library-content/products/fund-docs/etfs/us/information-schedules/ap-notice/notice-to-aps-stock-splits-11-21-25.pdf). Three older large jumps remain unavailable pending confirmation. These local calculations do not include distributions and are not NAV total returns. No historical data or longer-period feature was deployed.
+
+Local table checks in Brave covered missing BAI history, 60-fund coverage filtering, exact WTAI 1D calculation, XLK split-day +0.75% instead of its raw per-share drop, SLYV unresolved-jump No data, pagination and visual layout. The page was served only on loopback for testing; the delivered HTML embeds its observations and has no external script/data dependency. Longer-period rollout is recommended only for verified histories after distribution/corporate-action reconciliation.
+
+This receipt is documentation only. Production application commits are the exact IDs in the deployment table; the subsequent receipt commit is not a new application deployment.
