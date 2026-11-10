@@ -1,6 +1,6 @@
 import { dateRange } from './ranges.mjs';
 import { createSessionGuard } from './session.mjs';
-import { isNonListed } from './arcus-source.mjs?v=reconciliation3-20261110';
+import { isNonListed } from './arcus-source.mjs?v=issuer-nav1-20261110';
 const $ = (id) => document.getElementById(id);
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
 let online = null, onlineMode = false;
@@ -455,7 +455,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=reconciliation3-20261110", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=issuer-nav1-20261110", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -475,6 +475,7 @@ $("controls").addEventListener("submit", async (e) => {
     });
     if (generation !== accessGeneration || !await session.check()) return;
     result = response;
+    result.issuerNav = data.issuerNav || {};
     securityLinks = buildSecurityLinks(data.snapshots);
     if(data.arcusSource) {
       for(const snap of data.snapshots){const fund=manifest.funds.find(f=>f.id===snap.fund);if(fund){fund.latest=snap.asOf;fund.positions=snap.positions.length;fund.currentSource=snap.source||'Archive fallback';}}
@@ -593,10 +594,13 @@ function reconciliationSide(comparison, options, side) {
   const method = comparison['returnMethod' + side];
   const referenceBasis = comparison['fundReturnBasis' + side];
   const marketReference = !account && ['vendor-adjusted', 'arcus-completed-session'].includes(referenceBasis);
+  const showNav = !account && Boolean(options.start) && options.start === options.end;
+  const nav = showNav ? comparison.issuerNav?.[fund] : null;
+  const navReturn = nav?.status === 'ok' && nav.date === options.end && nav.currency === options.currency && Number.isFinite(nav.return) ? nav.return : null;
   const referenceLabel = account ? 'Observed account reference' : marketReference ? 'Observed fund market return'
     : referenceBasis === 'verified-total-return' ? 'Imported verified total return'
     : referenceBasis === 'mixed' ? 'Observed fund reference (mixed sources)' : 'Observed fund reference';
-  return {role, fund, reference, contribution, residual, coverage, missing, account, referenceLabel, marketReference,
+  return {role, fund, reference, contribution, residual, coverage, missing, account, referenceLabel, marketReference, showNav, nav, navReturn,
     basis: method === 'weighted-estimate' ? 'Weighted portfolio estimate' : method === 'reference' ? referenceLabel : 'Holdings estimate'};
 }
 const fmtPoints = value => !Number.isFinite(value) ? '—' : (value > 0 ? '+' : '') + (value * 100).toFixed(2) + ' pp';
@@ -611,18 +615,29 @@ function renderReconciliation(comparison, options) {
     const list = text('dl');
     const fields = [
       [data.referenceLabel, fmt(data.reference)],
+      ...(data.showNav ? [['1D issuer NAV return', Number.isFinite(data.navReturn) ? fmt(data.navReturn) : 'No data']] : []),
       ['Holdings contribution subtotal', fmtPoints(data.contribution)],
       ['Reference less contributions', fmtPoints(data.residual)],
+      ...(data.showNav ? [
+        ['NAV less contributions', Number.isFinite(data.navReturn) && Number.isFinite(data.contribution) ? fmtPoints(data.navReturn - data.contribution) : 'No data'],
+        ...(data.marketReference ? [['Market return less NAV', Number.isFinite(data.reference) && Number.isFinite(data.navReturn) ? fmtPoints(data.reference - data.navReturn) : 'No data']] : []),
+      ] : []),
       ['Measured weight coverage', fmt(data.coverage)],
       ['Missing security returns', String(data.missing)],
     ];
     for (const [label, value] of fields) {
       const term = text('dt', label), amount = text('dd', value);
-      if (label === 'Reference less contributions') { term.className = 'reconciliation-gap'; amount.className = 'reconciliation-gap'; }
+      if (label === 'Reference less contributions' || label === 'NAV less contributions') { term.className = 'reconciliation-gap'; amount.className = 'reconciliation-gap'; }
       if (label === 'Measured weight coverage') term.title = 'Absolute source weight with measured security returns; excludes assumed returns.';
       list.append(term, amount);
     }
     card.append(list);
+    if (data.showNav && Number.isFinite(data.navReturn)) {
+      card.append(text('small', `${data.nav.issuer || 'Issuer'} · NAV dated ${data.nav.date}. Change in NAV per share; excludes distributions.${data.nav.fxAdjusted ? ' Converted from USD using the same dated FX as this comparison.' : ''}`));
+      if(data.nav.sourceUrl && /^https:\/\//.test(data.nav.sourceUrl) && $('back-arcus')?.tagName !== 'SPAN') {
+        const link=text('a','Issuer NAV source');link.href=data.nav.sourceUrl;link.target='_blank';link.rel='noopener noreferrer';card.append(link);
+      }
+    }
     if (data.marketReference && Number.isFinite(data.reference)) card.append(text('small', 'Market-price return is not NAV return.'));
     if (!Number.isFinite(data.reference)) card.append(text('small', 'No independent reference return is available, so a reconciliation gap cannot be calculated.'));
     grid.append(card);
@@ -961,7 +976,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=reconciliation3-20261110');
+  const {createOnlineSource}=await import('./online.mjs?v=issuer-nav1-20261110');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;
@@ -975,7 +990,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=reconciliation3-20261110');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=issuer-nav1-20261110');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';

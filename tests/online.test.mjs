@@ -39,7 +39,8 @@ test('phone source keeps exact USD adjusted dates and FX, leaves unknowns and mi
    const url=new URL(path,'https://test/');
    const fund=url.searchParams.get('fund'),symbol=url.searchParams.get('symbol');
    let body;
-   if(fund)body=snaps[fund];
+   if(url.pathname.endsWith('/nav'))body={status:'no-data',return:null};
+   else if(fund)body=snaps[fund];
    else {const fx=symbol==='JPYUSD=X';body={meta:{symbol,currency:symbol==='JP'?'JPY':'USD',exchangeTimezoneName:'UTC'},
  timestamp:(fx?['2026-10-08']:['2026-10-07','2026-10-08']).map(day),
  indicators:fx?{quote:[{close:[.01]}]}:{adjclose:[{adjclose:[100,110]}]}};}
@@ -51,7 +52,8 @@ test('phone source keeps exact USD adjusted dates and FX, leaves unknowns and mi
  assert.equal(data.levels.find(l=>l.id==='US'&&l.date==='2026-10-08').value,110);
  assert.deepEqual(data.levels.filter(l=>l.id==='JP').map(l=>[l.date,l.value]),[['2026-10-08',1.1]]);
  assert.equal(data.levels.some(l=>l.id==='PRIVATE'),false);
- const before=count;await source.load(m,['A','B'],'2026-10-08','2026-10-08','USD');assert.equal(count,before);
+ const before=count;await source.load(m,['A','B'],'2026-10-08','2026-10-08','USD');assert.equal(count,before+2); // NAV freshness is checked independently on each Compare.
+ assert.equal(data.issuerNav.A.return,null);
  source.clear();await source.load(m,['A','B'],'2026-10-08','2026-10-08','USD');assert.ok(count>before);
 });
 test('session expiry stops data loading and does not continue fetching prices',async()=>{

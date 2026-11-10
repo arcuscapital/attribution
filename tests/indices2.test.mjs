@@ -15,13 +15,14 @@ test('Indices 2 is last in the benchmark picker and omits IWM/IWV',()=>{
 });
 test('IBIT uses only its own reference price without holdings or constituent requests',async()=>{
  const calls=[],source=createOnlineSource({fetcher:async path=>{
-  calls.push(path);assert(path.includes('prices?'));const symbol=new URL(path,'https://test').searchParams.get('symbol');
+  calls.push(path);if(path.includes('data/nav?'))return Response.json({status:'no-data',return:null});
+  assert(path.includes('prices?'));const symbol=new URL(path,'https://test').searchParams.get('symbol');
   return Response.json({meta:{symbol,currency:'USD',exchangeTimezoneName:'UTC'},timestamp:['2026-10-07','2026-10-08'].map(d=>Date.parse(d)/1000),indicators:{adjclose:[{adjclose:[100,102]}]}});
  }});
  const manifest={holdingsSource:'arcus',valuationDates:['2026-10-07','2026-10-08'],funds:['IBIT'].map(id=>({id,name:id,referenceOnly:true}))};
  const result=await source.load(manifest,['IBIT'],'2026-10-08','2026-10-08','USD');
- assert.equal(calls.length,1);assert.deepEqual(result.snapshots.map(s=>s.positions.length),[1]);assert.equal(result.snapshots[0].positions[0].weight,1);assert(result.sourceWarnings.every(s=>s.includes('no constituent allocation')));
- await source.load(manifest,['IBIT'],'2026-10-08','2026-10-08','USD');assert.equal(calls.length,1);
+ assert.equal(calls.length,2);assert.deepEqual(result.snapshots.map(s=>s.positions.length),[1]);assert.equal(result.snapshots[0].positions[0].weight,1);assert(result.sourceWarnings.every(s=>s.includes('no constituent allocation')));
+ await source.load(manifest,['IBIT'],'2026-10-08','2026-10-08','USD');assert.equal(calls.length,3);assert.equal(calls.filter(p=>p.includes('prices?')).length,1);assert.equal(calls.filter(p=>p.includes('data/nav?')).length,2);
 });
 test('new Arcus-only funds do not fetch a nonexistent archive when issuer allocation fails',async()=>{
  const calls=[],source=createOnlineSource({fetcher:async path=>{calls.push(path);return Response.json({kind:'etf',fund:'XLU',source:{fund:{asOf:'2026-10-07',positions:[{id:'ABC',name:'ABC Inc',rawSymbol:'ABC',candidates:['ABC']}]},index:[]},main:{}});}});

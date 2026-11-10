@@ -1,0 +1,224 @@
+{
+  "AIQ": {
+    "type": "globalx",
+    "issuer": "Global X",
+    "url": "https://www.globalxetfs.com/funds/aiq"
+  },
+  "ARTY": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/297905/ishares-robotics-and-artificial-intelligence-etf-fund"
+  },
+  "BAI": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/339081/ishares-a-i-innovation-and-tech-active-etf"
+  },
+  "BOTZ": {
+    "type": "globalx",
+    "issuer": "Global X",
+    "url": "https://www.globalxetfs.com/funds/botz"
+  },
+  "EART": {
+    "type": "globalx",
+    "issuer": "Global X",
+    "url": "https://www.globalxetfs.com/funds/eart"
+  },
+  "FINX": {
+    "type": "globalx",
+    "issuer": "Global X",
+    "url": "https://www.globalxetfs.com/funds/finx"
+  },
+  "IBB": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/239699/ishares-nasdaq-biotechnology-etf"
+  },
+  "IBIT": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/333011/ishares-bitcoin-trust-etf"
+  },
+  "IJR": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/239774/ishares-core-sp-smallcap-etf"
+  },
+  "ITA": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/239502/ishares-u-s-aerospace-defense-etf"
+  },
+  "IVW": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/239725/ishares-sp-500-growth-etf"
+  },
+  "IYK": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/239505/ishares-us-consumer-staples-etf"
+  },
+  "IYT": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/239501/ishares-transportation-average-etf"
+  },
+  "LIT": {
+    "type": "globalx",
+    "issuer": "Global X",
+    "url": "https://www.globalxetfs.com/funds/lit"
+  },
+  "MTUM": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/251614/ishares-msci-usa-momentum-factor-etf"
+  },
+  "PAVE": {
+    "type": "globalx",
+    "issuer": "Global X",
+    "url": "https://www.globalxetfs.com/funds/pave"
+  },
+  "SHLD": {
+    "type": "globalx",
+    "issuer": "Global X",
+    "url": "https://www.globalxetfs.com/funds/shld"
+  },
+  "SOXX": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/239705/ishares-semiconductor-etf"
+  },
+  "TEK": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/339083/ishares-technology-opportunities-active-etf"
+  },
+  "URA": {
+    "type": "globalx",
+    "issuer": "Global X",
+    "url": "https://www.globalxetfs.com/funds/ura"
+  },
+  "VLUE": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/251616/ishares-msci-usa-value-factor-etf"
+  },
+  "XT": {
+    "type": "ishares",
+    "issuer": "iShares",
+    "url": "https://www.ishares.com/us/products/272532/ishares-exponential-technologies-etf"
+  },
+  "MDY": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-mdy.xlsx"
+  },
+  "SLYV": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-slyv.xlsx"
+  },
+  "ROKT": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-rokt.xlsx"
+  },
+  "KRE": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-kre.xlsx"
+  },
+  "XBI": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-xbi.xlsx"
+  },
+  "XLB": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-xlb.xlsx"
+  },
+  "XLC": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-xlc.xlsx"
+  },
+  "XLE": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-xle.xlsx"
+  },
+  "XLF": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-xlf.xlsx"
+  },
+  "XLI": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-xli.xlsx"
+  },
+  "XLK": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-xlk.xlsx"
+  },
+  "XLP": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-xlp.xlsx"
+  },
+  "XLU": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-xlu.xlsx"
+  },
+  "XLV": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-xlv.xlsx"
+  },
+  "XLY": {
+    "type": "ssga",
+    "issuer": "State Street",
+    "url": "https://www.ssga.com/library-content/products/fund-data/etfs/us/navhist-us-en-xly.xlsx"
+  },
+  "CHAT": {
+    "type": "roundhill",
+    "issuer": "Roundhill",
+    "url": "https://www.roundhillinvestments.com/assets/data/FilepointRoundhill.40RU.RU_CHAT_Daily.csv",
+    "page": "https://www.roundhillinvestments.com/etf/chat/"
+  },
+  "HUMN": {
+    "type": "roundhill",
+    "issuer": "Roundhill",
+    "url": "https://www.roundhillinvestments.com/assets/data/FilepointRoundhill.40RU.RU_HUMN_Daily.csv",
+    "page": "https://www.roundhillinvestments.com/etf/humn/"
+  },
+  "QQEW": {
+    "type": "firsttrust",
+    "issuer": "First Trust",
+    "url": "https://www.ftportfolios.com/Retail/Etf/EtfPriceHistory.aspx?Ticker=QQEW"
+  },
+  "AIRR": {
+    "type": "firsttrust",
+    "issuer": "First Trust",
+    "url": "https://www.ftportfolios.com/Retail/Etf/EtfPriceHistory.aspx?Ticker=AIRR"
+  },
+  "JHAI": {
+    "type": "janus",
+    "issuer": "Janus Henderson",
+    "url": "https://www.janushenderson.com/en-us/investor/product/global-artificial-intelligence-etf-jhai/"
+  },
+  "WTAI": {
+    "type": "wisdomtree",
+    "issuer": "WisdomTree",
+    "url": "https://www.wisdomtree.com/us/products/megatrends/wtai"
+  },
+  "WCLD": {
+    "type": "wisdomtree",
+    "issuer": "WisdomTree",
+    "url": "https://www.wisdomtree.com/us/products/megatrends/wcld"
+  }
+}

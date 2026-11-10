@@ -40,10 +40,11 @@ test('overlapping source returns are independent of request completion order',as
  }
  assert.equal(await run('P'),103);assert.equal(await run('B'),103);
 });
-test('current Arcus snapshots and returns replace archive without any vendor request when coverage exists',async()=>{
+test('current Arcus snapshots avoid price vendor requests while checking issuer NAV on each comparison',async()=>{
  let requests=[];
  const source=createOnlineSource({fetcher:async path=>{
   requests.push(path);const fund=new URL(path,'https://test').searchParams.get('fund');
+  if(path.startsWith('./data/nav?'))return Response.json({status:'no-data',return:null});
   assert(path.startsWith('./data/arcus-source?'),'Unexpected archive or vendor request');
   return Response.json({snapshot:{fund,name:fund,asOf:fund.startsWith('PORTFOLIO:')?'2026-10-27':'2026-10-26',source:'Arcus',positions:[{id:'ABC',symbol:'ABC',ticker:'ABC',name:'ABC',weight:1}]},returns:{ABC:{'2026-10-27':3},BAI:{'2026-10-27':2}}});
  }});
@@ -53,9 +54,9 @@ test('current Arcus snapshots and returns replace archive without any vendor req
  const data=await source.load(manifest,[options.portfolio,options.benchmark],options.start,options.end,'USD');
  const result=compare(data,options);
  assert.ok(Math.abs(result.returnA-.03)<1e-12);assert.ok(Math.abs(result.returnB-.02)<1e-12);
- assert.equal(requests.length,2);assert(result.holdingsWarnings.every(n=>!n.includes('2026-10-06')));
+ assert.equal(requests.length,3);assert.equal(requests.filter(p=>p.startsWith('./data/nav?')).length,1);assert(result.holdingsWarnings.every(n=>!n.includes('2026-10-06')));
  assert.match(result.holdingsWarnings.join(' '),/current Arcus allocation dated 2026-10-27/);
- await source.load(manifest,[options.portfolio,options.benchmark],options.start,options.end,'USD');assert.equal(requests.length,4,'Holdings must refresh on every comparison');
+ await source.load(manifest,[options.portfolio,options.benchmark],options.start,options.end,'USD');assert.equal(requests.length,6,'Holdings and NAV must be checked on every comparison');
 });
 
 test('Arcus portfolio projection retains signed source weights/cash/date and removes private account values',async()=>{

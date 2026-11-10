@@ -7,7 +7,7 @@ const app = fs.readFileSync('site/app.mjs', 'utf8');
 function harness() {
   const text = (tag, value = '', className = '') => ({tag, textContent:value, className, children:[], attrs:{},
     append(...children) { this.children.push(...children); }, setAttribute(name, value) { this.attrs[name] = value; }});
-  const ctx = vm.createContext({text, fmt:value => value == null ? '—' : (value * 100).toFixed(2) + '%', fundLabel:id => id.replace('PORTFOLIO:', '')});
+  const ctx = vm.createContext({text, $:()=>null, fmt:value => value == null ? '—' : (value * 100).toFixed(2) + '%', fundLabel:id => id.replace('PORTFOLIO:', '')});
   vm.runInContext(app.slice(app.indexOf('function reconciliationSide('), app.indexOf('// Use resolved listing identities')), ctx);
   return ctx;
 }
@@ -16,6 +16,21 @@ const fixture = () => ({rows:[], fundReturnA:null, fundReturnB:.08, knownContrib
   residualA:null, residualB:.045, returnMethodA:'weighted-estimate', returnMethodB:'reference',
   coverage:{portfolio:.95, benchmark:.88}, missing:[{fund:'TEST-ETF',id:'A'},{fund:'TEST-ETF',id:'A'},{fund:'TEST-ETF',id:'B'}]});
 const strings = node => [node.textContent, ...node.children.flatMap(strings)];
+
+test('1D displays dated NAV separately and leaves the market and contribution calculations intact',()=>{
+  const ctx=harness(),opts={...options,start:'2026-11-09',end:'2026-11-09'},r={...fixture(),fundReturnBasisB:'arcus-completed-session',issuerNav:{'TEST-ETF':{status:'ok',date:'2026-11-09',currency:'USD',return:.0494,issuer:'Example issuer',sourceUrl:'https://issuer.example/nav'}}};
+  const copy=strings(ctx.renderReconciliation(r,opts));
+  for(const value of ['1D issuer NAV return','4.94%','8.00%','+3.50 pp','NAV less contributions','+1.44 pp','Market return less NAV','+3.06 pp','Issuer NAV source'])assert.ok(copy.includes(value),value);
+  assert.equal(r.fundReturnB,.08);assert.equal(r.knownContributionB,.035);
+});
+test('missing or misdated NAV says No data; longer periods and user portfolios do not show issuer NAV',()=>{
+  const ctx=harness(),opts={...options,start:'2026-11-09',end:'2026-11-09'};
+  for(const packet of [undefined,{status:'ok',date:'2026-11-06',currency:'USD',return:.05},{status:'ok',date:'2026-11-09',currency:'ZAR',return:.05}]){
+    const r={...fixture(),issuerNav:{'TEST-ETF':packet}};
+    const copy=strings(ctx.renderReconciliation(r,opts));assert.ok(copy.includes('No data'));assert.equal(copy.filter(x=>x==='1D issuer NAV return').length,1);
+    assert.ok(!strings(ctx.renderReconciliation(r,{...opts,start:'2026-11-01'})).includes('1D issuer NAV return'));
+  }
+});
 
 test('fund-specific reconciliation keeps independent reference and contribution values apart', () => {
   const ctx = harness(), result = fixture(), a = ctx.reconciliationSide(result, options, 'A'), b = ctx.reconciliationSide(result, options, 'B');

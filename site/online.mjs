@@ -21,6 +21,18 @@ export function arcusReturnLevels(returns,calendar,start,end) {
   }
   return {levels,used};
 }
+// NAV remains a separate issuer reference. Never replace a fund's market series
+// or fill a missing issuer observation with a market-price return.
+export function navInCurrency(packet,{fund,date,previousDate,currency,fx=[]}) {
+  const absent={status:'no-data',return:null,fund,date,previousDate,currency};
+  if(packet?.status!=='ok'||packet.fund!==fund||packet.date!==date||packet.previousDate!==previousDate||
+    packet.currency!=='USD'||packet.basis!=='nav-price-change'||!Number.isFinite(packet.return)||packet.return<=-1)return absent;
+  if(currency==='USD')return {...packet,currency};
+  if(currency!=='ZAR')return absent;
+  const points=new Map(fx),before=points.get(previousDate),after=points.get(date);
+  if(!(before>0)||!(after>0))return absent;
+  return {...packet,currency,issuerCurrency:'USD',issuerReturn:packet.return,return:(1+packet.return)*after/before-1,fxAdjusted:true};
+}
 // Phone-independent data adapter; prices only for the two selected holdings lists.
 export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgress=()=>{}}={}) {
   let controller=new AbortController(), generation=0;
@@ -146,10 +158,22 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
         }
       }
       if(run!==generation)throw Error('Data request cancelled');
+      const issuerNav={};
+      // Foreground requests only, independently of allocation cache freshness.
+      if(start===end && valuationDates.includes(end)) {
+        const previousDate=valuationDates.filter(d=>d<start).at(-1);
+        if(previousDate)await Promise.all([...new Set(ids)].filter(fund=>!fund.startsWith('PORTFOLIO:')).map(async fund=>{
+          let packet;
+          try{packet=await get('nav?'+new URLSearchParams({fund,date:end,previousDate}));}
+          catch(e){if(controller.signal.aborted||run!==generation)throw e;}
+          issuerNav[fund]=navInCurrency(packet,{fund,date:end,previousDate,currency,fx:downloaded.get('USDZAR=X')?.points||[]});
+        }));
+      }
+      if(run!==generation)throw Error('Data request cancelled');
       lastSnapshots=snapshots;lastDownloaded=downloaded;lastCurrency=currency;
       const returnReasons=Object.fromEntries(snapshots.flatMap(s=>s.positions.map(p=>[s.fund+'|'+p.id,missingReturnReason(p)])));
       const nonListedIds=[...new Set(snapshots.flatMap(s=>s.positions.filter(isNonListed).map(p=>p.id)))];
-      return {manifest,snapshots,levels,valuationDates,nonListedIds,returnReasons,priceNotes,priceFailures:failures,sourceWarnings:sourceNotes,arcusSource:arcus,arcusReturnCount:reused.used.size,priceCheckedAt:new Date().toISOString()};
+      return {manifest,snapshots,levels,valuationDates,nonListedIds,returnReasons,priceNotes,priceFailures:failures,sourceWarnings:sourceNotes,arcusSource:arcus,arcusReturnCount:reused.used.size,issuerNav,priceCheckedAt:new Date().toISOString()};
     }
   };
 }

@@ -19,6 +19,12 @@ test('only fresh request-bound server assertions open listed assets',async()=>{
  assert.equal(await bridgeAsset(await request(),{ANALYSIS_BRIDGE_KEY:'wrong'},now),null);
  assert.equal(await bridgeAsset(new Request(origin+'/arcus-bridge/app.mjs'),env,now),null);
 });
+test('issuer NAV data requires authentication and an assertion bound to its exact dates',async()=>{
+  const asset='data/nav?fund=WTAI&date=2026-11-09&previousDate=2026-11-06',env={ANALYSIS_BRIDGE_KEY:secret};
+  assert.equal(await bridgeAsset(await request({asset}),env,now),'data/nav');
+  assert.equal(await bridgeAsset(await request({asset,signPath:'/arcus-bridge/data/nav'}),env,now),null);
+  assert.equal(await bridgeAsset(new Request(origin+'/arcus-bridge/'+asset),env,now),null);
+});
 test('bridge cannot bypass incomplete setup, standalone login, or protected nonassets',async()=>{
  const env={ANALYSIS_BRIDGE_KEY:secret,PASSWORD_PEPPER:'test',PASSWORD_VERIFIER:'test',SESSION_KEY:'test',LOGIN_LIMITER:{},ASSETS:{fetch:async req=>new Response(new URL(req.url).pathname)}};
  assert.equal((await worker.fetch(await request(),{})).status,503);
