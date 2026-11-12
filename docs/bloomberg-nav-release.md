@@ -34,3 +34,17 @@ npx --yes wrangler@4.129.0 deployments status --config wrangler.jsonc --json
 ```
 
 The previous application ignores these KV keys. Preserve all existing secrets, archive keys and chart code. No other account needs rollback.
+
+## Final receipt
+
+- Starting Attribution commit: `f22d4e38c4a2c1825549715badf726a5ada74df6`.
+- Unchanged Watchlists receipt commit: `acac0d719ae6ed2f47ffa8886d38d6e1375b23c2`. Its production deployment was verified unchanged after this release.
+- Deployed application commit: `55b9867c6f900a858957b67d7b3dd873618cfec1`, pushed before deployment.
+- Worker version: `0c2ca754-7a70-4b66-a812-307496252922`.
+- Deployment: `de488412-7798-42a3-af6a-592bca06ae22`, UTC `2026-11-12T09:41:25.01373Z`, 100% traffic.
+- Input workbook SHA-256: `F43A0443788C0B056C33429282968DC03B3AF55335B5FF5CEB68E2A4BD80E4C0`. Sixty KV records uploaded successfully; remote ARKK record read-back confirmed 3,024 observations through 2026-11-10.
+- Brave desktop live: BAI 2026-11-10 NAV -0.21%, ARKK -2.37%, matching the independent workbook ratios. Both identify Bloomberg historical import. ARKK 2026-11-11 shows No data. BAI 2026-11-11 uses fresh iShares NAV +5.51%. Monthly cumulative-return chart remained visible with matching previously verified endpoints. Browser error log was empty at completion.
+- WTAI/WCLD live UI checks were inconclusive because their comparisons reported current Arcus holdings temporarily unavailable. Their local issuer requests returned 403; do not claim production NAV availability from those attempts.
+- Both integrated and standalone unauthenticated NAV requests returned 401. Existing account scope restrictions and authentication tests passed.
+- Browser inventory IDs had changed since the previous session: the old Brave ID opened a Chrome tab initially; it was closed immediately after detecting the mismatch. All comparison validation was then performed in confirmed Brave Work (browser 3). No native desktop automation was used. No separately named Brave browser skill was found in the available skill files; the supported browser tool was used.
+- Evidence and complete daily-coverage report remain outside Git. No private financial report or workbook is in the release. This subsequent receipt commit is documentation only.
