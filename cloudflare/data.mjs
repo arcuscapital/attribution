@@ -1,5 +1,6 @@
 // Authenticated, on-demand research data. No cron, queue, Arcus DB or private public assets.
 import {issuerNav,navQuery} from './issuer-nav.mjs';
+import {historicalNav} from './nav-history.mjs';
 const DAY = 86400000;
 const SYMBOL = /^[A-Za-z0-9^][A-Za-z0-9.^=\-]{0,29}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -16,7 +17,8 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
   if(request.method!=='GET')return reply({error:'GET required'},405);
   if(route==='nav') {
     let query;try{query=navQuery(url.searchParams);}catch(e){return reply({error:e.message},400);}
-    return reply(await issuerNav(query,{fetcher,cache}));
+    const history = await historicalNav(query,env.HOLDINGS_ARCHIVE);
+    return reply(history || await issuerNav(query,{fetcher,cache}));
   }
   if(route==='rise-swix') {
     const report=await env.HOLDINGS_ARCHIVE?.get('rise-swix:report:v1');

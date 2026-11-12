@@ -20,15 +20,15 @@ const strings = node => [node.textContent, ...node.children.flatMap(strings)];
 test('1D displays dated NAV separately and leaves the market and contribution calculations intact',()=>{
   const ctx=harness(),opts={...options,start:'2026-11-09',end:'2026-11-09'},r={...fixture(),fundReturnBasisB:'arcus-completed-session',issuerNav:{'TEST-ETF':{status:'ok',date:'2026-11-09',currency:'USD',return:.0494,issuer:'Example issuer',sourceUrl:'https://issuer.example/nav'}}};
   const copy=strings(ctx.renderReconciliation(r,opts));
-  for(const value of ['1D issuer NAV return','4.94%','8.00%','+3.50 pp','NAV less contributions','+1.44 pp','Market return less NAV','+3.06 pp','Issuer NAV source'])assert.ok(copy.includes(value),value);
+  for(const value of ['1D NAV return','4.94%','8.00%','+3.50 pp','NAV less contributions','+1.44 pp','Market return less NAV','+3.06 pp','Issuer NAV source'])assert.ok(copy.includes(value),value);
   assert.equal(r.fundReturnB,.08);assert.equal(r.knownContributionB,.035);
 });
 test('missing or misdated NAV says No data; longer periods and user portfolios do not show issuer NAV',()=>{
   const ctx=harness(),opts={...options,start:'2026-11-09',end:'2026-11-09'};
   for(const packet of [undefined,{status:'ok',date:'2026-11-06',currency:'USD',return:.05},{status:'ok',date:'2026-11-09',currency:'ZAR',return:.05}]){
     const r={...fixture(),issuerNav:{'TEST-ETF':packet}};
-    const copy=strings(ctx.renderReconciliation(r,opts));assert.ok(copy.includes('No data'));assert.equal(copy.filter(x=>x==='1D issuer NAV return').length,1);
-    assert.ok(!strings(ctx.renderReconciliation(r,{...opts,start:'2026-11-01'})).includes('1D issuer NAV return'));
+    const copy=strings(ctx.renderReconciliation(r,opts));assert.ok(copy.includes('No data'));assert.equal(copy.filter(x=>x==='1D NAV return').length,1);
+    assert.ok(!strings(ctx.renderReconciliation(r,{...opts,start:'2026-11-01'})).includes('1D NAV return'));
   }
 });
 

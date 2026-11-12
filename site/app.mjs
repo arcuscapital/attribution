@@ -622,7 +622,7 @@ function renderReconciliation(comparison, options) {
     const list = text('dl');
     const fields = [
       [data.referenceLabel, fmt(data.reference)],
-      ...(data.showNav ? [['1D issuer NAV return', Number.isFinite(data.navReturn) ? fmt(data.navReturn) : 'No data']] : []),
+      ...(data.showNav ? [['1D NAV return', Number.isFinite(data.navReturn) ? fmt(data.navReturn) : 'No data']] : []),
       ['Holdings contribution subtotal', fmtPoints(data.contribution)],
       ['Reference less contributions', fmtPoints(data.residual)],
       ...(data.showNav ? [
