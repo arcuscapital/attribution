@@ -26,7 +26,10 @@
   "Sector" choice is ignored, so every ordinary comparison lists companies. The sector view code is kept.
   Cause of request 4: the checking agent set View to Sector for one test case and the page saved that
   choice in the owner's browser.
-- **Equal widths:** Name 360px and Ticker 100px in both tables (longer text ends in an ellipsis, full text
+- **Narrower Name (owner, "column width stops at d in crowdstrike holdings"):** the ordinary table's Name
+  column is 188px (the width of "CROWDSTRIKE HOLD" at 18px Segoe UI plus padding), so Theme is more visible;
+  longer names end in an ellipsis with the full name on hover. Rise vs Swix (no Theme column) keeps 360px.
+- **Equal widths:** Name 360px (later 188px in the ordinary table) and Ticker 100px in both tables (longer text ends in an ellipsis, full text
   on hover); the dark-mode total row hides its captions (they stay as hover titles), so figure columns
   stay 100px.
 - **Dark mode colours follow Bloomberg PORT** (`site/style.css`), mapped by a mini design agent from the
@@ -52,7 +55,8 @@
 | `e6a606ad0ca189dfe7d9b7930dc63b58997f467b` | 2026-11-12T12:23:55.066296Z | `d58caabb-c2b4-4e3f-a3e6-d4843be69182` | `9e995f78-ada3-4b04-84d6-277b400b3d6e` | Template and colours |
 | `621b661418bd29b798dd89f274380195f101a2be` | 2026-11-12T12:27:39.430953Z | `977b565e-7fe8-4e20-bcd1-48a583421c84` | `6d1b5de0-98fe-47f1-96df-87689262ee32` | One-line total row, uncoloured zeros, plain tickers |
 | `1b3633e351c81f92fd6bbc10160dac9628452628` | 2026-11-12T12:38:36.688578Z | `8744cbc5-5ac5-4cd7-9677-dc864d67e430` | `5571454c-04c9-4759-bbea-2d7fc8ed57cc` | Equal Name/Ticker widths, total captions hidden |
-| **`c5aa38da6e14b438252e297ae22c836b3aed8018`** | **2026-11-12T12:42:08.821137Z** | **`84d054ad-78d2-47b6-9931-c5fe2e9a17aa`** | **`2bb9a7f8-5caa-4922-903d-16808a716135`** | Companies only; View control hidden (current) |
+| `c5aa38da6e14b438252e297ae22c836b3aed8018` | 2026-11-12T12:42:08.821137Z | `84d054ad-78d2-47b6-9931-c5fe2e9a17aa` | `2bb9a7f8-5caa-4922-903d-16808a716135` | Companies only; View control hidden |
+| **`7b8154891020ad20d00266896c1bc50e182ad7b4`** | **2026-11-12T13:12:43.394348Z** | **`a0ea3ee7-4f94-4204-a5d4-e568cc779fa8`** | **`fbcc489e-e253-4762-8da4-00aa264a740b`** | Narrower Name column (current) |
 
 ## Tests and limits
 - `node --test tests/*.test.mjs`: 153/153 at the final commit (152 before the companies-only test) (new: Rise vs Swix column layout, Port/Bmrk labels, sector
@@ -69,6 +73,10 @@
   forced to Holdings; EasyGE vs BAI last month 80 companies, EasyAI vs QQQ last 3 months 128, IBKR vs SOXX MTD
   60, Marlow vs QQQ WTD 127, each with amber name/ticker/weights and Name 360 / Ticker 100 / figures 100px;
   Rise vs Swix last month Name 360, Ticker and figures 100px, Real Estate on the blue band.
+- Production (version `a0ea3ee7`): EasyAI vs BAI last month, Name 188px (CROWDSTRIKE HOLDINGS CLASS A cut,
+  full name in the hover title), Ticker and figures 100px, Theme 300px; the table is 42px wider than the panel
+  at a 1400px window, so the end of Theme still needs a small scroll. The owner's saved selection (EasyAI vs
+  BAI, 1D, USD) was restored after the check.
 - Light mode keeps its own colours. Not tested: Android emulator, physical
   phone (the phone view itself is unchanged apart from figures without the % sign).
 
