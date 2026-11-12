@@ -526,3 +526,56 @@ summary::before{content:'›';font-size:25px;margin-right:12px;flex:none}details
  .rise-swix thead th button{min-height:44px}
  .rise-swix p{font-size:12px}
 }
+/* Less empty margin at desktop widths (both themes). */
+@media(min-width:601px){main{max-width:1880px}header{padding-inline:max(20px,calc((100vw - 1840px) / 2))}}
+@media(min-width:1001px){main{padding-inline:20px}}
+
+/* Bloomberg PORT look for the comparison tables, dark theme only. Values come from the owner's
+   Terminal screenshot (2026-11-12): regular weight throughout, white figures and names, gains
+   #4FEE74, losses #F94A4D, rows #141414, headings #232323, 1px #505050 column dividers, no row
+   lines, amber band under the headings. Phones keep their larger touch rows. */
+html:not(.light){--bbg-black:#000;--bbg-row:#141414;--bbg-head:#232323;--bbg-line:#505050;--bbg-text:#FFF;--bbg-dim:#A5A5A5;--bbg-up:#4FEE74;--bbg-down:#F94A4D;--bbg-amber:#F9A836;--bbg-font:Arial,"Liberation Sans",Helvetica,sans-serif}
+
+html:not(.light) #rise-swix{background:var(--bbg-black);border-color:var(--bbg-head)}
+html:not(.light) #rise-swix .rise-scroll{border:1px solid var(--bbg-line);border-radius:0;background:var(--bbg-row)}
+html:not(.light) #rise-swix table{font-family:var(--bbg-font);color:var(--bbg-text);background:var(--bbg-row)}
+html:not(.light) #rise-swix th,html:not(.light) #rise-swix td{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text);border-top:0;border-bottom:0;border-left:1px solid var(--bbg-line)}
+html:not(.light) #rise-swix thead th{background:var(--bbg-head)}
+html:not(.light) #rise-swix thead th[rowspan],html:not(.light) #rise-swix thead tr:last-child th{border-bottom:10px solid var(--bbg-amber)}
+html:not(.light) #rise-swix tbody td,html:not(.light) #rise-swix .rise-total td,html:not(.light) #rise-swix .rise-sector td{background:var(--bbg-row);font-weight:400}
+html:not(.light) #rise-swix thead tr:first-child th:first-child,html:not(.light) #rise-swix tbody td:first-child{border-left:0;background:var(--bbg-row)}
+html:not(.light) #rise-swix thead tr:first-child th:first-child{background:var(--bbg-head)}
+html:not(.light) #rise-swix td:nth-child(2){color:var(--bbg-text)}
+html:not(.light) #rise-swix .positive{color:var(--bbg-up)}
+html:not(.light) #rise-swix .negative,html:not(.light) #rise-swix td.rise-zeroed{color:var(--bbg-down)}
+html:not(.light) #rise-swix .rise-sector button{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text)}
+html:not(.light) #rise-swix .rise-sector button span:first-child{color:var(--bbg-text)}
+html:not(.light) #rise-swix thead th button{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text)}
+html:not(.light) #rise-swix .rise-sort-mark{color:var(--bbg-amber)}
+
+html:not(.light) #results .scroll{border:1px solid var(--bbg-line);border-radius:0;background:var(--bbg-row)}
+html:not(.light) #results .scroll th,html:not(.light) #results .scroll td{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text);border-top:0;border-bottom:0;border-left:1px solid var(--bbg-line)}
+html:not(.light) #results .scroll th:first-child,html:not(.light) #results .scroll td:first-child{border-left:0;box-shadow:1px 0 var(--bbg-line)}
+html:not(.light) #results .scroll thead th{background:var(--bbg-head);box-shadow:none;border-bottom:10px solid var(--bbg-amber)}
+html:not(.light) #results .scroll thead th:first-child{box-shadow:1px 0 var(--bbg-line)}
+html:not(.light) #results .scroll tbody td,html:not(.light) #results .scroll tbody td:first-child{background:var(--bbg-row)}
+html:not(.light) #results .scroll tfoot th,html:not(.light) #results .scroll tfoot td{background:var(--bbg-head);font-weight:400;border-top:1px solid var(--bbg-line)}
+html:not(.light) #results .scroll .positive{color:var(--bbg-up)}
+html:not(.light) #results .scroll .negative{color:var(--bbg-down)}
+html:not(.light) #results .scroll td small,html:not(.light) #results .scroll tfoot small{color:var(--bbg-dim)}
+html:not(.light) #results .scroll a.security-link{color:var(--bbg-text)}
+
+@media(min-width:601px){
+ html:not(.light) #rise-swix th,html:not(.light) #rise-swix td{height:24px;padding:0 8px;line-height:22px;font-size:16px}
+ html:not(.light) #rise-swix thead tr:first-child th[colspan],html:not(.light) #rise-swix thead tr:nth-child(2) th,html:not(.light) #rise-swix .rise-total td{padding-block:0;font-size:16px;font-weight:400}
+ html:not(.light) #rise-swix thead th button{min-height:0;padding:0;font-size:16px}
+ html:not(.light) #rise-swix .rise-sector button{min-height:0;font-size:16px;gap:10px}
+ html:not(.light) #rise-swix .rise-holding td{font-size:16px}
+ html:not(.light) #rise-swix .rise-holding td:first-child{padding-left:30px}
+ html:not(.light) #rise-swix tbody td:first-child{white-space:nowrap}
+ html:not(.light) #results .scroll thead th,html:not(.light) #results .scroll tfoot th,html:not(.light) #results .scroll tfoot td,html:not(.light) #results #rows tr:not(.detail)>td{height:24px;padding:0 10px;line-height:22px;font-size:16px}
+ html:not(.light) #results #rows tr:not(.detail)>td:first-child{white-space:nowrap;max-width:380px;overflow:hidden;text-overflow:ellipsis}
+ html:not(.light) #results #rows tr:not(.detail)>td small{display:inline;margin:0 0 0 10px;font-size:14px;line-height:22px}
+ html:not(.light) #results #rows td.theme-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+ html:not(.light) #results .scroll tfoot small{display:inline;margin:0 0 0 8px}
+}
