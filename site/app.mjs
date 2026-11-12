@@ -754,12 +754,13 @@ function tableTotalRow(visible) {
   const tr = document.createElement('tr'), first = visible[0][0];
   tr.className = 'table-total';
   const {totals, missing} = tableTotals(result.rows);
+  const worst = Math.max(0, ...visible.map(([key]) => missing[key] || 0));
   for (const [key] of visible) {
     let cell;
     if (key === first) {
       cell = text('th', 'Total');
       cell.scope = 'row';
-      cell.append(text('small', 'Available values · unrounded sums'));
+      cell.append(text('small', 'Available values · unrounded sums' + (worst ? ` · ${worst} missing` : '')));
     } else if (key === 'returnA' || key === 'returnB') {
       const value = result[key];
       cell = text('td', cellNumber(value), signClass(key, value));
@@ -908,7 +909,8 @@ function renderRows() {
         }
         if (compact && key === "ticker" && r.name !== r.ticker) cell.append(text("small", r.name));
         if (key === (compact ? 'ticker' : 'name') && r.assumedZero) cell.append(text('small', 'Assumed 0%'));
-        if (compact || ["returnA", "returnB", "ctrA", "ctrB", "activeCtr"].includes(key)) cell.className = signClass(key, value);
+        // As in the Rise vs Swix table, an exact zero stays uncoloured on desktop.
+        if (compact || ["returnA", "returnB", "ctrA", "ctrB", "activeCtr"].includes(key)) cell.className = !compact && value === 0 ? '' : signClass(key, value);
         if (!compact && !r.aggregate && (key === 'returnA' || key === 'returnB')) {
           const side = key.slice(-1);
           if (r.assumedZero) {
