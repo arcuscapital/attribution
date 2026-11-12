@@ -566,16 +566,22 @@ html:not(.light) #results .scroll td small,html:not(.light) #results .scroll tfo
 html:not(.light) #results .scroll a.security-link{color:var(--bbg-text)}
 
 @media(min-width:601px){
- html:not(.light) #rise-swix th,html:not(.light) #rise-swix td{height:24px;padding:0 8px;line-height:22px;font-size:16px}
- html:not(.light) #rise-swix thead tr:first-child th[colspan],html:not(.light) #rise-swix thead tr:nth-child(2) th,html:not(.light) #rise-swix .rise-total td{padding-block:0;font-size:16px;font-weight:400}
- html:not(.light) #rise-swix thead th button{min-height:0;padding:0;font-size:16px}
- html:not(.light) #rise-swix .rise-sector button{min-height:0;font-size:16px;gap:10px}
- html:not(.light) #rise-swix .rise-holding td{font-size:16px}
+ html:not(.light) #rise-swix .rise-scroll,html:not(.light) #results .scroll{width:fit-content;max-width:100%}
+ html:not(.light) #rise-swix table{border-collapse:separate;border-spacing:0;width:auto;min-width:0}
+ html:not(.light) #results .scroll table{width:auto}
+ html:not(.light) #rise-swix thead th[rowspan],html:not(.light) #rise-swix thead tr:last-child th,html:not(.light) #results .scroll thead th{border-bottom-width:20px}
+ html:not(.light) #rise-swix th,html:not(.light) #rise-swix td{height:24px;padding:0 8px;line-height:22px;font-size:17px;min-width:100px}
+ html:not(.light) #rise-swix thead tr:first-child th:first-child,html:not(.light) #rise-swix tbody td:first-child{min-width:280px}
+ html:not(.light) #rise-swix td:nth-child(2){min-width:80px}
+ html:not(.light) #rise-swix thead tr:first-child th[colspan],html:not(.light) #rise-swix thead tr:nth-child(2) th,html:not(.light) #rise-swix .rise-total td{padding-block:0;font-size:17px;font-weight:400}
+ html:not(.light) #rise-swix thead th button{min-height:0;padding:0;font-size:17px}
+ html:not(.light) #rise-swix .rise-sector button{min-height:0;font-size:17px;gap:10px}
+ html:not(.light) #rise-swix .rise-holding td{font-size:17px}
  html:not(.light) #rise-swix .rise-holding td:first-child{padding-left:30px}
  html:not(.light) #rise-swix tbody td:first-child{white-space:nowrap}
- html:not(.light) #results .scroll thead th,html:not(.light) #results .scroll tfoot th,html:not(.light) #results .scroll tfoot td,html:not(.light) #results #rows tr:not(.detail)>td{height:24px;padding:0 10px;line-height:22px;font-size:16px}
+ html:not(.light) #results .scroll thead th,html:not(.light) #results .scroll tfoot th,html:not(.light) #results .scroll tfoot td,html:not(.light) #results #rows tr:not(.detail)>td{height:24px;padding:0 8px;line-height:22px;font-size:17px;min-width:100px}
  html:not(.light) #results #rows tr:not(.detail)>td:first-child{white-space:nowrap;max-width:380px;overflow:hidden;text-overflow:ellipsis}
- html:not(.light) #results #rows tr:not(.detail)>td small{display:inline;margin:0 0 0 10px;font-size:14px;line-height:22px}
- html:not(.light) #results #rows td.theme-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+ html:not(.light) #results #rows tr:not(.detail)>td small{display:inline;margin:0 0 0 10px;font-size:15px;line-height:22px}
+ html:not(.light) #results #rows td.theme-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
  html:not(.light) #results .scroll tfoot small{display:inline;margin:0 0 0 8px}
 }
