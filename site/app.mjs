@@ -761,6 +761,7 @@ function tableTotalRow(visible) {
       cell = text('th', 'Total');
       cell.scope = 'row';
       cell.append(text('small', 'Available values · unrounded sums' + (worst ? ` · ${worst} missing` : '')));
+      cell.title = cell.children?.[0]?.textContent || ''; // dark desktop hides the caption, as the Rise total row has none
     } else if (key === 'returnA' || key === 'returnB') {
       const value = result[key];
       cell = text('td', cellNumber(value), signClass(key, value));
@@ -897,6 +898,7 @@ function renderRows() {
         const value = rowValue(r, key), cell = text("td", tableCellValue(r, key));
         cell.dataset.col = key; // dark mode colours companies and their weights orange, sectors white
         if (key === 'theme') cell.classList.add('theme-cell');
+        if (!compact && (key === 'name' || key === 'ticker')) cell.title = cell.textContent + (key === 'name' && r.assumedZero ? ' · Assumed 0%' : ''); // full text when a fixed-width cell is cut short
         if (key === 'ticker' && !compact && r.aggregate) cell.textContent = '';
         if (key === 'ticker' && !sectors && !r.nonListed && securityLinks.has(r.id)) {
           const link = text('a', r.ticker, 'security-link');
