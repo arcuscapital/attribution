@@ -37,7 +37,8 @@ already has those controls). Owner then gave permission to build it.
 | Commit | UTC | Version | Deployment | Change |
 |---|---|---|---|---|
 | `3da98400f8564f06b3fa7b4c16969e6d2adb0b00` | 2026-11-12T08:32:45.429311Z | `fb22ccdc-64d5-4a63-aadd-4f5ee53a648e` | `67041f44-ae5a-45a0-9447-77dc0ce6da22` | Chart |
-| **`c38d46ed0791455a0edbf8941ab96a94ed8c0767`** | **2026-11-12T08:34:43.919872Z** | **`eecedb81-c1b0-48b6-8da2-3fd54c804c5d`** | **`c4b8e604-3234-4267-ab81-d1d618716b2c`** | Edge date labels (current) |
+| `c38d46ed0791455a0edbf8941ab96a94ed8c0767` | 2026-11-12T08:34:43.919872Z | `eecedb81-c1b0-48b6-8da2-3fd54c804c5d` | `c4b8e604-3234-4267-ab81-d1d618716b2c` | Edge date labels |
+| **`e447b645a94ecf413a280b06b1b44e246f25adec`** | **2026-11-12T09:26:41.962797Z** | **`838012a0-20bf-4ce3-b4c3-fe77c1558009`** | **`4cd8a932-391f-4f5e-8ea3-b0b1c6baa33e`** | Chart counts exactly the headline's holdings (current) |
 
 ## Tests and limits
 - `node --test tests/*.test.mjs`: 147/147 passed (new: engine series follows each headline method and
@@ -50,6 +51,16 @@ already has those controls). Owner then gave permission to build it.
   table and before Method. The first date label was cut off on the left; fixed in `c38d46e`.
 - The chart uses current/report weights held from the start (Bloomberg's chart uses actual day-by-day
   holdings), so long periods can differ from Bloomberg. Not tested: Android emulator, physical phone.
+
+## Full QA agent test (all of the day's work)
+A separate agent tested the live site in Brave, read-only, after everything was deployed: 8 Rise vs Swix
+periods (1D, Live, WTD, MTD, last month, Bloomberg day, custom) and 9 ordinary cases (IBKR, EasyAI,
+Marlow and EasyGE portfolios; BAI, QQQ, VOO, SOXX and SHLD benchmarks; day to last year), the
+Bloomberg table styles, sorting, italic returns, ticker links, the 0% default and red lines, and ECO. 15
+of 16 chart cases matched the headline. EasyGE vs VOO last year showed 94.03 against a 95.42 headline:
+holdings missing a price on any day are left out of the headline but were still counted in the chart.
+Fixed in `c67778f` (deployed with `e447b64`); production then showed 95.42 / 17.82 / 77.59 exactly, and
+IBKR vs BAI last month still -15.23 / -16.83 / 1.60. No console errors were found.
 
 ## Rollback
 ```powershell
