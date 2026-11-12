@@ -118,7 +118,9 @@ function restoreSelection(m) {
   if (!ids.has(saved.portfolio) || !ids.has(saved.benchmark) || !hasOption('portfolio',saved.portfolio) || !hasOption('benchmark',saved.benchmark) || saved.portfolio === saved.benchmark) return false;
   $('portfolio').value = saved.portfolio; $('benchmark').value = saved.benchmark;
   $('currency').value = saved.benchmark === 'PORTFOLIO:SWIX' ? 'ZAR' : 'USD';
-  if (hasOption('group', saved.group)) $('group').value = saved.group;
+  // Ordinary comparisons always list companies; only Rise vs Swix has sector rows (owner, 2026-11-12).
+  // The sector view code is kept; its View control is hidden and a saved "sector" choice is ignored.
+  $('group').value = 'security';
   return true;
 }
 const preferredRange = () => { const saved = savedSelection()?.range; return saved && saved !== 'custom' && hasOption('range', saved) ? saved : 'day'; };

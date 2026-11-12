@@ -34,6 +34,12 @@ test('new and restored non-SWIX comparisons default USD despite a prior saved ZA
     assert.equal(h.$('currency').value, 'USD');
   }
 });
+test('ordinary comparisons always list companies: a saved sector view is ignored and the View control is hidden', () => {
+  const h = selectionHarness({portfolio:'PORTFOLIO:TEST',benchmark:'ETF',currency:'USD',group:'sector'});
+  h.ctx.setup({schemaVersion:1,funds,generatedAt:'2026-11-10',valuationDates:['2026-11-09']});
+  assert.equal(h.$('group').value, 'security');
+  assert.ok(fs.readFileSync('site/index.html', 'utf8').includes('<label hidden>View<select id="group">'));
+});
 test('restored SWIX benchmark defaults ZAR even when stored currency was USD', () => {
   const h = selectionHarness({portfolio:'PORTFOLIO:TEST',benchmark:'PORTFOLIO:SWIX',currency:'USD'});
   h.ctx.setup({schemaVersion:1,funds,generatedAt:'2026-11-10',valuationDates:['2026-11-09']});
