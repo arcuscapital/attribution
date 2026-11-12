@@ -3,7 +3,7 @@ import {dateRange,drawReturnChart} from './ranges.mjs';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
 export function createRiseSwix({check,lock}){
  let generation=0,controller=new AbortController(),timer,report=null,busy=false,worker=null,rejectWorker=null,last=null,priorCurrency=null,entered=false,syncing=false;
- const prices=new Map(),opened=new Set();
+ const prices=new Map(),opened=new Set();let current=null;
  let sort=null,refocus=null,cooldown;
  const panel=el('section',null,'panel rise-swix');panel.id='rise-swix';panel.hidden=true;$('results').before(panel);
  const title=el('h2','Rise vs Swix'),note=el('p'),status=el('p'),scroll=el('div',null,'rise-scroll'),table=el('table'),foot=el('p'),download=el('button','Download CSV');download.type='button';
@@ -42,7 +42,7 @@ export function createRiseSwix({check,lock}){
   else if(p.value!==RISE&&b.value===SWIX)choose(b,ordinary(b,p.value));
   else if(b.value!==SWIX&&p.value===RISE)choose(p,ordinary(p,b.value));
   const active=isActive();live.hidden=live.disabled=!active;$('range').options[0].textContent=active?'1D':'One Day';
-  if(active){if(!entered){priorCurrency=$('currency').value;entered=true;$('range').value='day';opened.clear();sort=null;}syncRange();}
+  if(active){if(!entered){priorCurrency=$('currency').value;entered=true;$('range').value='day';opened.clear();current=null;sort=null;}syncRange();}
   else{panel.hidden=true;if(entered){entered=false;$('currency').disabled=false;$('currency').value=$('benchmark').value===SWIX?'ZAR':'USD';if($('range').value==='live')$('range').value='day';$('range').dispatchEvent(new Event('change'));}}
   $('assume-zero').closest('label').hidden=active;
   syncing=false;
@@ -52,7 +52,8 @@ export function createRiseSwix({check,lock}){
   const tr=el('tr',null,type),name=el('td');
   if(type==='rise-sector'){
    const button=el('button');button.type='button';button.append(el('span',opened.has(index)?'▾':'▸'),el('span',x.name));button.setAttribute('aria-expanded',String(opened.has(index)));
-   button.addEventListener('click',()=>{opened.has(index)?opened.delete(index):opened.add(index);render(last);});name.append(button);
+   button.addEventListener('click',()=>{opened.has(index)?opened.delete(index):opened.add(index);current=index;render(last);});name.append(button);
+   if(current===index)tr.classList.add('rise-current'); // the last clicked sector gets the Bloomberg selection band
   }else name.textContent=x.name;
   tr.append(name,el('td',x.ticker||''));
   x.values.forEach((v,i)=>{

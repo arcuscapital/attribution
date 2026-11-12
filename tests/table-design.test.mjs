@@ -54,17 +54,55 @@ test('totals retain full precision, exclude missing values, and never add securi
   assert.equal(empty.totals.ctrA, null, 'all missing is unavailable, not zero');
 });
 
-test('footer labels available unrounded totals and explains missing/non-additive columns', () => {
+test('the total is the first row: available unrounded sums, headline returns, missing and non-additive columns', () => {
   const {ctx} = harness([{ticker:'A', weightA:1, weightB:1, activeWeight:0, ctrA:.00012, ctrB:null, activeCtr:null, securityReturn:.1}]);
-  const table = {createTFoot() { return this.tFoot = new Element('tfoot'); }};
-  ctx.renderTableTotals(table, ctx.columnsForTest);
-  const cells = table.tFoot.children[0].children;
+  ctx.result.returnA = .0123;
+  const tr = ctx.tableTotalRow(ctx.columnsForTest), cells = tr.children;
+  assert.equal(tr.className, 'table-total');
   assert.equal(cells[0].textContent, 'Total'); assert.equal(cells[0].scope, 'row');
   assert.match(cells[0].children[0].textContent, /unrounded/);
-  assert.equal(cells[3].textContent, '—'); assert.match(cells[3].title, /cannot be added/);
-  assert.equal(cells[5].textContent, '0.01%');
-  assert.equal(cells[6].textContent, '—'); assert.equal(cells[6].children[0].textContent, '1 missing');
-  assert.equal(cells[8].textContent, '—', 'a total has no Theme classification');
+  assert.equal(cells[1].textContent, '', 'a total has no ticker');
+  assert.equal(cells[2].textContent, '100.00');
+  assert.equal(cells[4].textContent, '1.23'); assert.match(cells[4].title, /Headline return/);
+  assert.equal(cells[5].textContent, '—', 'a missing headline stays unavailable');
+  assert.equal(cells[6].textContent, '0.01');
+  assert.equal(cells[7].textContent, '—'); assert.equal(cells[7].children[0].textContent, '1 missing');
+  assert.equal(cells[10].textContent, '—', 'a total has no Theme classification');
+  const phoneCells = ctx.tableTotalRow([['ticker', 'Security'], ['securityReturn', 'Return'], ['activeCtr', 'Diff']]).children;
+  assert.equal(phoneCells[0].textContent, 'Total');
+  assert.equal(phoneCells[1].textContent, '—'); assert.match(phoneCells[1].title, /cannot be added/);
+});
+
+test('ordinary comparisons use the Rise vs Swix layout: Name, Ticker, then Port and Bmrk pairs', () => {
+  const {ctx} = harness();
+  assert.deepEqual(Array.from(ctx.columnsForTest, column => column[0]),
+    ['name', 'ticker', 'weightA', 'weightB', 'returnA', 'returnB', 'ctrA', 'ctrB', 'activeWeight', 'activeCtr', 'theme']);
+  const groups = vm.runInContext('columnGroups', ctx), labels = vm.runInContext('shortLabel', ctx);
+  assert.deepEqual(Array.from(groups.slice(0, 3), group => group[0]), ['Avg % weight', 'Total return (%)', 'CTR (pp)']);
+  assert.deepEqual([labels.weightA, labels.weightB, labels.returnA, labels.returnB, labels.ctrA, labels.ctrB], ['Port', 'Bmrk', 'Port', 'Bmrk', 'Port', 'Bmrk']);
+  const security = {ticker:'NVDA', name:'NVIDIA Corp', weightA:.05, weightB:0, securityReturn:.1234, ctrA:.00617, ctrB:0};
+  assert.equal(ctx.tableCellValue(security, 'name'), 'NVIDIA Corp');
+  assert.equal(ctx.tableCellValue(security, 'ticker'), 'NVDA');
+  assert.equal(ctx.tableCellValue(security, 'weightA'), '5.00', 'figures have no % sign, as in Rise vs Swix');
+  assert.equal(ctx.tableCellValue(security, 'returnA'), '12.34');
+  assert.equal(ctx.tableCellValue(security, 'returnB'), '12.34', 'a security has one return on both sides');
+  assert.equal(ctx.tableCellValue({securityReturn:-.00001}, 'returnA'), '0.00', 'no negative zero');
+  const sector = {aggregate:true, ticker:'Technology', name:'Sector aggregate', weightA:.5, weightB:.25, ctrA:.05, ctrB:.01, securityReturn:null};
+  assert.equal(ctx.tableCellValue(sector, 'name'), 'Technology');
+  assert.equal(ctx.tableCellValue(sector, 'returnA'), '10.00', 'sector return is its contribution over its weight');
+  assert.equal(ctx.tableCellValue(sector, 'returnB'), '4.00');
+  assert.equal(ctx.tableCellValue({...sector, weightA:0, ctrA:0}, 'returnA'), '—');
+});
+
+test('dark mode colours follow Bloomberg PORT in both tables', () => {
+  const css = fs.readFileSync('site/style.css', 'utf8'), rise = fs.readFileSync('site/rise-swix.mjs', 'utf8');
+  const has = (text, part, message) => assert.ok(text.includes(part), message || part);
+  has(css, 'html:not(.light) #results #rows[data-group=security] td:is([data-col=name],[data-col=ticker],[data-col=weightA],[data-col=weightB],[data-col=activeWeight]),html:not(.light) #results #rows[data-group=security] td[data-col=ticker] a.security-link{color:var(--bbg-amber)}', 'companies, tickers and weights orange');
+  has(css, 'html:not(.light) #rise-swix .rise-holding td:nth-child(-n+4){color:var(--bbg-amber)}', 'Rise companies, tickers and weights orange');
+  has(css, 'html:not(.light) #rise-swix .rise-sector button{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text)}', 'sector names stay white');
+  has(css, 'html:not(.light) #rise-swix tr.rise-current td,html:not(.light) #rise-swix tr.rise-current td:first-child{background:#2354B8}');
+  has(rise, 'current=index;render(last)'); has(rise, "if(current===index)tr.classList.add('rise-current')");
+  has(css, '#results .scroll thead{position:sticky;top:0;z-index:3}', 'both heading rows stay visible');
 });
 
 test('horizontal scroll controls expose hidden columns and disable at their respective ends', () => {

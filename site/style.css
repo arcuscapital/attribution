@@ -552,7 +552,7 @@ html:not(.light) #rise-swix td:nth-child(2){color:var(--bbg-text)}
 html:not(.light) #rise-swix .positive{color:var(--bbg-up)}
 html:not(.light) #rise-swix .negative,html:not(.light) #rise-swix td.rise-zeroed{color:var(--bbg-down)}
 html:not(.light) #rise-swix .rise-sector button{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text)}
-html:not(.light) #rise-swix .rise-sector button span:first-child{color:var(--bbg-text)}
+html:not(.light) #rise-swix .rise-sector button span:first-child{color:var(--bbg-grey)}
 html:not(.light) #rise-swix thead th button{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text)}
 html:not(.light) #rise-swix .rise-sort-mark{color:var(--bbg-amber)}
 html:not(.light) #rise-swix thead th,html:not(.light) #rise-swix thead th button,html:not(.light) #results .scroll thead th{color:var(--bbg-grey)}
@@ -584,14 +584,37 @@ html:not(.light) #results .scroll a.security-link{color:var(--bbg-text)}
  html:not(.light) #rise-swix thead th button{min-height:0;padding:0;font-size:18px}
  html:not(.light) #rise-swix .rise-sector button{min-height:0;font-size:18px;gap:10px}
  html:not(.light) #rise-swix .rise-holding td{font-size:18px}
- html:not(.light) #rise-swix .rise-holding td:first-child{padding-left:30px}
+ html:not(.light) #rise-swix .rise-holding td:first-child{padding-left:48px}
  html:not(.light) #rise-swix tbody td:first-child{white-space:nowrap}
- html:not(.light) #results .scroll thead th,html:not(.light) #results .scroll tfoot th,html:not(.light) #results .scroll tfoot td,html:not(.light) #results #rows tr:not(.detail)>td{height:24px;padding:0 8px;line-height:22px;font-size:18px;min-width:100px}
- html:not(.light) #results #rows tr:not(.detail)>td:first-child{white-space:nowrap;max-width:380px;overflow:hidden;text-overflow:ellipsis}
+ html:not(.light) #results .scroll thead th,html:not(.light) #results .scroll tfoot th,html:not(.light) #results .scroll tfoot td,html:not(.light) #results #rows tr:not(.detail)>td,html:not(.light) #results #rows tr.table-total>th{height:24px;padding:0 8px;line-height:22px;font-size:18px;min-width:100px}
+ html:not(.light) #results #rows tr:not(.detail)>:first-child,html:not(.light) #results .scroll thead tr:first-child th:first-child{white-space:nowrap;min-width:280px;max-width:none}
+ html:not(.light) #results #rows td[data-col=ticker],html:not(.light) #results .scroll thead tr:first-child:not(:last-child) th:nth-child(2){min-width:80px}
+ html:not(.light) #results .scroll thead th[rowspan]{vertical-align:bottom}
+ html:not(.light) #results #rows tr.table-total small{display:inline;margin:0 0 0 8px}
  html:not(.light) #results #rows tr:not(.detail)>td small{display:inline;margin:0 0 0 10px;font-size:15px;line-height:22px}
  html:not(.light) #results #rows td.theme-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
  html:not(.light) #results .scroll tfoot small{display:inline;margin:0 0 0 8px}
 }
+/* Ordinary comparisons use the Rise vs Swix table layout (2026-11-12): Name, Ticker, then Port and Bmrk
+   under each heading, total first. Dark mode colours follow Bloomberg PORT: companies, tickers and their
+   weights orange; sectors white; returns and contributions green or red; the clicked sector on a blue band. */
+#results .scroll thead{position:sticky;top:0;z-index:3}
+#results .scroll thead th[colspan]{text-align:center;cursor:default}
+#results #rows td[data-col=name],#results #rows td[data-col=ticker],#results .scroll thead tr:first-child:not(:last-child) th:nth-child(-n+2){text-align:left}
+#rows td.reference{font-style:italic}
+#rows td.zeroed{color:#F2606A;font-weight:600}.light #rows td.zeroed{color:#A3262D}
+#rows tr.table-total>*,#rows tr.table-total:hover>*{font-weight:600;background:var(--table-head);border-bottom:2px solid var(--border);cursor:default}
+#rows tr.table-total>th{color:inherit;font-size:14px;text-align:left}
+#rows tr.table-total small{display:block;font-weight:400;font-size:11px;white-space:normal;line-height:1.4;margin-top:5px}
+html:not(.light) #results .scroll thead th[colspan]{border-bottom:0}
+html:not(.light) #results #rows tr.table-total>*{background:var(--bbg-black);color:var(--bbg-grey);font-weight:400;border-bottom:0}
+html:not(.light) #results #rows tr.table-total>.positive{color:var(--bbg-up)}
+html:not(.light) #results #rows tr.table-total>.negative{color:var(--bbg-down)}
+html:not(.light) #results #rows[data-group=security] td:is([data-col=name],[data-col=ticker],[data-col=weightA],[data-col=weightB],[data-col=activeWeight]),html:not(.light) #results #rows[data-group=security] td[data-col=ticker] a.security-link{color:var(--bbg-amber)}
+html:not(.light) #results #rows td.zeroed{color:var(--bbg-down)}
+html:not(.light) #rise-swix .rise-holding td:nth-child(-n+4){color:var(--bbg-amber)}
+html:not(.light) #rise-swix tr.rise-current td,html:not(.light) #rise-swix tr.rise-current td:first-child{background:#2354B8}
+html:not(.light) #rise-swix tr.rise-current button span:first-child{color:var(--bbg-text)}
 /* Holdings without a price, counted as 0% by default (ordinary comparisons). */
 .missing-zero{color:#F2606A;font-weight:600}.light .missing-zero{color:#A3262D}
 /* Cumulative return chart under the comparison tables. Dark follows the Bloomberg Total Return chart:

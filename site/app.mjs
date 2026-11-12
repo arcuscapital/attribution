@@ -677,6 +677,7 @@ function displayedRows() {
       id: r.sector,
       ticker: r.sector,
       name: "Sector aggregate",
+      aggregate: true,
       sector: r.sector,
       themes: new Set(),
       weightA: 0,
@@ -702,22 +703,38 @@ function displayedRows() {
   }
   return [...groups.values()];
 }
+// Desktop follows the Rise vs Swix table (Bloomberg PORT layout): Name and Ticker, then Port and Bmrk
+// under each heading. Difference and Theme stay at the right end.
 const columns = [
-  ["ticker", "Security / sector"],
-  ["weightA", "Avg weight · Portfolio"],
-  ["weightB", "Avg weight · Benchmark"],
-  ["securityReturn", "Security return"],
-  ["activeWeight", "Active weight"],
-  ["ctrA", "Contribution · Portfolio"],
-  ["ctrB", "Contribution · Benchmark"],
-  ["activeCtr", "Difference (pp)"],
+  ["name", "Name"],
+  ["ticker", "Ticker"],
+  ["weightA", "Avg % weight · Portfolio"],
+  ["weightB", "Avg % weight · Benchmark"],
+  ["returnA", "Total return (%) · Portfolio"],
+  ["returnB", "Total return (%) · Benchmark"],
+  ["ctrA", "CTR (pp) · Portfolio"],
+  ["ctrB", "CTR (pp) · Benchmark"],
+  ["activeWeight", "Difference · Avg % weight"],
+  ["activeCtr", "Difference · CTR (pp)"],
   ["theme", "Theme"],
 ];
-const textColumn = key => key === 'ticker' || key === 'theme';
+const columnGroups = [["Avg % weight", ["weightA", "weightB"]], ["Total return (%)", ["returnA", "returnB"]],
+  ["CTR (pp)", ["ctrA", "ctrB"]], ["Difference", ["activeWeight", "activeCtr"]]];
+const shortLabel = {weightA: "Port", weightB: "Bmrk", returnA: "Port", returnB: "Bmrk", ctrA: "Port", ctrB: "Bmrk", activeWeight: "Wgt", activeCtr: "CTR"};
+const textColumn = key => key === 'name' || key === 'ticker' || key === 'theme';
 function themeLabel(row) {
   const value = Array.isArray(row.theme) ? row.theme.filter(Boolean).join(' / ') : row.theme;
   return typeof value === 'string' && value.trim() ? value.trim() : 'Unclassified';
 }
+// A security has one return on both sides; a sector's return on a side is its contribution over its weight.
+function sideReturn(row, side) {
+  if (!row.aggregate) return row.securityReturn ?? null;
+  const weight = row['weight' + side], ctr = row['ctr' + side];
+  return Number.isFinite(weight) && Number.isFinite(ctr) && Math.abs(weight) > 1e-12 ? ctr / weight : null;
+}
+const rowValue = (row, key) => key === 'returnA' ? sideReturn(row, 'A') : key === 'returnB' ? sideReturn(row, 'B') : row[key];
+// Figures as in the Rise vs Swix table: two decimals, no % sign (the heading gives the unit).
+const cellNumber = value => Number.isFinite(value) ? (Math.abs(value) < .00005 ? 0 : value * 100).toFixed(2) : '—';
 // Sum original values, not displayed/rounded cells or incomplete sector groups.
 function tableTotals(rows) {
   const totals = {}, missing = {};
@@ -729,25 +746,36 @@ function tableTotals(rows) {
   return {totals, missing};
 }
 function tableCellValue(row, key) {
-  return key === 'ticker' ? row.ticker : key === 'theme' ? themeLabel(row) : fmt(row[key]);
+  if (key === 'name') return row.aggregate ? row.ticker : row.name || row.ticker;
+  return key === 'ticker' ? row.ticker : key === 'theme' ? themeLabel(row) : cellNumber(rowValue(row, key));
 }
-function renderTableTotals(table, visible) {
-  const foot = table.tFoot || table.createTFoot(), tr = document.createElement('tr');
+// The total is the first row under the headings, as in the Rise vs Swix table.
+function tableTotalRow(visible) {
+  const tr = document.createElement('tr'), first = visible[0][0];
+  tr.className = 'table-total';
   const {totals, missing} = tableTotals(result.rows);
   for (const [key] of visible) {
-    const cell = text(key === 'ticker' ? 'th' : 'td', key === 'ticker' ? 'Total' : textColumn(key) || key === 'securityReturn' ? '—' : fmt(totals[key]));
-    if (key === 'ticker') {
+    let cell;
+    if (key === first) {
+      cell = text('th', 'Total');
       cell.scope = 'row';
       cell.append(text('small', 'Available values · unrounded sums'));
-    } else if (key === 'securityReturn') cell.title = 'Individual security returns cannot be added together.';
-    else if (!textColumn(key)) {
-      cell.className = signClass(key, totals[key]);
+    } else if (key === 'returnA' || key === 'returnB') {
+      const value = result[key];
+      cell = text('td', cellNumber(value), signClass(key, value));
+      cell.title = 'Headline return, as in the summary above.';
+    } else if (key === 'securityReturn') {
+      cell = text('td', '—');
+      cell.title = 'Individual security returns cannot be added together.';
+    } else if (textColumn(key)) cell = text('td', key === 'theme' ? '—' : '');
+    else {
+      cell = text('td', cellNumber(totals[key]), signClass(key, totals[key]));
       cell.title = missing[key] ? `Sum of available values; ${missing[key]} missing. Calculated before rounding.` : 'Sum calculated before rounding.';
       if (missing[key]) cell.append(text('small', `${missing[key]} missing`));
     }
     tr.append(cell);
   }
-  foot.replaceChildren(tr);
+  return tr;
 }
 function wireTableScroll(table) {
   const scroll = table.closest('.scroll');
@@ -786,9 +814,9 @@ function wireTableScroll(table) {
 }
 // Phones show three columns; the remaining figures open under the tapped row.
 const phoneColumns = () => $("group").value === "sector"
-  ? [["ticker", "Sector"], ["activeWeight", "Active wt"], ["activeCtr", "Diff (pp)"]]
-  : [["ticker", "Security"], ["securityReturn", "Return"], ["activeCtr", "Diff (pp)"]];
-const signClass = (key, value) => ["ctrA", "ctrB", "activeCtr", "securityReturn", "activeWeight"].includes(key)
+  ? [["ticker", "Sector"], ["activeWeight", "Active wt (%)"], ["activeCtr", "Diff (pp)"]]
+  : [["ticker", "Security"], ["returnA", "Return (%)"], ["activeCtr", "Diff (pp)"]];
+const signClass = (key, value) => ["ctrA", "ctrB", "activeCtr", "securityReturn", "returnA", "returnB", "activeWeight"].includes(key)
   ? (value === null || value === undefined ? "muted" : value >= 0 ? "positive" : "negative") : "";
 function columnLabel(key, name) {
   if (!lastOptions) return name;
@@ -802,20 +830,18 @@ function syncSortControls() {
 }
 function renderRows() {
   if (!["complete", "partial"].includes(result?.status)) return;
-  const compact = phone.matches;
+  const compact = phone.matches, sectors = $("group").value === "sector";
   const visible = compact ? phoneColumns() : columns;
-  if (!$("sort").options.length) $("sort").replaceChildren(...columns.map(([key, name]) => { const o = text("option", key === "ticker" ? "Name" : name); o.value = key; return o; }));
+  if (!$("sort").options.length) $("sort").replaceChildren(...columns.map(([key, name]) => { const o = text("option", name); o.value = key; return o; }));
   syncSortControls();
   $("table-hint").textContent = compact
-    ? "Percentage points. Tap a heading to sort, or a row for weights and contributions."
-    : "Contributions in percentage points. Click a heading to sort. Scroll inside the table; totals are below the last security. Totals use unrounded values.";
-  if ($('group').value === 'security' && securityLinks.size) $('table-hint').textContent += ' Tickers open Arcus Watchlists in a new tab.';
-  const tr = document.createElement("tr");
-  for (const [key, name] of visible) {
-    const th = text(
-      "th",
-      columnLabel(key, name) + (sortKey === key ? (sortDirection === 1 ? " ↑" : " ↓") : ""),
-    );
+    ? "Weights and returns in %, contributions in percentage points. Tap a heading to sort, or a row for weights and contributions."
+    : "Weights and returns in %, contributions (CTR) in percentage points. Click a heading to sort. The total is the first row, from unrounded values. Scroll inside the table.";
+  if (!sectors && securityLinks.size) $('table-hint').textContent += ' Tickers open Arcus Watchlists in a new tab.';
+  const heading = (key, name, label) => {
+    const th = text("th", label + (sortKey === key ? (sortDirection === 1 ? " ↑" : " ↓") : ""));
+    th.scope = "col";
+    if (label !== columnLabel(key, name)) th.title = columnLabel(key, name);
     th.tabIndex = 0;
     th.setAttribute("aria-sort", sortKey === key ? (sortDirection === 1 ? "ascending" : "descending") : "none");
     th.addEventListener("click", () => {
@@ -826,24 +852,52 @@ function renderRows() {
     th.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); th.click(); }
     });
-    tr.append(th);
+    return th;
+  };
+  if (compact) {
+    const tr = document.createElement("tr");
+    for (const [key, name] of visible) tr.append(heading(key, name, columnLabel(key, name)));
+    $("columns").replaceChildren(tr);
+  } else {
+    // Two heading rows, as in the Rise vs Swix table: group headings over Port and Bmrk.
+    const top = document.createElement("tr"), sub = document.createElement("tr");
+    for (const [key, name] of columns) {
+      const group = columnGroups.find(([, keys]) => keys.includes(key));
+      if (!group) {
+        const th = heading(key, name, name);
+        th.rowSpan = 2;
+        top.append(th);
+        continue;
+      }
+      if (group[1][0] === key) {
+        const th = text("th", group[0]);
+        th.colSpan = group[1].length;
+        th.scope = "colgroup";
+        top.append(th);
+      }
+      sub.append(heading(key, name, shortLabel[key]));
+    }
+    $("columns").replaceChildren(top, sub);
   }
-  $("columns").replaceChildren(tr);
+  $("rows").dataset.group = $("group").value;
   const rows = [...displayedRows()].sort(
     (a, b) =>
       Number(!!a.nonListed)-Number(!!b.nonListed) || sortDirection *
       (textColumn(sortKey)
         ? String(tableCellValue(a, sortKey)).localeCompare(String(tableCellValue(b, sortKey)))
-        : (a[sortKey] ?? -Infinity) - (b[sortKey] ?? -Infinity)),
+        : (rowValue(a, sortKey) ?? -Infinity) - (rowValue(b, sortKey) ?? -Infinity)),
   );
   renderContributionChart(rows);
   $("rows").replaceChildren(
+    tableTotalRow(visible),
     ...rows.flatMap((r) => {
       const row = document.createElement("tr");
       for (const [key] of visible) {
-        const cell = text("td", tableCellValue(r, key));
+        const value = rowValue(r, key), cell = text("td", tableCellValue(r, key));
+        cell.dataset.col = key; // dark mode colours companies and their weights orange, sectors white
         if (key === 'theme') cell.classList.add('theme-cell');
-        if (key === 'ticker' && $('group').value === 'security' && !r.nonListed && securityLinks.has(r.id)) {
+        if (key === 'ticker' && !compact && r.aggregate) cell.textContent = '';
+        if (key === 'ticker' && !sectors && !r.nonListed && securityLinks.has(r.id)) {
           const link = text('a', r.ticker, 'security-link');
           link.href = securityLinks.get(r.id);
           link.target = '_blank';
@@ -852,9 +906,19 @@ function renderRows() {
           link.setAttribute('aria-label', link.title);
           cell.replaceChildren(link);
         }
-        if (key === "ticker" && r.name !== r.ticker) cell.append(text("small", r.name));
-        if (key === 'ticker' && r.assumedZero)cell.append(text('small','Assumed 0%'));
-        if (compact || ["ctrA", "ctrB", "activeCtr"].includes(key)) cell.className = signClass(key, r[key]);
+        if (compact && key === "ticker" && r.name !== r.ticker) cell.append(text("small", r.name));
+        if (key === (compact ? 'ticker' : 'name') && r.assumedZero) cell.append(text('small', 'Assumed 0%'));
+        if (compact || ["returnA", "returnB", "ctrA", "ctrB", "activeCtr"].includes(key)) cell.className = signClass(key, value);
+        if (!compact && !r.aggregate && (key === 'returnA' || key === 'returnB')) {
+          const side = key.slice(-1);
+          if (r.assumedZero) {
+            cell.classList.add('zeroed');
+            cell.title = 'No price: counted as 0% return.';
+          } else if (Number.isFinite(value) && !(Math.abs(r['weight' + side] ?? 0) > 0)) {
+            cell.classList.add('reference'); // italic, as in the Rise vs Swix table
+            cell.title = (side === 'A' ? 'The portfolio' : 'The benchmark') + ' does not hold this security. Its own return, for reference.';
+          }
+        }
         row.append(cell);
       }
       if (!compact) return [row];
@@ -865,8 +929,8 @@ function renderRows() {
       cell.colSpan = visible.length;
       const list = document.createElement("dl");
       for (const [key, name] of columns) {
-        if (key === "ticker" || visible.some(([k]) => k === key)) continue;
-        list.append(text("dt", columnLabel(key, name)), text("dd", tableCellValue(r, key), signClass(key, r[key])));
+        if (key === "ticker" || key === "name" || (key === "returnB" && !r.aggregate) || visible.some(([k]) => k === key)) continue;
+        list.append(text("dt", columnLabel(key, name)), text("dd", tableCellValue(r, key), signClass(key, rowValue(r, key))));
       }
       cell.append(list);
       detail.append(cell);
@@ -886,7 +950,7 @@ function renderRows() {
     }),
   );
   const table = $('rows').closest('table');
-  renderTableTotals(table, visible);
+  table.tFoot?.remove();
   wireTableScroll(table);
 }
 $("sort").addEventListener("change", () => {
@@ -997,7 +1061,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=return-chart-20261112');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=bloomberg-rows-20261112');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';
