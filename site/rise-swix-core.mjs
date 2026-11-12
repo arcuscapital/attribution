@@ -72,10 +72,15 @@ export function withShareReturns(groups){
 export function reported(report,start,end){
  return end===report.period[1]&&start>=report.period[0]&&start<=report.period[1];
 }
-export function historyReturn(raw,symbol,baseline,end){
+// Yahoo adjusted closes by JSE date, after listing and ZAR currency checks.
+export function adjustedLevels(raw,symbol){
  if(raw?.meta?.symbol?.toUpperCase()!==symbol||!['ZAR','ZAc'].includes(raw.meta.currency))throw Error('Listing or ZAR quote currency not verified');
  const values=raw.indicators?.adjclose?.[0]?.adjclose,days=new Map();
  for(let i=0;i<(raw.timestamp||[]).length;i++){const v=values?.[i];if(v>0&&Number.isFinite(v))days.set(iso(raw.timestamp[i]*1000+7200000),v);}
+ return days;
+}
+export function historyReturn(raw,symbol,baseline,end){
+ const days=adjustedLevels(raw,symbol);
  const first=days.get(baseline),last=days.get(end);
  if(!first||!last)throw Error('Exact adjusted-price endpoints unavailable');
  return (last/first-1)*100;
@@ -93,10 +98,14 @@ export function etnPriceReturn(raw,symbol,baseline,end){
 // Sharenet public closing prices (price only) for a JSE listing: the backup when Yahoo has no usable
 // price. Same identity and exact-date checks as the ETN path. During a session Sharenet's point for
 // today is its latest (possibly delayed) price.
-export function jseCloseReturn(raw,symbol,baseline,end){
+export function jseCloseLevels(raw,symbol){
  if(!/^[A-Z0-9]{2,10}\.JO$/.test(symbol)||raw?.code!==symbol.slice(0,-3)||typeof raw.chart!=='string'||raw.chart.length>200000)throw Error('Closing-price identity unavailable');
  const days=new Map();
  for(const point of JSON.parse('['+raw.chart+']'))if(Array.isArray(point)&&Number.isFinite(point[0])&&Number.isFinite(point[1])&&point[1]>0)days.set(iso(point[0]+7200000),point[1]);
+ return days;
+}
+export function jseCloseReturn(raw,symbol,baseline,end){
+ const days=jseCloseLevels(raw,symbol);
  if(!days.has(baseline)||!days.has(end))throw Error('Exact closing-price endpoints unavailable');
  return (days.get(end)/days.get(baseline)-1)*100;
 }
@@ -156,4 +165,21 @@ export async function completeQuotes(symbols,fetchBatch,cycle){
  const {patch,missing,count}=await collectQuotes(symbols,fetchBatch,cycle);
  if(missing.length)throw Object.assign(Error('No complete live snapshot: '+missing.length+' of '+count+' holdings have no quote. No holdings have been dropped.'),{missing});
  return patch;
+}
+// Daily cumulative returns (percent) for the chart under the Rise vs Swix table: each holding's return
+// from the starting close (last known level carried over days without a price), times the report's
+// average weights; cash and holdings without prices count as 0%. The last point equals the table's
+// total contribution. dates includes the starting close.
+export function riseSeries(report,levels,dates,zero=new Set()){
+ const holdings=report.groups.flatMap(g=>g.children).filter(p=>!p.cash),base=dates[0],carry=new Map(),a=[],b=[];
+ for(const d of dates){
+  let pa=0,pb=0;
+  for(const p of holdings){
+   const m=levels[p.symbol],start=m?.get(base);if(!(start>0)||zero.has(p.symbol))continue;
+   let level=m.get(d);if(level>0)carry.set(p.symbol,level);else level=carry.get(p.symbol)??start;
+   const r=level/start-1;pa+=(p.values[0]??0)*r;pb+=(p.values[1]??0)*r;
+  }
+  a.push(pa);b.push(pb);
+ }
+ return {dates,a,b};
 }

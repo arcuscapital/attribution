@@ -1,5 +1,5 @@
-import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns,jseCloseReturn,checkCoverage} from './rise-swix-core.mjs?v=backup-prices-20261112';
-import {dateRange} from './ranges.mjs';
+import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns,jseCloseReturn,checkCoverage,adjustedLevels,jseCloseLevels,riseSeries} from './rise-swix-core.mjs?v=return-chart-20261112';
+import {dateRange,drawReturnChart} from './ranges.mjs';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
 export function createRiseSwix({check,lock}){
  let generation=0,controller=new AbortController(),timer,report=null,busy=false,worker=null,rejectWorker=null,last=null,priorCurrency=null,entered=false,syncing=false;
@@ -11,14 +11,16 @@ export function createRiseSwix({check,lock}){
  const refresh=el('button','Refresh'),actions=el('div',null,'rise-actions');refresh.type='button';refresh.hidden=true;refresh.setAttribute('aria-label','Refresh live prices now');actions.append(download,refresh);
  // Red list of holdings without a usable price in the latest attempt; hidden when every holding is priced.
  const missingNote=el('p',null,'rise-missing');missingNote.hidden=true;
- scroll.append(table);panel.append(title,note,status,missingNote,actions,scroll,foot);
+ // Cumulative return chart for periods of two or more sessions, directly under the table.
+ const chart=el('div',null,'return-chart');chart.hidden=true;
+ scroll.append(table);panel.append(title,note,status,missingNote,actions,scroll,chart,foot);
  function showMissing(symbols=[],zeroed=false){ // zeroed: 'live', 'history' or false
   const names=new Map((report?.groups||[]).flatMap(g=>g.children).filter(p=>!p.cash).map(p=>[p.symbol,p.name+' ('+p.ticker+')'])),list=[...new Set(symbols)].map(s=>names.get(s)||s);
   missingNote.textContent=list.length?(zeroed?(zeroed==='live'?'No live price from Yahoo or Sharenet, counted as 0% return: ':'No price from Yahoo or Sharenet for these dates, counted as 0% return: '):'Not getting prices for '+list.length+(list.length===1?' share: ':' shares: '))+list.join(', '):'';missingNote.hidden=!list.length;
  }
  const live=el('option','Live');live.value='live';live.hidden=true;live.disabled=true;$('range').options[0].after(live);
  const isActive=()=>isRisePair($('portfolio').value,$('benchmark').value);
- function cancel(clear=false){generation++;controller.abort();controller=new AbortController();clearTimeout(timer);clearTimeout(cooldown);refresh.disabled=false;worker?.terminate();worker=null;rejectWorker?.(Error('Selection changed'));rejectWorker=null;busy=false;$('run').disabled=false;if(clear){report=null;prices.clear();last=null;table.replaceChildren();panel.hidden=true;opened.clear();showMissing();}}
+ function cancel(clear=false){generation++;controller.abort();controller=new AbortController();clearTimeout(timer);clearTimeout(cooldown);refresh.disabled=false;worker?.terminate();worker=null;rejectWorker?.(Error('Selection changed'));rejectWorker=null;busy=false;$('run').disabled=false;if(clear){report=null;prices.clear();last=null;table.replaceChildren();drawReturnChart(chart,null);panel.hidden=true;opened.clear();showMissing();}}
  async function get(path){const r=await fetch(path,{credentials:'same-origin',cache:'no-store',signal:controller.signal});if(r.status===401){lock();throw Error('Sign in again.');}if(!r.ok)throw Error('Data unavailable. Please retry.');return r.json();}
  function syncRange(){
   if(!isActive())return;
@@ -78,6 +80,7 @@ export function createRiseSwix({check,lock}){
   head.append(a,b);const body=el('tbody');body.append(row(value.total,'rise-total'));
   sortRiseGroups(value.groups,sort).forEach(({group,index,children})=>{body.append(row(group,'rise-sector',index));if(opened.has(index))children.forEach(c=>body.append(row(c,'rise-holding')));});table.replaceChildren(head,body);scroll.scrollLeft=x;
   if(refocus!==null){table.querySelector('[data-sort="'+refocus+'"]')?.focus();refocus=null;}
+  drawReturnChart(chart,value.series&&!value.live&&!value.exact?{...value.series,labelA:value.total?.name||'Rise',labelB:'SWIX ALL SHARE',note:'ZAR · report weights from the start · adjusted closes (Sharenet closes where Yahoo had none)'}:null);
   note.textContent='Port = Rise · Bmrk = Swix · '+value.start+' to '+value.end+' · ZAR · '+value.basis;
   const reference=' Italic returns are for shares that side does not hold: the share’s own return, for reference, with no weight or contribution.';
   foot.textContent=value.exact?'Source: Bloomberg report, 4–5 November 2026. Reported sector totals and source blanks retained, except share returns where one side does not hold the share.'+reference:'Holdings-based estimate. The 4–5 November 2026 report’s average weights are assumed across the selected period; trades and actual average holdings are not reconstructed. ZAR cash is held constant with 0% assumed income. '+(value.live?'Live uses price returns; intraday distributions are not included. Provider quotes may be delayed; Updated is the fetch time.'+(value.backup?.length?' Sharenet’s latest price (possibly delayed) is the backup for '+count(value.backup.length)+' without a usable Yahoo quote.':''):'Shares use vendor-adjusted returns. NEWSLV and SBCOP use Sharenet closing-price returns (price-only estimates).'+(value.backup?.length?' Where Yahoo had no adjusted price on a required date, '+count(value.backup.length)+' use Sharenet closing prices as the backup (price only; a dividend on those dates is not included).':''))+(value.zero?.length?' Shares with no price from Yahoo or Sharenet count as 0% return and are listed in red.':'')+reference+' All figures are in ZAR. Swipe horizontally for more columns.';
@@ -87,15 +90,15 @@ export function createRiseSwix({check,lock}){
  const count=n=>n+(n===1?' share':' shares'),fatal=e=>controller.signal.aborted||e?.name==='AbortError'||e?.message==='Sign in again.';
  // Backup prices: Sharenet public closing prices (price only) for JSE listings, used when Yahoo has
  // no usable price. Live uses Sharenet's point for today, its latest (possibly delayed) price.
- async function backupReturn(symbol,baseline,end){
-  return jseCloseReturn(await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end,source:'sharenet'})),symbol,baseline,end);
- }
+ const sharenet=(symbol,baseline,end)=>get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end,source:'sharenet'}));
+ async function backupReturn(symbol,baseline,end){return jseCloseReturn(await sharenet(symbol,baseline,end),symbol,baseline,end);}
+ // Each result keeps the day-by-day price levels for the chart under the table.
  async function loadHistory(symbol,baseline,end){
   const key=[symbol,baseline,end].join('|');if(prices.has(key))return prices.get(key);
   let value;
-  if(ETN_PRICE_ONLY.has(symbol))value={value:etnPriceReturn(await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end,source:'sharenet'})),symbol,baseline,end),backup:false};
-  else try{value={value:historyReturn(await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end})),symbol,baseline,end),backup:false};}
-  catch(e){if(fatal(e))throw e;value={value:await backupReturn(symbol,baseline,end),backup:true};}
+  if(ETN_PRICE_ONLY.has(symbol)){const raw=await sharenet(symbol,baseline,end);value={value:etnPriceReturn(raw,symbol,baseline,end),backup:false,levels:jseCloseLevels(raw,symbol)};}
+  else try{const raw=await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end}));value={value:historyReturn(raw,symbol,baseline,end),backup:false,levels:adjustedLevels(raw,symbol)};}
+  catch(e){if(fatal(e))throw e;const raw=await sharenet(symbol,baseline,end);value={value:jseCloseReturn(raw,symbol,baseline,end),backup:true,levels:jseCloseLevels(raw,symbol)};}
   prices.set(key,value);return value;
  }
  async function run(){
@@ -109,7 +112,7 @@ export function createRiseSwix({check,lock}){
    let value;
    if(!liveMode&&reported(report,start,end))value={groups:withShareReturns(report.groups),total:report.total,exact:true,basis:'Bloomberg reported'};
    else{
-    const positions=report.groups.flatMap(g=>g.children).filter(p=>!p.cash),symbols=[...new Set(positions.map(p=>p.symbol))],returns={},backup=[];let zero=[];
+    const positions=report.groups.flatMap(g=>g.children).filter(p=>!p.cash),symbols=[...new Set(positions.map(p=>p.symbol))],returns={},backup=[],levels={};let zero=[],series=null;
     if(liveMode){
      const cycle=crypto.randomUUID(),{patch}=await collectQuotes(symbols,async(batch,id)=>{ // tolerant: a failed batch falls to the backup
       const r=await fetch('/api/live-prices/shard',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(12000)]),body:JSON.stringify({symbols:batch,cycleId:id})});
@@ -122,12 +125,14 @@ export function createRiseSwix({check,lock}){
     }else{
      const dates=period(start,end);if(dates.end>completedCalendar().at(-1))throw Error('Choose a completed session, or select Live.');
      let next=0,done=0;
-     await Promise.all([0,1,2].map(async()=>{while(next<symbols.length){const s=symbols[next++];if(gen!==generation)return;try{const r=await loadHistory(s,dates.baseline,dates.end);returns[s]=r.value;if(r.backup)backup.push(s);}catch(e){if(fatal(e))throw e;returns[s]=0;zero.push(s);}status.textContent='Checking prices '+(++done)+' / '+symbols.length;}}));
+     await Promise.all([0,1,2].map(async()=>{while(next<symbols.length){const s=symbols[next++];if(gen!==generation)return;try{const r=await loadHistory(s,dates.baseline,dates.end);returns[s]=r.value;levels[s]=r.levels;if(r.backup)backup.push(s);}catch(e){if(fatal(e))throw e;returns[s]=0;zero.push(s);}status.textContent='Checking prices '+(++done)+' / '+symbols.length;}}));
      checkCoverage(zero,symbols.length,false);
+     const days=completedCalendar().filter(d=>d>=dates.baseline&&d<=dates.end);
+     if(days.length>=3)series=riseSeries(report,levels,days,new Set(zero));
     }
     const result=await calculation(returns),zeroSet=new Set(zero);
     const groups=zeroSet.size?result.groups.map(g=>({...g,children:g.children.map(p=>zeroSet.has(p.symbol)?{...p,zeroed:true}:p)})):result.groups;
-    value={...result,groups:withShareReturns(groups),basis:liveMode?'Live price-return estimate':'Holdings-based estimate',live:liveMode,zero,backup};
+    value={...result,groups:withShareReturns(groups),basis:liveMode?'Live price-return estimate':'Holdings-based estimate',live:liveMode,zero,backup,series};
    }
    if(gen!==generation||!isActive()||!await check())return;
    const at=new Date().toISOString(),zeroCount=value.zero?.length||0,backupCount=value.backup?.length||0;render({...value,start,end,at});showMissing(value.zero||[],liveMode?'live':'history');
@@ -138,7 +143,7 @@ export function createRiseSwix({check,lock}){
  // An explicit Compare rechecks the published report; live price refreshes keep
  // its stated report dates and do not start a holdings collector or poller.
  $('controls').addEventListener('submit',e=>{if(!isActive())return;e.preventDefault();e.stopImmediatePropagation();cancel();report=null;last=null;table.replaceChildren();void run();},true);
- for(const id of ['portfolio','benchmark','currency','range','start','end'])$(id).addEventListener('change',e=>{cancel();last=null;table.replaceChildren();note.textContent='';foot.textContent='';status.textContent='';showMissing();syncSelection(e);if(isActive()&&['range','start','end'].includes(id))syncRange();});
+ for(const id of ['portfolio','benchmark','currency','range','start','end'])$(id).addEventListener('change',e=>{cancel();last=null;table.replaceChildren();drawReturnChart(chart,null);note.textContent='';foot.textContent='';status.textContent='';showMissing();syncSelection(e);if(isActive()&&['range','start','end'].includes(id))syncRange();});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)cancel();else if(isActive()&&$('range').value==='live'){syncRange();void run();}});
  window.addEventListener('pagehide',()=>cancel(true));
  refresh.addEventListener('click',()=>{if(busy||refresh.disabled||!isActive()||$('range').value!=='live')return;clearTimeout(timer);void run();});

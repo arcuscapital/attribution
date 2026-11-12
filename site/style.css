@@ -594,3 +594,31 @@ html:not(.light) #results .scroll a.security-link{color:var(--bbg-text)}
 }
 /* Holdings without a price, counted as 0% by default (ordinary comparisons). */
 .missing-zero{color:#F2606A;font-weight:600}.light .missing-zero{color:#A3262D}
+/* Cumulative return chart under the comparison tables. Dark follows the Bloomberg Total Return chart:
+   white portfolio line, orange benchmark line, shaded performance difference. */
+.return-chart{--rc-bg:#000;--rc-grid:#262626;--rc-frame:#505050;--rc-axis:#A5A5A5;--rc-text:#D7D7D7;--rc-port:#FFFFFF;--rc-bmrk:#F46A30;--rc-ahead:rgba(79,238,116,.22);--rc-behind:rgba(165,25,35,.5);--rc-diff:#FFFFFF;background:var(--rc-bg)}
+.light .return-chart{--rc-bg:#fff;--rc-grid:#e6ebf1;--rc-frame:#c8d1dc;--rc-axis:#5b6b7d;--rc-text:#17212f;--rc-port:#17212f;--rc-bmrk:#d9480f;--rc-ahead:rgba(14,122,61,.16);--rc-behind:rgba(192,52,60,.18);--rc-diff:#17212f}
+.return-chart[hidden]{display:none}
+.return-chart-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin-bottom:8px}
+.return-chart-head h3{margin:0;font-size:16px;font-weight:600;color:var(--rc-text)}
+.return-chart-head p{margin:0;font-size:12px;color:var(--rc-axis)}
+.return-chart-svg{display:block;width:100%;height:auto;font-family:"Segoe UI",Arial,sans-serif;font-size:12px;touch-action:pan-y}
+.return-chart .rc-grid line{stroke:var(--rc-grid);stroke-width:1}
+.return-chart .rc-frame{fill:none;stroke:var(--rc-frame)}
+.return-chart .rc-axis{fill:var(--rc-axis)}
+.return-chart .rc-zero{stroke:var(--rc-frame);stroke-width:1}
+.return-chart .rc-port{fill:none;stroke:var(--rc-port);stroke-width:1.6}
+.return-chart .rc-bmrk{fill:none;stroke:var(--rc-bmrk);stroke-width:1.6}
+.return-chart .rc-diff{fill:none;stroke:var(--rc-diff);stroke-width:1.4}
+.return-chart .rc-ahead{fill:var(--rc-ahead)}.return-chart .rc-behind{fill:var(--rc-behind)}
+.return-chart .rc-tag-port rect{fill:var(--rc-port)}.return-chart .rc-tag-bmrk rect{fill:var(--rc-bmrk)}.return-chart .rc-tag-diff rect{fill:var(--rc-diff)}
+.return-chart .rc-tag-port text,.return-chart .rc-tag-bmrk text,.return-chart .rc-tag-diff text{fill:var(--rc-bg);font-weight:600}
+.return-chart .rc-legend text{fill:var(--rc-text)}
+.return-chart .rc-legend-box{fill:var(--rc-bg);stroke:var(--rc-frame)}
+.return-chart .rc-key-port{fill:var(--rc-port)}.return-chart .rc-key-bmrk{fill:var(--rc-bmrk)}.return-chart .rc-key-diff{fill:var(--rc-diff)}
+.return-chart .rc-hit{fill:transparent;cursor:crosshair}
+.return-chart .rc-hover line{stroke:var(--rc-axis);stroke-dasharray:3 3}
+.return-chart .rc-hover rect{fill:var(--rc-bg);stroke:var(--rc-frame)}
+.return-chart .rc-hover text{fill:var(--rc-text)}
+.rise-swix .return-chart{margin-top:18px;padding:12px;border:1px solid var(--border)}
+html:not(.light) .rise-swix .return-chart{border-color:var(--bbg-line)}

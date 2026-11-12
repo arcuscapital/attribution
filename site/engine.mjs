@@ -505,3 +505,19 @@ function partialComparison(prices, history, options, baseline, missing) {
     ],
   };
 }
+// Daily cumulative returns (percent) for the chart under the table. Each side follows its headline
+// method: a reference fund is its own observed return to date; a portfolio (and any side without its own
+// prices, or a complete daily attribution) is its average weights times each security's return to date.
+// A security's last known value carries over days without a price; rows counted at 0% stay at 0.
+export function returnSeries(input, result, options) {
+  if (!result?.baseline || !result?.end || !Array.isArray(result.rows) || !Array.isArray(input?.levels)) return null;
+  const {portfolio, benchmark} = options, currency = result.currency || options.currency || 'USD';
+  const map = levelIndex(input), ids = new Set([portfolio, benchmark, ...result.rows.map(r => r.id)]);
+  const dates = [...new Set(input.levels.filter(l => l.basis !== 'fx' && ids.has(l.id) && l.date > result.baseline && l.date <= result.end).map(l => l.date))].sort();
+  if (dates.length < 2) return null;
+  const last = new Map();
+  const ret = (id, d) => { const r = levelReturn(map, id, result.baseline, d, currency)?.value; if (Number.isFinite(r)) last.set(id, r); return last.get(id) ?? 0; };
+  const basket = (side, d) => result.rows.reduce((sum, r) => { const w = r['weight' + side]; return !w || r.assumedZero || !Number.isFinite(r.securityReturn) ? sum : sum + w * ret(r.id, d); }, 0);
+  const side = (fund, key, d) => result['returnMethod' + key] === 'reference' && Number.isFinite(result['fundReturn' + key]) ? ret(fund, d) : basket(key, d);
+  return {dates: [result.baseline, ...dates], a: [0, ...dates.map(d => 100 * side(portfolio, 'A', d))], b: [0, ...dates.map(d => 100 * side(benchmark, 'B', d))]};
+}

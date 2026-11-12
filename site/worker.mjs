@@ -1,7 +1,10 @@
-import { compare } from "./engine.mjs?v=reconciliation3-20261110";
+import { compare, returnSeries } from "./engine.mjs?v=return-chart-20261112";
 self.onmessage = ({ data }) => {
   try {
-    self.postMessage({ ok: true, result: compare(data.dataset, data.options) });
+    const result = compare(data.dataset, data.options);
+    // The chart under the table; a chart problem never blocks the comparison itself.
+    try { if (["complete", "partial"].includes(result.status)) result.series = returnSeries(data.dataset, result, data.options); } catch { result.series = null; }
+    self.postMessage({ ok: true, result });
   } catch (e) {
     self.postMessage({ ok: false, error: e.message });
   }

@@ -1,4 +1,4 @@
-import { dateRange } from './ranges.mjs';
+import { dateRange, drawReturnChart } from './ranges.mjs';
 import { createSessionGuard } from './session.mjs';
 import { isNonListed } from './arcus-source.mjs?v=issuer-nav1-20261110';
 const $ = (id) => document.getElementById(id);
@@ -22,7 +22,8 @@ const session = createSessionGuard({onLock() {
   activeWorker?.terminate(); activeWorker = null;
   cancelCalculation?.(); cancelCalculation = null;
   folder = dataset = manifest = result = null; onlineMode = false;
-  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','message','price-status']) $(id).replaceChildren();
+  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','message','price-status','return-chart']) $(id).replaceChildren();
+  $('return-chart').hidden = true;
   $('rows').closest('table')?.tFoot?.replaceChildren();
   $('results').hidden = true;
   for (const id of ['portfolio','benchmark']) { $(id).replaceChildren(); $(id).disabled = true; }
@@ -455,7 +456,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=issuer-nav1-20261110", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=return-chart-20261112", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -550,6 +551,9 @@ $("controls").addEventListener("submit", async (e) => {
       renderReconciliation(result, options),
     );
     renderRows();
+    // Cumulative return chart under the table (periods of two or more valuation days).
+    drawReturnChart($('return-chart'), result.series ? {...result.series, labelA: fundLabel(options.portfolio), labelB: fundLabel(options.benchmark),
+      note: options.currency + ' · each side follows its headline return method' + (options.assumeMissingZero ? ' · missing returns at 0%' : '')} : null);
     renderMethod();
     if(onlineMode) $('price-status').textContent = (data.arcusSource ? 'Arcus completed returns first · '+data.arcusReturnCount+' securities/funds reused · ' : 'Adjusted daily returns · ')+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
     $('research-note').replaceChildren(
@@ -993,7 +997,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=backup-prices-20261112');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=return-chart-20261112');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';
