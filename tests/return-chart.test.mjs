@@ -10,7 +10,8 @@ test('chart series: a reference fund follows its own price, a portfolio its aver
  const input={levels:[...lv('FUND',[['2026-11-02',100],['2026-11-03',102],['2026-11-04',101]]),
   ...lv('X',[['2026-11-02',50],['2026-11-03',55],['2026-11-04',60]]),...lv('Y',[['2026-11-02',20],['2026-11-04',18]])]};
  const result={baseline:'2026-11-02',end:'2026-11-04',currency:'USD',returnMethodA:'weighted-estimate',returnMethodB:'reference',fundReturnB:0.01,
-  rows:[{id:'X',weightA:.6,weightB:.5,securityReturn:.2},{id:'Y',weightA:.3,weightB:.5,securityReturn:-.1},{id:'Z',weightA:.1,weightB:0,securityReturn:0,assumedZero:true}]};
+  rows:[{id:'X',weightA:.6,weightB:.5,securityReturn:.2,ctrA:.12,ctrB:.1},{id:'Y',weightA:.3,weightB:.5,securityReturn:-.1,ctrA:-.03,ctrB:-.05},{id:'Z',weightA:.1,weightB:0,securityReturn:0,ctrA:0,ctrB:0,assumedZero:true},
+  {id:'FUND',weightA:.05,weightB:0,securityReturn:.01,ctrA:null,ctrB:0}]}; // a day without a price: no contribution, left out like the headline
  const s=returnSeries(input,result,{portfolio:'PORTFOLIO:P',benchmark:'FUND'});
  assert.deepEqual(s.dates,['2026-11-02','2026-11-03','2026-11-04']);
  assert.deepEqual([s.a[0],s.b[0]],[0,0]);
