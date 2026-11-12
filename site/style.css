@@ -587,7 +587,8 @@ html:not(.light) #results .scroll a.security-link{color:var(--bbg-text)}
  html:not(.light) #rise-swix .rise-holding td:first-child{padding-left:48px}
  html:not(.light) #rise-swix tbody td:first-child{white-space:nowrap}
  html:not(.light) #results .scroll thead th,html:not(.light) #results .scroll tfoot th,html:not(.light) #results .scroll tfoot td,html:not(.light) #results #rows tr:not(.detail)>td,html:not(.light) #results #rows tr.table-total>th{height:24px;padding:0 8px;line-height:22px;font-size:18px;min-width:100px}
- html:not(.light) #results #rows tr:not(.detail)>:first-child,html:not(.light) #results .scroll thead tr:first-child th:first-child{white-space:nowrap;width:360px;min-width:360px;max-width:360px;overflow:hidden;text-overflow:ellipsis}
+ /* Name stops at the D of CROWDSTRIKE HOLDINGS (owner, 2026-11-12) so Theme stays visible; full name on hover. */
+ html:not(.light) #results #rows tr:not(.detail)>:first-child,html:not(.light) #results .scroll thead tr:first-child th:first-child{white-space:nowrap;width:188px;min-width:188px;max-width:188px;overflow:hidden;text-overflow:ellipsis}
  html:not(.light) #results #rows td[data-col=ticker],html:not(.light) #results .scroll thead tr:first-child:not(:last-child) th:nth-child(2){width:100px;min-width:100px;max-width:100px;overflow:hidden;text-overflow:ellipsis}
  html:not(.light) #results .scroll thead th[rowspan]{vertical-align:bottom}
  html:not(.light) #results #rows tr.table-total small{display:inline;margin:0 0 0 8px;white-space:nowrap}
