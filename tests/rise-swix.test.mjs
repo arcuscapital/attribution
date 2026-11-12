@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {estimate,validateReport,liveReturn,historyReturn,completeQuotes,period,previous,reported,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns} from '../site/rise-swix-core.mjs';
+import {estimate,validateReport,liveReturn,historyReturn,completeQuotes,period,previous,reported,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns,jseCloseReturn,checkCoverage} from '../site/rise-swix-core.mjs';
 const report=()=>({schemaVersion:1,version:'test',currency:'ZAR',period:['2026-11-04','2026-11-05'],total:{values:[100,100,2,3,2,3]},groups:[{name:'Example',values:[100,100,2,3,2,3],children:[{id:'A',name:'Synthetic A',symbol:'TEST.JO',values:[60,20,2,3,1.2,.6]},{id:'B',name:'Synthetic B',symbol:'OTHER.JO',values:[40,80,2,3,.8,2.4]}]}]});
 test('report reconciles and rejects modified sector, currency and duplicates',()=>{validateReport(report());for(const change of [r=>r.currency='USD',r=>r.groups[0].values[0]=90,r=>r.groups[0].children[1].id='A']){const r=report();change(r);assert.throws(()=>validateReport(r));}});
 test('fixed weights reconcile holdings, sectors and both funds',()=>{const r=estimate(report(),{'TEST.JO':10,'OTHER.JO':-5});assert.deepEqual(r.total.values,[100,100,4,-2,4,-2]);assert.equal(r.groups[0].children[0].values[4],6);assert.equal(r.groups[0].children[1].values[4],-2);});
@@ -92,6 +92,22 @@ test("live: a missing or stale quote counts as 0% and is reported; most quotes m
  const out=liveReturns(symbols,patch,"2026-11-09",now);
  assert.ok(Math.abs(out.returns["A.JO"]-10)<1e-9);assert.ok(Math.abs(out.returns["C.JO"]+1)<1e-9);
  assert.equal(out.returns["B.JO"],0);assert.equal(out.returns["D.JO"],0);assert.deepEqual(out.zero,["B.JO","D.JO"]);
- assert.throws(()=>liveReturns(symbols,{"A.JO":fresh},"2026-11-09",now),e=>{assert.deepEqual(e.missing,["B.JO","C.JO","D.JO"]);assert.match(e.message,/3 of 4 holdings/);return true;});
+ const most=liveReturns(symbols,{"A.JO":fresh},"2026-11-09",now);assert.deepEqual(most.zero,["B.JO","C.JO","D.JO"]);
+ assert.throws(()=>checkCoverage(most.zero,4,true),e=>{assert.deepEqual(e.missing,["B.JO","C.JO","D.JO"]);assert.match(e.message,/Live prices unavailable: 3 of 4 holdings/);return true;});
+ checkCoverage(["B.JO","D.JO"],4);
  await assert.rejects(collectQuotes(symbols,async(b,cycleId)=>({ok:false,cycleId,collectedAt:1,patch:{}}),"z"),/Incomplete price cycle/);
+});
+test("backup: Sharenet closes give exact-date price returns for JSE listings only",()=>{
+ const t=d=>Date.parse(d+"T16:00:00Z")-7200000+7200000*0;const chart="["+Date.parse("2026-11-09T22:00:00Z")+",22894],["+Date.parse("2026-11-10T22:00:00Z")+",22990]";
+ assert.ok(Math.abs(jseCloseReturn({code:"MTN",chart},"MTN.JO","2026-11-10","2026-11-11")-(22990/22894-1)*100)<1e-9);
+ assert.throws(()=>jseCloseReturn({code:"MTN",chart},"MTN.JO","2026-11-09","2026-11-11"),/endpoints/);
+ assert.throws(()=>jseCloseReturn({code:"NPN",chart},"MTN.JO","2026-11-10","2026-11-11"),/identity/);
+ assert.throws(()=>jseCloseReturn({code:"AAPL",chart},"AAPL","2026-11-10","2026-11-11"),/identity/);
+});
+test("live: a failed quote batch leaves its shares for the backup; sign-in loss still stops the refresh",async()=>{
+ const symbols=Array.from({length:40},(_,i)=>"S"+i+".JO");
+ const out=await collectQuotes(symbols,async(b,cycleId)=>{if(b[0]==="S0.JO")throw Error("Quote batch failed.");return {ok:true,cycleId,collectedAt:5,patch:Object.fromEntries(b.map(s=>[s,{p:1}]))};},"q",{tolerant:true});
+ assert.equal(out.failed,1);assert.equal(out.missing.length,32);assert.equal(Object.keys(out.patch).length,8);
+ await assert.rejects(collectQuotes(symbols,async()=>{throw Error("Quote batch failed.");},"q"),/Quote batch failed/);
+ await assert.rejects(collectQuotes(symbols,async()=>{throw Error("Sign in again.");},"q",{tolerant:true}),/Sign in again/);
 });

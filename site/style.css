@@ -592,3 +592,5 @@ html:not(.light) #results .scroll a.security-link{color:var(--bbg-text)}
  html:not(.light) #results #rows td.theme-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
  html:not(.light) #results .scroll tfoot small{display:inline;margin:0 0 0 8px}
 }
+/* Holdings without a price, counted as 0% by default (ordinary comparisons). */
+.missing-zero{color:#F2606A;font-weight:600}.light .missing-zero{color:#A3262D}

@@ -90,6 +90,16 @@ export function etnPriceReturn(raw,symbol,baseline,end){
  if(!days.has(baseline)||!days.has(end))throw Error('Exact ETN closing-price endpoints unavailable');
  return (days.get(end)/days.get(baseline)-1)*100;
 }
+// Sharenet public closing prices (price only) for a JSE listing: the backup when Yahoo has no usable
+// price. Same identity and exact-date checks as the ETN path. During a session Sharenet's point for
+// today is its latest (possibly delayed) price.
+export function jseCloseReturn(raw,symbol,baseline,end){
+ if(!/^[A-Z0-9]{2,10}\.JO$/.test(symbol)||raw?.code!==symbol.slice(0,-3)||typeof raw.chart!=='string'||raw.chart.length>200000)throw Error('Closing-price identity unavailable');
+ const days=new Map();
+ for(const point of JSON.parse('['+raw.chart+']'))if(Array.isArray(point)&&Number.isFinite(point[0])&&Number.isFinite(point[1])&&point[1]>0)days.set(iso(point[0]+7200000),point[1]);
+ if(!days.has(baseline)||!days.has(end))throw Error('Exact closing-price endpoints unavailable');
+ return (days.get(end)/days.get(baseline)-1)*100;
+}
 export function liveReturn(q,baseline,now=Date.now()){
  if(!q||!(q.p>0)||!Number.isFinite(q.t)||!Number.isFinite(q.at)||q.at>now+60000||now-q.at>90000||q.t>now+60000||iso(q.t+7200000)<baseline)throw Error('Missing or stale live quote');
  // The previous regular close may belong to the prior day until today's first trade.
@@ -114,23 +124,33 @@ export function estimate(report,returns){
  const ctr=[4,5].map(c=>groups.reduce((n,g)=>n+(g.values[c]??0),0));
  return {groups,total:{...report.total,values:[report.total.values[0],report.total.values[1],...ctr,...ctr]}};
 }
-// All batches resolve before a caller may commit a valuation. No row-level patches. A failed or
-// mismatched batch rejects the cycle; symbols a successful batch did not return are listed in missing.
-export async function collectQuotes(symbols,fetchBatch,cycle){
+// All batches resolve before a caller may commit a valuation. No row-level patches. By default a failed
+// or mismatched batch rejects the cycle. tolerant: a failed batch only leaves its symbols missing (so a
+// backup source can price them), but sign-in loss and cancellation still reject. Symbols a batch did
+// not return are listed in missing.
+export async function collectQuotes(symbols,fetchBatch,cycle,{tolerant=false}={}){
  const unique=[...new Set(symbols)],batches=[];
  for(let i=0;i<unique.length;i+=32)batches.push(unique.slice(i,i+32));
- const results=await Promise.all(batches.map(b=>fetchBatch(b,cycle)));
- const patch={};for(const r of results){if(!r.ok||r.cycleId!==cycle||!Number.isFinite(r.collectedAt))throw Error('Incomplete price cycle');for(const [symbol,q] of Object.entries(r.patch||{}))patch[symbol]={...q,at:r.collectedAt};}
- return {patch,missing:unique.filter(s=>!patch[s]),count:unique.length};
+ const settled=await Promise.allSettled(batches.map(b=>fetchBatch(b,cycle)));
+ const patch={};let failed=0;
+ for(const s of settled){
+  if(s.status==='rejected'){if(!tolerant||s.reason?.message==='Sign in again.'||s.reason?.name==='AbortError')throw s.reason;failed++;continue;}
+  const r=s.value;if(!r?.ok||r.cycleId!==cycle||!Number.isFinite(r.collectedAt)){if(!tolerant)throw Error('Incomplete price cycle');failed++;continue;}
+  for(const [symbol,q] of Object.entries(r.patch||{}))patch[symbol]={...q,at:r.collectedAt};
+ }
+ return {patch,missing:unique.filter(s=>!patch[s]),count:unique.length,failed};
 }
-// Live Rise vs Swix: a holding without a usable quote (missing or stale) counts as a 0% return and is
-// reported, so one thinly traded share cannot block the table. If more than half the holdings have no
-// usable quote, treat it as a price outage instead of showing a mostly-zero valuation.
+// Live Rise vs Swix: returns from the live quotes. A holding without a usable quote (missing or stale)
+// is listed in zero with a 0% placeholder, for the caller to try the backup source first.
 export function liveReturns(symbols,patch,baseline,now=Date.now()){
  const unique=[...new Set(symbols)],returns={},zero=[];
  for(const symbol of unique){try{returns[symbol]=liveReturn(patch[symbol],baseline,now);}catch{returns[symbol]=0;zero.push(symbol);}}
- if(zero.length*2>unique.length)throw Object.assign(Error('Live prices unavailable: '+zero.length+' of '+unique.length+' holdings have no usable quote.'),{missing:zero});
  return {returns,zero};
+}
+// A holding with no price from any source counts as 0% and is reported, so the rest of the valuation
+// goes ahead. More than half the holdings without a price is an outage: never show a mostly-zero table.
+export function checkCoverage(zero,count,live=false){
+ if(zero.length*2>count)throw Object.assign(Error((live?'Live prices':'Prices')+' unavailable: '+zero.length+' of '+count+' holdings have no usable price from Yahoo or Sharenet.'),{missing:zero});
 }
 export async function completeQuotes(symbols,fetchBatch,cycle){
  const {patch,missing,count}=await collectQuotes(symbols,fetchBatch,cycle);

@@ -1,4 +1,4 @@
-import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns} from './rise-swix-core.mjs?v=live-zero-20261110';
+import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns,jseCloseReturn,checkCoverage} from './rise-swix-core.mjs?v=backup-prices-20261112';
 import {dateRange} from './ranges.mjs';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
 export function createRiseSwix({check,lock}){
@@ -12,9 +12,9 @@ export function createRiseSwix({check,lock}){
  // Red list of holdings without a usable price in the latest attempt; hidden when every holding is priced.
  const missingNote=el('p',null,'rise-missing');missingNote.hidden=true;
  scroll.append(table);panel.append(title,note,status,missingNote,actions,scroll,foot);
- function showMissing(symbols=[],zeroed=false){
+ function showMissing(symbols=[],zeroed=false){ // zeroed: 'live', 'history' or false
   const names=new Map((report?.groups||[]).flatMap(g=>g.children).filter(p=>!p.cash).map(p=>[p.symbol,p.name+' ('+p.ticker+')'])),list=[...new Set(symbols)].map(s=>names.get(s)||s);
-  missingNote.textContent=list.length?(zeroed?'No live price, counted as 0% return: ':'Not getting prices for '+list.length+(list.length===1?' share: ':' shares: '))+list.join(', '):'';missingNote.hidden=!list.length;
+  missingNote.textContent=list.length?(zeroed?(zeroed==='live'?'No live price from Yahoo or Sharenet, counted as 0% return: ':'No price from Yahoo or Sharenet for these dates, counted as 0% return: '):'Not getting prices for '+list.length+(list.length===1?' share: ':' shares: '))+list.join(', '):'';missingNote.hidden=!list.length;
  }
  const live=el('option','Live');live.value='live';live.hidden=true;live.disabled=true;$('range').options[0].after(live);
  const isActive=()=>isRisePair($('portfolio').value,$('benchmark').value);
@@ -56,7 +56,7 @@ export function createRiseSwix({check,lock}){
   x.values.forEach((v,i)=>{
    const td=el('td',format(v),i>1&&v!==null&&v!==0?(v>0?'positive':'negative'):'');
    if(x.reference?.includes(i)){td.classList.add('rise-reference');td.title=(i===2?'Rise':'Swix')+' does not hold this share. Its own return, for reference.';}
-   if(x.zeroed&&(i===2||i===3)&&v!==null){td.classList.add('rise-zeroed');td.title='No live price: counted as 0% return.';}
+   if(x.zeroed&&(i===2||i===3)&&v!==null){td.classList.add('rise-zeroed');td.title='No price from Yahoo or Sharenet: counted as 0% return.';}
    tr.append(td);
   });
   return tr;
@@ -80,13 +80,23 @@ export function createRiseSwix({check,lock}){
   if(refocus!==null){table.querySelector('[data-sort="'+refocus+'"]')?.focus();refocus=null;}
   note.textContent='Port = Rise · Bmrk = Swix · '+value.start+' to '+value.end+' · ZAR · '+value.basis;
   const reference=' Italic returns are for shares that side does not hold: the share’s own return, for reference, with no weight or contribution.';
-  foot.textContent=value.exact?'Source: Bloomberg report, 4–5 November 2026. Reported sector totals and source blanks retained, except share returns where one side does not hold the share.'+reference:'Holdings-based estimate. The 4–5 November 2026 report’s average weights are assumed across the selected period; trades and actual average holdings are not reconstructed. ZAR cash is held constant with 0% assumed income. '+(value.live?'Live uses price returns; intraday distributions are not included. Provider quotes may be delayed; Updated is the fetch time.'+(value.zero?.length?' Shares without a usable live price count as 0% return and are listed in red.':''):'Shares use vendor-adjusted returns. NEWSLV and SBCOP use Sharenet closing-price returns (price-only estimates).')+reference+' All figures are in ZAR. Swipe horizontally for more columns.';
+  foot.textContent=value.exact?'Source: Bloomberg report, 4–5 November 2026. Reported sector totals and source blanks retained, except share returns where one side does not hold the share.'+reference:'Holdings-based estimate. The 4–5 November 2026 report’s average weights are assumed across the selected period; trades and actual average holdings are not reconstructed. ZAR cash is held constant with 0% assumed income. '+(value.live?'Live uses price returns; intraday distributions are not included. Provider quotes may be delayed; Updated is the fetch time.'+(value.backup?.length?' Sharenet’s latest price (possibly delayed) is the backup for '+count(value.backup.length)+' without a usable Yahoo quote.':''):'Shares use vendor-adjusted returns. NEWSLV and SBCOP use Sharenet closing-price returns (price-only estimates).'+(value.backup?.length?' Where Yahoo had no adjusted price on a required date, '+count(value.backup.length)+' use Sharenet closing prices as the backup (price only; a dividend on those dates is not included).':''))+(value.zero?.length?' Shares with no price from Yahoo or Sharenet count as 0% return and are listed in red.':'')+reference+' All figures are in ZAR. Swipe horizontally for more columns.';
   panel.hidden=false;$('empty').hidden=true;$('results').hidden=true;
  }
  async function calculation(returns){return new Promise((resolve,reject)=>{worker=new Worker(new URL('./rise-swix-worker.mjs',import.meta.url),{type:'module'});rejectWorker=reject;worker.onmessage=({data})=>{worker.terminate();worker=null;rejectWorker=null;data.ok?resolve(data.result):reject(Error(data.error));};worker.onerror=()=>{worker?.terminate();worker=null;rejectWorker=null;reject(Error('Calculation unavailable'));};worker.postMessage({report,returns});});}
+ const count=n=>n+(n===1?' share':' shares'),fatal=e=>controller.signal.aborted||e?.name==='AbortError'||e?.message==='Sign in again.';
+ // Backup prices: Sharenet public closing prices (price only) for JSE listings, used when Yahoo has
+ // no usable price. Live uses Sharenet's point for today, its latest (possibly delayed) price.
+ async function backupReturn(symbol,baseline,end){
+  return jseCloseReturn(await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end,source:'sharenet'})),symbol,baseline,end);
+ }
  async function loadHistory(symbol,baseline,end){
   const key=[symbol,baseline,end].join('|');if(prices.has(key))return prices.get(key);
-  const raw=await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end,...(ETN_PRICE_ONLY.has(symbol)?{source:'sharenet'}:{})}));const value=(ETN_PRICE_ONLY.has(symbol)?etnPriceReturn:historyReturn)(raw,symbol,baseline,end);prices.set(key,value);return value;
+  let value;
+  if(ETN_PRICE_ONLY.has(symbol))value={value:etnPriceReturn(await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end,source:'sharenet'})),symbol,baseline,end),backup:false};
+  else try{value={value:historyReturn(await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end})),symbol,baseline,end),backup:false};}
+  catch(e){if(fatal(e))throw e;value={value:await backupReturn(symbol,baseline,end),backup:true};}
+  prices.set(key,value);return value;
  }
  async function run(){
   if(!isActive()||busy||document.hidden)return;busy=true;clearTimeout(timer);clearTimeout(cooldown);refresh.disabled=true;const began=Date.now(),gen=generation,liveMode=$('range').value==='live';
@@ -99,26 +109,29 @@ export function createRiseSwix({check,lock}){
    let value;
    if(!liveMode&&reported(report,start,end))value={groups:withShareReturns(report.groups),total:report.total,exact:true,basis:'Bloomberg reported'};
    else{
-    const positions=report.groups.flatMap(g=>g.children).filter(p=>!p.cash),symbols=[...new Set(positions.map(p=>p.symbol))],returns={};let zero=[];
+    const positions=report.groups.flatMap(g=>g.children).filter(p=>!p.cash),symbols=[...new Set(positions.map(p=>p.symbol))],returns={},backup=[];let zero=[];
     if(liveMode){
-     const cycle=crypto.randomUUID(),{patch}=await collectQuotes(symbols,async(batch,id)=>{
+     const cycle=crypto.randomUUID(),{patch}=await collectQuotes(symbols,async(batch,id)=>{ // tolerant: a failed batch falls to the backup
       const r=await fetch('/api/live-prices/shard',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(12000)]),body:JSON.stringify({symbols:batch,cycleId:id})});
       if(r.status===401){lock();throw Error('Sign in again.');}if(!r.ok)throw Error('Quote batch failed.');return r.json();
-     },cycle);
-     const live=liveReturns(symbols,patch,previous(sessionDate()));Object.assign(returns,live.returns);zero=live.zero;
+     },cycle,{tolerant:true});
+     const live=liveReturns(symbols,patch,previous(sessionDate()));Object.assign(returns,live.returns);
+     const today=sessionDate(),base=previous(today);let next=0;
+     await Promise.all([0,1,2].map(async()=>{while(next<live.zero.length){const s=live.zero[next++];try{returns[s]=await backupReturn(s,base,today);backup.push(s);}catch(e){if(fatal(e))throw e;returns[s]=0;zero.push(s);}}}));
+     checkCoverage(zero,symbols.length,true);
     }else{
      const dates=period(start,end);if(dates.end>completedCalendar().at(-1))throw Error('Choose a completed session, or select Live.');
-     let next=0,done=0;const missing=[];
-     await Promise.all([0,1,2].map(async()=>{while(next<symbols.length){const s=symbols[next++];if(gen!==generation)return;try{returns[s]=await loadHistory(s,dates.baseline,dates.end);}catch(e){if(controller.signal.aborted)throw e;missing.push(s);}status.textContent='Checking prices '+(++done)+' / '+symbols.length;}}));
-     if(missing.length)throw Object.assign(Error('Complete valuation unavailable: '+missing.length+' of '+symbols.length+' holdings have no adjusted prices for these dates. No holdings have been dropped.'),{missing});
+     let next=0,done=0;
+     await Promise.all([0,1,2].map(async()=>{while(next<symbols.length){const s=symbols[next++];if(gen!==generation)return;try{const r=await loadHistory(s,dates.baseline,dates.end);returns[s]=r.value;if(r.backup)backup.push(s);}catch(e){if(fatal(e))throw e;returns[s]=0;zero.push(s);}status.textContent='Checking prices '+(++done)+' / '+symbols.length;}}));
+     checkCoverage(zero,symbols.length,false);
     }
     const result=await calculation(returns),zeroSet=new Set(zero);
     const groups=zeroSet.size?result.groups.map(g=>({...g,children:g.children.map(p=>zeroSet.has(p.symbol)?{...p,zeroed:true}:p)})):result.groups;
-    value={...result,groups:withShareReturns(groups),basis:liveMode?'Live price-return estimate':'Holdings-based estimate',live:liveMode,zero};
+    value={...result,groups:withShareReturns(groups),basis:liveMode?'Live price-return estimate':'Holdings-based estimate',live:liveMode,zero,backup};
    }
    if(gen!==generation||!isActive()||!await check())return;
-   const at=new Date().toISOString(),zeroCount=value.zero?.length||0;render({...value,start,end,at});showMissing(value.zero||[],true);
-   status.textContent='Updated '+new Date(at).toLocaleTimeString()+(liveMode?(zeroCount?' · '+zeroCount+(zeroCount===1?' share':' shares')+' at 0% (no live price)':' · Complete snapshot')+' · 35s refresh':'');
+   const at=new Date().toISOString(),zeroCount=value.zero?.length||0,backupCount=value.backup?.length||0;render({...value,start,end,at});showMissing(value.zero||[],liveMode?'live':'history');
+   status.textContent='Updated '+new Date(at).toLocaleTimeString()+(zeroCount?' · '+count(zeroCount)+' at 0% (no price)':liveMode?' · Complete snapshot':'')+(backupCount?' · '+count(backupCount)+' on Sharenet backup prices':'')+(liveMode?' · 35s refresh':'');
   }catch(e){if(gen===generation){status.textContent=(last?'Keeping the previous complete result from '+new Date(last.at).toLocaleTimeString()+'. ':'')+e.message;showMissing(e.missing);}}
   finally{if(gen===generation){busy=false;$('run').disabled=false;$('run').textContent='Compare funds';cooldown=setTimeout(()=>{refresh.disabled=false;},Math.max(0,5000-(Date.now()-began)));if(liveMode&&isActive()&&!document.hidden)timer=setTimeout(run,Math.max(1000,35000-(Date.now()-began)));}}
  }

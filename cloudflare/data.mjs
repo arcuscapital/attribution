@@ -36,18 +36,22 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
   if(route!=='prices')return reply({error:'Not found'},404);
   let query;
   try {query=priceQuery(url.searchParams);} catch(e){return reply({error:e.message},400);}
+  // Public Sharenet closing prices (price only) for JSE listings: the two ETNs always, and any other
+  // JSE share as the backup when Yahoo has no usable price. One-year history when the period starts
+  // within a year, otherwise ten years. Cached for 15 minutes per listing and range.
   if(url.searchParams.get('source')==='sharenet'){
-    if(!['NEWSLV.JO','SBCOP.JO'].includes(query.symbol))return reply({error:'Unsupported ETN'},400);
-    const code=query.symbol.slice(0,-3),key=new Request('https://analysis-market-cache.invalid/etn-closes-v1/'+code);
+    if(!/^[A-Z0-9]{2,10}\.JO$/.test(query.symbol))return reply({error:'Unsupported listing'},400);
+    const code=query.symbol.slice(0,-3),range=Date.parse(query.start)>=Date.now()-360*DAY?'chart1y':'chart10y';
+    const key=new Request('https://analysis-market-cache.invalid/jse-closes-v1/'+range+'/'+code);
     const saved=await cache?.match(key);if(saved)return new Response(saved.body,{headers:{'Content-Type':'application/json','Cache-Control':'private, no-store'}});
     try{
-      const response=await fetcher('https://www.sharenet.co.za/v3/frontend/quickshare_ajax.php?sharecode='+code+'&range=chart10y&compare=none',{signal:AbortSignal.timeout(15000)});
-      if(!response.ok)throw Error('ETN closing-price source unavailable');
-      const body=await response.text();if(body.length>200000)throw Error('Invalid ETN history');
-      const data=JSON.parse(body);if(data.code!==code||typeof data.chart!=='string')throw Error('ETN history identity mismatch');
+      const response=await fetcher('https://www.sharenet.co.za/v3/frontend/quickshare_ajax.php?sharecode='+code+'&range='+range+'&compare=none',{signal:AbortSignal.timeout(15000)});
+      if(!response.ok)throw Error('Closing-price source unavailable');
+      const body=await response.text();if(body.length>200000)throw Error('Invalid closing-price history');
+      const data=JSON.parse(body);if(data.code!==code||typeof data.chart!=='string')throw Error('Closing-price identity mismatch');
       if(cache){const write=cache.put(key,new Response(body,{headers:{'Cache-Control':'public, max-age=900'}}));if(ctx.waitUntil)ctx.waitUntil(write);else await write;}
       return new Response(body,{headers:{'Content-Type':'application/json','Cache-Control':'private, no-store'}});
-    }catch{return reply({error:'ETN closing-price history unavailable'},502);}
+    }catch{return reply({error:'Closing-price history unavailable'},502);}
   }
   // Cache only public market data, behind authentication. One symbol per invocation.
   const key=new Request('https://analysis-market-cache.invalid/v1/'+encodeURIComponent(query.symbol)+'?start='+query.start+'&end='+query.end);

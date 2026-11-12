@@ -30,7 +30,7 @@ const session = createSessionGuard({onLock() {
   securityLinks.clear();
   for (const picker of fundPickers.values()) picker.clear();
   $('run').disabled = true;
-  $('missing-actions').hidden=true; $('assume-zero').checked=false;
+  $('missing-actions').hidden=true; $('assume-zero').checked=true;
   expandSelection();
   document.querySelector('main').hidden = true;
   $('session-lock').hidden = false;
@@ -168,7 +168,7 @@ function setup(m) {
   manifest = m;
   result = null;
   securityLinks.clear();
-  clearExport();$('missing-actions').hidden=true;$('assume-zero').checked=false;
+  clearExport();$('missing-actions').hidden=true;$('assume-zero').checked=true;
   $("results").hidden = true;
   $("empty").hidden = false;
   for (const id of ["portfolio", "benchmark"]) {
@@ -525,6 +525,9 @@ $("controls").addEventListener("submit", async (e) => {
         `Research estimate. Measured return coverage (absolute source weight): ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. ${missingNames.length ? missingNames.length+' listed/unresolved holdings have missing returns.' : 'No listed-share return gaps.'} ${result.assumedReturns?.length ? result.assumedReturns.length+' positions use a labelled 0% assumption. ' : ''}${result.contributionMethod === 'average-weight-period' ? 'Portfolio returns sum average weight × security return.' : result.contributionMethod === 'arithmetic-daily' ? 'Contributions sum daily estimates; they are not compounded returns.' : 'Contributions use reference-return linking.'}`,
       );
     }
+    // Listed holdings without a price are counted as 0% by default and reported here in red.
+    const zeroNames=[...new Set((result.rows||[]).filter(r=>r.assumedZero&&!r.nonListed).map(r=>r.name||r.id))];
+    if(zeroNames.length)$("message").append(text("p","No price, counted as 0% return: "+zeroNames.join(", "),"missing-zero"));
     $("empty").hidden = true;
     $("results").hidden = false;
     $("metrics").replaceChildren(
@@ -990,7 +993,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=live-zero-20261110');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=backup-prices-20261112');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';
