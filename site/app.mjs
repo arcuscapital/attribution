@@ -456,7 +456,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=return-chart-20261112", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=return-chart2-20261112", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
