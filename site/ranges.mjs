@@ -125,8 +125,10 @@ function drawChart(root, series) {
   const yAxis = top + H1 + gap + H2 + 16;
   for (const i of labels) {
     const [yy, mm, dd] = dates[i].split('-');
-    svg.append(node('text', {x: x(i), y: yAxis, class: 'rc-axis', 'text-anchor': 'middle'}, String(+dd)));
-    if (mm + yy !== month) { month = mm + yy; svg.append(node('text', {x: x(i), y: yAxis + 15, class: 'rc-axis', 'text-anchor': 'middle'}, MONTHS[+mm - 1] + ' ' + yy)); }
+    // Labels at the edges align inwards so they are not cut off.
+    const anchor = x(i) < padL + 30 ? 'start' : x(i) > padL + plotW - 30 ? 'end' : 'middle';
+    svg.append(node('text', {x: x(i), y: yAxis, class: 'rc-axis', 'text-anchor': anchor}, String(+dd)));
+    if (mm + yy !== month) { month = mm + yy; svg.append(node('text', {x: x(i), y: yAxis + 15, class: 'rc-axis', 'text-anchor': anchor}, MONTHS[+mm - 1] + ' ' + yy)); }
   }
   const line = (values, s, cls) => node('polyline', {points: values.map((v, i) => x(i).toFixed(1) + ',' + s.y(v).toFixed(1)).join(' '), class: cls});
   svg.append(node('line', {x1: padL, x2: padL + plotW, y1: s1.y(0), y2: s1.y(0), class: 'rc-zero'}));
