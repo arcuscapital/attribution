@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {groupByGics, gicsSector, UNKNOWN_GICS} from '../site/rise-swix-core.mjs';
+import {groupByGics, gicsSector, UNKNOWN_GICS, gicsWeights, GICS_SECTORS} from '../site/rise-swix-core.mjs';
 import {dataResponse} from '../cloudflare/data.mjs';
 
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + ' vs ' + b);
@@ -38,6 +38,19 @@ test('groupByGics: sector totals, contribution-over-weight returns, reference an
   assert.equal(v.total.name, 'IBKR vs BAI');
   close(v.total.values[0], 55); close(v.total.values[1], 30); close(v.total.values[2], 3.4); close(v.total.values[3], 0);
   close(v.total.values[4], 3.4); close(v.total.values[5], 0);
+});
+
+test('GICS sector weights: all 11 sectors (0 when not held), Unknown GICS only when needed, totals', () => {
+  const sectors = {NVDA: 'Information Technology', XOM: 'Energy'};
+  const w = gicsWeights([{id: 'NVDA', weightA: .6, weightB: .5}, {id: 'XOM', weightA: .3, weightB: 0}, {id: 'CASH:USD', weightA: .1, weightB: 0}, {id: 'MSFT', weightA: 0, weightB: .5}], sectors);
+  assert.deepEqual(w.list.map(x => x.name), [...GICS_SECTORS, UNKNOWN_GICS]);
+  const it = w.list.find(x => x.name === 'Information Technology'), un = w.list.find(x => x.name === UNKNOWN_GICS);
+  close(it.a, 60); close(it.b, 50); close(un.a, 10); close(un.b, 50);
+  assert.equal(w.list.find(x => x.name === 'Utilities').a, 0);
+  close(w.total.a, 100); close(w.total.b, 100);
+  assert.ok(!gicsWeights([{id: 'NVDA', weightA: 1, weightB: 1}], sectors).list.some(x => x.name === UNKNOWN_GICS));
+  const index = fs.readFileSync('site/index.html', 'utf8');
+  assert.ok(index.indexOf('id="return-chart"') < index.indexOf('id="gics-weights"') && index.indexOf('id="gics-weights"') < index.indexOf('Method, reconciliation'));
 });
 
 test('catalog carries the saved GICS sectors from KV', async () => {

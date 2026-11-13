@@ -1,5 +1,5 @@
-import { dateRange, drawReturnChart, intradaySeries, createGroupedTable } from './ranges.mjs?v=gics-20261113';
-import { groupByGics, UNKNOWN_GICS } from './rise-swix-core.mjs?v=gics-20261113';
+import { dateRange, drawReturnChart, intradaySeries, createGroupedTable, renderSectorWeights } from './ranges.mjs?v=weights-20261113';
+import { groupByGics, UNKNOWN_GICS, gicsWeights } from './rise-swix-core.mjs?v=weights-20261113';
 import { createSessionGuard } from './session.mjs';
 import { isNonListed, assetKind } from './arcus-source.mjs?v=cash-20261113';
 const $ = (id) => document.getElementById(id);
@@ -23,9 +23,10 @@ const session = createSessionGuard({onLock() {
   activeWorker?.terminate(); activeWorker = null;
   cancelCalculation?.(); cancelCalculation = null;
   folder = dataset = manifest = result = null; onlineMode = false;
-  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','cash-row','message','price-status','return-chart']) $(id).replaceChildren();
+  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','cash-row','gics-weights','message','price-status','return-chart']) $(id).replaceChildren();
   $('return-chart').hidden = true;
   if (gicsView) gicsView.panel.hidden = true;
+  $('gics-weights').hidden = true;
   $('rows').closest('table')?.tFoot?.replaceChildren();
   $('results').hidden = true;
   for (const id of ['portfolio','benchmark']) { $(id).replaceChildren(); $(id).disabled = true; }
@@ -985,6 +986,9 @@ function renderRows() {
   const grouped = $('grouping')?.value === 'gics';
   $('rows').closest('.panel').hidden = grouped;
   if (grouped) renderGicsTable(); else if (gicsView) gicsView.panel.hidden = true;
+  // GICS sector weights after the chart, with or without grouping (owner, 2026-11-13).
+  renderSectorWeights($('gics-weights'), gicsWeights(result.rows, manifest?.gics?.sectors || {}), {portfolio: fundLabel(lastOptions?.portfolio), benchmark: fundLabel(lastOptions?.benchmark),
+    note: 'Average weights, ' + (lastOptions?.start || '') + ' to ' + (lastOptions?.end || '') + '. Holdings without a GICS sector (cash, funds, private or not on the list) are under Unknown GICS.'});
   $("rows").replaceChildren(
     tableTotalRow(visible),
     ...rows.flatMap((r) => {
@@ -1164,7 +1168,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=gics-20261113');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=weights-20261113');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';

@@ -92,6 +92,25 @@ export function intradaySeries(sides, bars, clock = new Intl.DateTimeFormat(unde
     a: out[0].values, b: out[1].values, coverage: [out[0].coverage, out[1].coverage]};
 }
 
+// GICS sector weights table (owner, 2026-11-13): sector, portfolio % weight, benchmark % weight and a total, for
+// the holdings and period of the comparison. value = {list:[{name, a, b}], total:{name, a, b}} in percent.
+export function renderSectorWeights(host, value, {portfolio = 'Portfolio', benchmark = 'Benchmark', title = 'GICS sector weights', note = '', heading = 'h2'} = {}) {
+  if (!host) return;
+  if (!value?.list?.length) { host.replaceChildren(); host.hidden = true; return; }
+  const mk = (tag, text, cls) => { const n = document.createElement(tag); n.textContent = text ?? ''; if (cls) n.className = cls; return n; };
+  const f = v => (Number.isFinite(v) ? (Math.abs(v) < .005 ? 0 : v) : 0).toFixed(2);
+  const table = mk('table'), head = mk('thead'), body = mk('tbody'), foot = mk('tfoot'), hr = mk('tr');
+  for (const [label, cls] of [['GICS sector', ''], [portfolio + ' % weight', 'w'], [benchmark + ' % weight', 'w']]) { const th = mk('th', label, cls); th.scope = 'col'; hr.append(th); }
+  head.append(hr);
+  for (const x of value.list) { const tr = mk('tr'); tr.append(mk('td', x.name), mk('td', f(x.a), 'w'), mk('td', f(x.b), 'w')); body.append(tr); }
+  if (value.total) { const tr = mk('tr', null, 'total'); tr.append(mk('td', value.total.name || 'Total'), mk('td', f(value.total.a), 'w'), mk('td', f(value.total.b), 'w')); foot.append(tr); }
+  table.append(head, body, foot);
+  const wrap = mk('div', null, 'sector-weights-scroll');
+  wrap.append(table);
+  host.replaceChildren(mk(heading, title), ...(note ? [mk('p', note, 'sector-weights-note')] : []), wrap);
+  host.hidden = false;
+}
+
 // Grouped comparison table (owner, 2026-11-13): the Rise vs Swix table markup and behaviour (two heading rows,
 // sortable headings, total first, sector rows that open with ▸/▾, the last clicked sector on the selection band)
 // for any grouped value {total, groups:[{name, values, children:[{name, ticker, values, reference, zeroed}]}]}.

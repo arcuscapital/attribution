@@ -1,5 +1,5 @@
 import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns,jseCloseReturn,checkCoverage,adjustedLevels,jseCloseLevels,riseSeries} from './rise-swix-core.mjs?v=return-chart-20261112';
-import {dateRange,drawReturnChart} from './ranges.mjs';
+import {dateRange,drawReturnChart,renderSectorWeights} from './ranges.mjs?v=weights-20261113';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
 export function createRiseSwix({check,lock}){
  let generation=0,controller=new AbortController(),timer,report=null,busy=false,worker=null,rejectWorker=null,last=null,priorCurrency=null,priorGrouping='none',entered=false,syncing=false;
@@ -13,7 +13,9 @@ export function createRiseSwix({check,lock}){
  const missingNote=el('p',null,'rise-missing');missingNote.hidden=true;
  // Cumulative return chart for periods of two or more sessions, directly under the table.
  const chart=el('div',null,'return-chart');chart.hidden=true;
- scroll.append(table);panel.append(title,note,status,missingNote,actions,scroll,chart,foot);
+ // GICS sector weights under the chart, with or without grouping (owner, 2026-11-13).
+ const weights=el('div',null,'sector-weights');weights.hidden=true;
+ scroll.append(table);panel.append(title,note,status,missingNote,actions,scroll,chart,weights,foot);
  function showMissing(symbols=[],zeroed=false){ // zeroed: 'live', 'history' or false
   const names=new Map((report?.groups||[]).flatMap(g=>g.children).filter(p=>!p.cash).map(p=>[p.symbol,p.name+' ('+p.ticker+')'])),list=[...new Set(symbols)].map(s=>names.get(s)||s);
   missingNote.textContent=list.length?(zeroed?(zeroed==='live'?'No live price from Yahoo or Sharenet, counted as 0% return: ':'No price from Yahoo or Sharenet for these dates, counted as 0% return: '):'Not getting prices for '+list.length+(list.length===1?' share: ':' shares: '))+list.join(', '):'';missingNote.hidden=!list.length;
@@ -87,6 +89,7 @@ export function createRiseSwix({check,lock}){
   table.replaceChildren(head,body);scroll.scrollLeft=x;
   if(refocus!==null){table.querySelector('[data-sort="'+refocus+'"]')?.focus();refocus=null;}
   drawReturnChart(chart,value.series&&!value.live&&!value.exact?{...value.series,labelA:value.total?.name||'Rise',labelB:'SWIX ALL SHARE',note:'ZAR · report weights from the start · adjusted closes (Sharenet closes where Yahoo had none)'}:null);
+  renderSectorWeights(weights,{list:value.groups.map(g=>({name:g.name,a:g.values[0]??0,b:g.values[1]??0})),total:{name:'Total',a:value.total.values[0],b:value.total.values[1]}},{portfolio:'Rise',benchmark:'Swix',heading:'h3',note:'Report average weights by GICS sector (Bloomberg report sectors).'});
   note.textContent='Port = Rise · Bmrk = Swix · '+value.start+' to '+value.end+' · ZAR · '+value.basis;
   const reference=' Italic returns are for shares that side does not hold: the share’s own return, for reference, with no weight or contribution.';
   foot.textContent=value.exact?'Source: Bloomberg report, 4–5 November 2026. Reported sector totals and source blanks retained, except share returns where one side does not hold the share.'+reference:'Holdings-based estimate. The 4–5 November 2026 report’s average weights are assumed across the selected period; trades and actual average holdings are not reconstructed. ZAR cash is held constant with 0% assumed income. '+(value.live?'Live uses price returns; intraday distributions are not included. Provider quotes may be delayed; Updated is the fetch time.'+(value.backup?.length?' Sharenet’s latest price (possibly delayed) is the backup for '+count(value.backup.length)+' without a usable Yahoo quote.':''):'Shares use vendor-adjusted returns. NEWSLV and SBCOP use Sharenet closing-price returns (price-only estimates).'+(value.backup?.length?' Where Yahoo had no adjusted price on a required date, '+count(value.backup.length)+' use Sharenet closing prices as the backup (price only; a dividend on those dates is not included).':''))+(value.zero?.length?' Shares with no price from Yahoo or Sharenet count as 0% return and are listed in red.':'')+reference+' All figures are in ZAR. Swipe horizontally for more columns.';

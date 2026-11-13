@@ -71,6 +71,15 @@ export function groupByGics(rows,sectors={},{total='Total',returnA=null,returnB=
  const all=out.flatMap(g=>g.children);
  return {total:{name:total,values:[sum(all,0),sum(all,1),pc(returnA),pc(returnB),sum(all,4),sum(all,5)]},groups:out};
 }
+// GICS sector weights (owner, 2026-11-13): average weights by GICS sector for both sides, all 11 sectors listed
+// (0 when not held), Unknown GICS only when something falls outside the list. Percent.
+export const GICS_SECTORS=['Communication Services','Consumer Discretionary','Consumer Staples','Energy','Financials','Health Care','Industrials','Information Technology','Materials','Real Estate','Utilities'];
+export function gicsWeights(rows,sectors={}){
+ const sums=new Map([...GICS_SECTORS,UNKNOWN_GICS].map(name=>[name,{name,a:0,b:0}]));
+ for(const r of rows||[]){const g=sums.get(gicsSector(r,sectors))||sums.get(UNKNOWN_GICS);if(Number.isFinite(r.weightA))g.a+=r.weightA*100;if(Number.isFinite(r.weightB))g.b+=r.weightB*100;}
+ const list=[...sums.values()].filter(x=>x.name!==UNKNOWN_GICS||Math.abs(x.a)>1e-9||Math.abs(x.b)>1e-9);
+ return {list,total:{name:'Total',a:list.reduce((s,x)=>s+x.a,0),b:list.reduce((s,x)=>s+x.b,0)}};
+}
 export function sortRiseGroups(groups,sort){
  const text=(a,b)=>String(a??'').localeCompare(String(b??''),'en',{sensitivity:'base',numeric:true});
  const blank=v=>v===null||v===undefined||!Number.isFinite(v);
