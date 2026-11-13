@@ -10,7 +10,7 @@
     />
     <title>Portfolio Analysis · Arcus</title>
     <meta name="theme-color" content="#151c17" />
-    <link rel="stylesheet" href="style.css?v=intraday-20261113" />
+    <link rel="stylesheet" href="style.css?v=gics-20261113" />
   </head>
   <body>
     <header>
@@ -69,6 +69,11 @@
             <option value="last-month">Last Month</option><option value="last-3-months">Last 3 Months</option>
             <option value="last-year">Last Year</option><option value="custom">Custom dates</option>
           </select></label
+          ><label id="field-grouping"
+            >Grouping<select id="grouping">
+              <option value="none">No grouping</option>
+              <option value="gics">GICS sector</option>
+            </select></label
           ><label id="field-currency"
             >Currency<select id="currency">
               <option>USD</option>
@@ -163,6 +168,6 @@
         source dates and investigate unexplained differences.
       </footer>
     </main>
-    <script type="module" src="app.mjs?v=intraday2-20261113"></script>
+    <script type="module" src="app.mjs?v=gics-20261113"></script>
   </body>
 </html>

@@ -539,25 +539,25 @@ summary::before{content:'›';font-size:25px;margin-right:12px;flex:none}details
    measured in the owner's Brave at 110% zoom). Phones keep their larger touch rows. */
 html:not(.light){--bbg-black:#000;--bbg-row:#141414;--bbg-head:#232323;--bbg-line:#505050;--bbg-text:#FFF;--bbg-dim:#A5A5A5;--bbg-up:#4FEE74;--bbg-down:#F94A4D;--bbg-amber:#F9A836;--bbg-grey:#D7D7D7;--bbg-font:"Segoe UI",Arial,sans-serif}
 
-html:not(.light) #rise-swix{background:var(--bbg-black);border-color:var(--bbg-head)}
-html:not(.light) #rise-swix .rise-scroll{border:1px solid var(--bbg-line);border-radius:0;background:var(--bbg-row)}
-html:not(.light) #rise-swix table{font-family:var(--bbg-font);color:var(--bbg-text);background:var(--bbg-row)}
-html:not(.light) #rise-swix th,html:not(.light) #rise-swix td{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text);border-top:0;border-bottom:0;border-left:1px solid var(--bbg-line)}
-html:not(.light) #rise-swix thead th{background:var(--bbg-head)}
-html:not(.light) #rise-swix thead th[rowspan],html:not(.light) #rise-swix thead tr:last-child th{border-bottom:10px solid var(--bbg-amber)}
-html:not(.light) #rise-swix tbody td,html:not(.light) #rise-swix .rise-total td,html:not(.light) #rise-swix .rise-sector td{background:var(--bbg-row);font-weight:400}
-html:not(.light) #rise-swix thead tr:first-child th:first-child,html:not(.light) #rise-swix tbody td:first-child{border-left:0;background:var(--bbg-row)}
-html:not(.light) #rise-swix thead tr:first-child th:first-child{background:var(--bbg-head)}
-html:not(.light) #rise-swix td:nth-child(2){color:var(--bbg-text)}
-html:not(.light) #rise-swix .positive{color:var(--bbg-up)}
-html:not(.light) #rise-swix .negative,html:not(.light) #rise-swix td.rise-zeroed{color:var(--bbg-down)}
-html:not(.light) #rise-swix .rise-sector button{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text)}
-html:not(.light) #rise-swix .rise-sector button span:first-child{color:var(--bbg-grey)}
-html:not(.light) #rise-swix thead th button{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text)}
-html:not(.light) #rise-swix .rise-sort-mark{color:var(--bbg-amber)}
-html:not(.light) #rise-swix thead th,html:not(.light) #rise-swix thead th button,html:not(.light) #results .scroll thead th{color:var(--bbg-grey)}
-html:not(.light) #rise-swix tbody tr.rise-total td,html:not(.light) #results .scroll tfoot th,html:not(.light) #results .scroll tfoot td{background:var(--bbg-black)}
-html:not(.light) #rise-swix .rise-total td:not(.positive):not(.negative),html:not(.light) #results .scroll tfoot th,html:not(.light) #results .scroll tfoot td:not(.positive):not(.negative){color:var(--bbg-grey)}
+html:not(.light) :is(#rise-swix,#gics-table){background:var(--bbg-black);border-color:var(--bbg-head)}
+html:not(.light) :is(#rise-swix,#gics-table) .rise-scroll{border:1px solid var(--bbg-line);border-radius:0;background:var(--bbg-row)}
+html:not(.light) :is(#rise-swix,#gics-table) table{font-family:var(--bbg-font);color:var(--bbg-text);background:var(--bbg-row)}
+html:not(.light) :is(#rise-swix,#gics-table) th,html:not(.light) :is(#rise-swix,#gics-table) td{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text);border-top:0;border-bottom:0;border-left:1px solid var(--bbg-line)}
+html:not(.light) :is(#rise-swix,#gics-table) thead th{background:var(--bbg-head)}
+html:not(.light) :is(#rise-swix,#gics-table) thead th[rowspan],html:not(.light) :is(#rise-swix,#gics-table) thead tr:last-child th{border-bottom:10px solid var(--bbg-amber)}
+html:not(.light) :is(#rise-swix,#gics-table) tbody td,html:not(.light) :is(#rise-swix,#gics-table) .rise-total td,html:not(.light) :is(#rise-swix,#gics-table) .rise-sector td{background:var(--bbg-row);font-weight:400}
+html:not(.light) :is(#rise-swix,#gics-table) thead tr:first-child th:first-child,html:not(.light) :is(#rise-swix,#gics-table) tbody td:first-child{border-left:0;background:var(--bbg-row)}
+html:not(.light) :is(#rise-swix,#gics-table) thead tr:first-child th:first-child{background:var(--bbg-head)}
+html:not(.light) :is(#rise-swix,#gics-table) td:nth-child(2){color:var(--bbg-text)}
+html:not(.light) :is(#rise-swix,#gics-table) .positive{color:var(--bbg-up)}
+html:not(.light) :is(#rise-swix,#gics-table) .negative,html:not(.light) :is(#rise-swix,#gics-table) td.rise-zeroed{color:var(--bbg-down)}
+html:not(.light) :is(#rise-swix,#gics-table) .rise-sector button{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text)}
+html:not(.light) :is(#rise-swix,#gics-table) .rise-sector button span:first-child{color:var(--bbg-grey)}
+html:not(.light) :is(#rise-swix,#gics-table) thead th button{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text)}
+html:not(.light) :is(#rise-swix,#gics-table) .rise-sort-mark{color:var(--bbg-amber)}
+html:not(.light) :is(#rise-swix,#gics-table) thead th,html:not(.light) :is(#rise-swix,#gics-table) thead th button,html:not(.light) #results .scroll thead th{color:var(--bbg-grey)}
+html:not(.light) :is(#rise-swix,#gics-table) tbody tr.rise-total td,html:not(.light) #results .scroll tfoot th,html:not(.light) #results .scroll tfoot td{background:var(--bbg-black)}
+html:not(.light) :is(#rise-swix,#gics-table) .rise-total td:not(.positive):not(.negative),html:not(.light) #results .scroll tfoot th,html:not(.light) #results .scroll tfoot td:not(.positive):not(.negative){color:var(--bbg-grey)}
 
 html:not(.light) #results .scroll{border:1px solid var(--bbg-line);border-radius:0;background:var(--bbg-row)}
 html:not(.light) #results .scroll th,html:not(.light) #results .scroll td{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text);border-top:0;border-bottom:0;border-left:1px solid var(--bbg-line)}
@@ -572,20 +572,20 @@ html:not(.light) #results .scroll td small,html:not(.light) #results .scroll tfo
 html:not(.light) #results .scroll a.security-link{color:var(--bbg-text)}
 
 @media(min-width:601px){
- html:not(.light) #rise-swix .rise-scroll,html:not(.light) #results .scroll{width:fit-content;max-width:100%}
- html:not(.light) #rise-swix table{border-collapse:separate;border-spacing:0;width:auto;min-width:0}
+ html:not(.light) :is(#rise-swix,#gics-table) .rise-scroll,html:not(.light) #results .scroll{width:fit-content;max-width:100%}
+ html:not(.light) :is(#rise-swix,#gics-table) table{border-collapse:separate;border-spacing:0;width:auto;min-width:0}
  html:not(.light) #results .scroll table{width:auto}
- html:not(.light) #rise-swix thead th[rowspan],html:not(.light) #rise-swix thead tr:last-child th,html:not(.light) #results .scroll thead th{border-bottom-width:20px}
- html:not(.light) #rise-swix th,html:not(.light) #rise-swix td{height:24px;padding:0 8px;line-height:22px;font-size:18px;min-width:100px}
- html:not(.light) #rise-swix thead tr:first-child th:first-child,html:not(.light) #rise-swix tbody td:first-child{width:360px;min-width:360px;max-width:360px;overflow:hidden;text-overflow:ellipsis}
- html:not(.light) #rise-swix td:nth-child(2){width:100px;min-width:100px;max-width:100px;overflow:hidden;text-overflow:ellipsis}
- html:not(.light) #rise-swix thead th[rowspan]{vertical-align:bottom}
- html:not(.light) #rise-swix thead tr:first-child th[colspan],html:not(.light) #rise-swix thead tr:nth-child(2) th,html:not(.light) #rise-swix .rise-total td{padding-block:0;font-size:18px;font-weight:400}
- html:not(.light) #rise-swix thead th button{min-height:0;padding:0;font-size:18px}
- html:not(.light) #rise-swix .rise-sector button{min-height:0;font-size:18px;gap:10px}
- html:not(.light) #rise-swix .rise-holding td{font-size:18px}
- html:not(.light) #rise-swix .rise-holding td:first-child{padding-left:48px}
- html:not(.light) #rise-swix tbody td:first-child{white-space:nowrap}
+ html:not(.light) :is(#rise-swix,#gics-table) thead th[rowspan],html:not(.light) :is(#rise-swix,#gics-table) thead tr:last-child th,html:not(.light) #results .scroll thead th{border-bottom-width:20px}
+ html:not(.light) :is(#rise-swix,#gics-table) th,html:not(.light) :is(#rise-swix,#gics-table) td{height:24px;padding:0 8px;line-height:22px;font-size:18px;min-width:100px}
+ html:not(.light) :is(#rise-swix,#gics-table) thead tr:first-child th:first-child,html:not(.light) :is(#rise-swix,#gics-table) tbody td:first-child{width:360px;min-width:360px;max-width:360px;overflow:hidden;text-overflow:ellipsis}
+ html:not(.light) :is(#rise-swix,#gics-table) td:nth-child(2){width:100px;min-width:100px;max-width:100px;overflow:hidden;text-overflow:ellipsis}
+ html:not(.light) :is(#rise-swix,#gics-table) thead th[rowspan]{vertical-align:bottom}
+ html:not(.light) :is(#rise-swix,#gics-table) thead tr:first-child th[colspan],html:not(.light) :is(#rise-swix,#gics-table) thead tr:nth-child(2) th,html:not(.light) :is(#rise-swix,#gics-table) .rise-total td{padding-block:0;font-size:18px;font-weight:400}
+ html:not(.light) :is(#rise-swix,#gics-table) thead th button{min-height:0;padding:0;font-size:18px}
+ html:not(.light) :is(#rise-swix,#gics-table) .rise-sector button{min-height:0;font-size:18px;gap:10px}
+ html:not(.light) :is(#rise-swix,#gics-table) .rise-holding td{font-size:18px}
+ html:not(.light) :is(#rise-swix,#gics-table) .rise-holding td:first-child{padding-left:48px}
+ html:not(.light) :is(#rise-swix,#gics-table) tbody td:first-child{white-space:nowrap}
  html:not(.light) #results .scroll thead th,html:not(.light) #results .scroll tfoot th,html:not(.light) #results .scroll tfoot td,html:not(.light) #results #rows tr:not(.detail)>td,html:not(.light) #results #rows tr.table-total>th{height:24px;padding:0 8px;line-height:22px;font-size:18px;min-width:100px}
  /* Name stops at the D of CROWDSTRIKE HOLDINGS (owner, 2026-11-12) so Theme stays visible; full name on hover. */
  html:not(.light) #results #rows tr:not(.detail)>:first-child,html:not(.light) #results .scroll thead tr:first-child th:first-child{white-space:nowrap;width:188px;min-width:188px;max-width:188px;overflow:hidden;text-overflow:ellipsis}
@@ -616,9 +616,9 @@ html:not(.light) #results #rows[data-group=security] td:is([data-col=name],[data
 html:not(.light) #results #rows td.zeroed{color:var(--bbg-down)}
 html:not(.light) #results #rows a.security-link{text-decoration:none}
 html:not(.light) #results #rows a.security-link:hover{text-decoration:underline}
-html:not(.light) #rise-swix .rise-holding td:nth-child(-n+4){color:var(--bbg-amber)}
-html:not(.light) #rise-swix tr.rise-current td,html:not(.light) #rise-swix tr.rise-current td:first-child{background:#2354B8}
-html:not(.light) #rise-swix tr.rise-current button span:first-child{color:var(--bbg-text)}
+html:not(.light) :is(#rise-swix,#gics-table) .rise-holding td:nth-child(-n+4){color:var(--bbg-amber)}
+html:not(.light) :is(#rise-swix,#gics-table) tr.rise-current td,html:not(.light) :is(#rise-swix,#gics-table) tr.rise-current td:first-child{background:#2354B8}
+html:not(.light) :is(#rise-swix,#gics-table) tr.rise-current button span:first-child{color:var(--bbg-text)}
 /* Cash row between the contribution chart and the table (owner, 2026-11-13; mini design agent spec):
    portfolio cash left, benchmark cash right; lighter than a panel; stacks on phones. */
 #cash-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px 20px;margin:0 0 20px;padding:10px 16px;border:1px solid var(--border);border-radius:10px;font-size:12px}
@@ -634,6 +634,11 @@ html:not(.light) #cash-row .cash-label{color:var(--bbg-grey);font-family:var(--b
 html:not(.light) #cash-row .cash-figure{color:var(--bbg-amber);font-weight:400;font-family:var(--bbg-font)}
 html:not(.light) #cash-row .cash-note{color:var(--bbg-dim);font-family:var(--bbg-font)}
 @media(max-width:600px){#cash-row{flex-direction:column;align-items:stretch;padding:10px 14px}#cash-row .cash-side:last-child{justify-content:flex-start;text-align:left}}
+/* Grouping control and grouped tables (owner, 2026-11-13). */
+:is(#rise-swix,#gics-table) table.rise-flat .rise-holding td:first-child{padding-left:8px}
+html:not(.light) :is(#rise-swix,#gics-table) table.rise-flat .rise-holding td:first-child{padding-left:8px}
+#gics-table h2{margin-bottom:4px}
+@media(max-width:600px){#field-range{grid-column:1/-1}#field-grouping,#field-currency{grid-column:span 3}}
 /* Holdings without a price, counted as 0% by default (ordinary comparisons). */
 .missing-zero{color:#F2606A;font-weight:600}.light .missing-zero{color:#A3262D}
 /* Cumulative return chart under the comparison tables. Dark follows the Bloomberg Total Return chart:

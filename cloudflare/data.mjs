@@ -27,7 +27,9 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
   if(route==='catalog') {
     const catalog=await env.HOLDINGS_ARCHIVE?.get('catalog','json');
     const ready=await env.HOLDINGS_ARCHIVE?.get('rise-swix:ready');
-    return catalog ? reply({...catalog,...(ready?{riseSwixAvailable:true}:{})}) : reply({error:'Saved holdings are not available yet.'},503);
+    // GICS sectors from Bloomberg for the Arcus share list (owner, 2026-11-13), saved in KV as gics:v1.
+    const gics=await env.HOLDINGS_ARCHIVE?.get('gics:v1','json');
+    return catalog ? reply({...catalog,...(ready?{riseSwixAvailable:true}:{}),...(gics?.sectors?{gics:{asOf:gics.asOf||null,source:gics.source||null,sectors:gics.sectors}}:{})}) : reply({error:'Saved holdings are not available yet.'},503);
   }
   if(route==='holdings') {
     const fund=url.searchParams.get('fund'), version=url.searchParams.get('version');

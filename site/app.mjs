@@ -1,4 +1,5 @@
-import { dateRange, drawReturnChart, intradaySeries } from './ranges.mjs?v=intraday2-20261113';
+import { dateRange, drawReturnChart, intradaySeries, createGroupedTable } from './ranges.mjs?v=gics-20261113';
+import { groupByGics, UNKNOWN_GICS } from './rise-swix-core.mjs?v=gics-20261113';
 import { createSessionGuard } from './session.mjs';
 import { isNonListed, assetKind } from './arcus-source.mjs?v=cash-20261113';
 const $ = (id) => document.getElementById(id);
@@ -24,6 +25,7 @@ const session = createSessionGuard({onLock() {
   folder = dataset = manifest = result = null; onlineMode = false;
   for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','cash-row','message','price-status','return-chart']) $(id).replaceChildren();
   $('return-chart').hidden = true;
+  if (gicsView) gicsView.panel.hidden = true;
   $('rows').closest('table')?.tFoot?.replaceChildren();
   $('results').hidden = true;
   for (const id of ['portfolio','benchmark']) { $(id).replaceChildren(); $(id).disabled = true; }
@@ -814,6 +816,32 @@ async function drawIntradayChart(shown, options) {
   drawReturnChart($('return-chart'), {...series, minPoints: 3, labelA: fundLabel(options.portfolio), labelB: fundLabel(options.benchmark), title: 'Intraday return (%)',
     subtitle: date + ' · 5-minute prices, your local time · ends at the official 1D close · ' + options.currency + ' · intraday prices for ' + share(series.coverage[0]) + ' / ' + share(series.coverage[1]) + ' of weight'});
 }
+// GICS grouping (owner, 2026-11-13): with Grouping = GICS sector, ordinary comparisons show the Rise vs Swix
+// table (white sector rows that open to the holdings, same columns and formatting); No grouping keeps the table.
+var gicsView = null, gicsShown = null; // var: the reset above may run before this line
+function gicsPanel() {
+  if (gicsView) return gicsView;
+  const panel = text('section', '', 'panel rise-swix'), grid = createGroupedTable();
+  panel.id = 'gics-table';
+  panel.hidden = true;
+  const note = text('p'), foot = text('p');
+  panel.append(text('h2', 'Return contributions · GICS sectors'), note, grid.scroll, foot);
+  $('rows').closest('.panel').before(panel);
+  return gicsView = {panel, grid, note, foot};
+}
+function renderGicsTable() {
+  const view = gicsPanel(), options = lastOptions || {}, port = fundLabel(options.portfolio), bench = fundLabel(options.benchmark);
+  if (gicsShown !== result) { view.grid.reset(); gicsShown = result; }
+  view.grid.setLabels({portfolio: port, benchmark: bench});
+  const value = groupByGics(result.rows, manifest?.gics?.sectors || {}, {total: port + ' vs ' + bench, returnA: result.returnA, returnB: result.returnB});
+  view.grid.render(value);
+  const unknown = value.groups.find(g => g.name === UNKNOWN_GICS)?.children.length || 0;
+  view.note.textContent = 'Port = ' + port + ' · Bmrk = ' + bench + ' · ' + (options.start || '') + ' to ' + (options.end || '') + ' · ' + (options.currency || '') + ' · grouped by GICS sector';
+  view.foot.textContent = 'GICS sectors from Bloomberg for the Arcus share list' + (manifest?.gics?.asOf ? ' (' + manifest.gics.asOf + ')' : '') + '. '
+    + (unknown ? unknown + (unknown === 1 ? ' holding has' : ' holdings have') + ' no GICS sector (cash, funds, private or not on the list) and ' + (unknown === 1 ? 'is' : 'are') + ' under Unknown GICS. ' : '')
+    + 'Sector returns are contribution over weight on each side; the first row uses the headline returns. Italic returns are for shares that side does not hold: the share’s own return, for reference, with no weight or contribution. Swipe horizontally for more columns.';
+  view.panel.hidden = false;
+}
 // Cash row (owner, 2026-11-13): average cash weight of each side (cash and money-market holdings), shown
 // between the contribution chart and the table. A reference index with no holdings shows "No holdings data".
 const CASH_KINDS = new Set(['Cash', 'Money Market']);
@@ -954,6 +982,9 @@ function renderRows() {
   );
   renderContributionChart(rows);
   renderCashRow();
+  const grouped = $('grouping')?.value === 'gics';
+  $('rows').closest('.panel').hidden = grouped;
+  if (grouped) renderGicsTable(); else if (gicsView) gicsView.panel.hidden = true;
   $("rows").replaceChildren(
     tableTotalRow(visible),
     ...rows.flatMap((r) => {
@@ -1024,6 +1055,7 @@ function renderRows() {
   table.tFoot?.remove();
   wireTableScroll(table);
 }
+$('grouping')?.addEventListener('change', () => { if (result && ['complete', 'partial'].includes(result.status)) renderRows(); });
 $("sort").addEventListener("change", () => {
   sortKey = $("sort").value;
   sortDirection = textColumn(sortKey) ? 1 : -1;
@@ -1132,7 +1164,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=bloomberg-rows-20261112');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=gics-20261113');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';

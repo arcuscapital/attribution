@@ -47,6 +47,8 @@ const node = (tag, attrs = {}, text) => {
 const fmt = v => (Math.abs(v) < 0.005 ? 0 : v).toFixed(2);
 
 // Evenly spaced round tick values covering lo..hi.
+import {sortRiseGroups} from './rise-swix-core.mjs?v=gics-20261113';
+
 export function niceTicks(lo, hi, count = 6) {
   if (!(hi > lo)) { lo -= 1; hi += 1; }
   const raw = (hi - lo) / count, mag = 10 ** Math.floor(Math.log10(raw));
@@ -88,6 +90,69 @@ export function intradaySeries(sides, bars, clock = new Intl.DateTimeFormat(unde
   });
   return {times: [null, ...times, null], dates: ['Prev close', ...times.map(t => clock.format(new Date(t * 1000))), 'Close'],
     a: out[0].values, b: out[1].values, coverage: [out[0].coverage, out[1].coverage]};
+}
+
+// Grouped comparison table (owner, 2026-11-13): the Rise vs Swix table markup and behaviour (two heading rows,
+// sortable headings, total first, sector rows that open with ▸/▾, the last clicked sector on the selection band)
+// for any grouped value {total, groups:[{name, values, children:[{name, ticker, values, reference, zeroed}]}]}.
+export function createGroupedTable() {
+  const mk = (tag, value, cls) => { const n = document.createElement(tag); n.textContent = value ?? ''; if (cls) n.className = cls; return n; };
+  const scroll = mk('div', null, 'rise-scroll'), table = mk('table');
+  scroll.append(table);
+  const opened = new Set();
+  let current = null, sort = null, refocus = null, last = null, labels = {portfolio: 'The portfolio', benchmark: 'The benchmark'};
+  const format = v => v === null || v === undefined || !Number.isFinite(v) ? '—' : (Math.abs(v) < .005 ? 0 : v).toFixed(2);
+  function row(x, type) {
+    const tr = mk('tr', null, type), name = mk('td');
+    if (type === 'rise-sector') {
+      const open = opened.has(x.name), button = mk('button');
+      button.type = 'button';
+      button.append(mk('span', open ? '▾' : '▸'), mk('span', x.name));
+      button.setAttribute('aria-expanded', String(open));
+      button.addEventListener('click', () => { open ? opened.delete(x.name) : opened.add(x.name); current = x.name; render(last); });
+      name.append(button);
+      if (current === x.name) tr.classList.add('rise-current');
+    } else name.textContent = x.name;
+    tr.append(name, mk('td', x.ticker || ''));
+    x.values.forEach((v, i) => {
+      const td = mk('td', format(v), i > 1 && Number.isFinite(v) && v !== 0 ? (v > 0 ? 'positive' : 'negative') : '');
+      if (x.reference?.includes(i)) { td.classList.add('rise-reference'); td.title = (i === 2 ? labels.portfolio : labels.benchmark) + ' does not hold this share. Its own return, for reference.'; }
+      if (x.zeroed && (i === 2 || i === 3) && v !== null) { td.classList.add('rise-zeroed'); td.title = 'No price: counted as 0% return.'; }
+      tr.append(td);
+    });
+    return tr;
+  }
+  function render(value) {
+    if (!value) return;
+    last = value;
+    const x = scroll.scrollLeft, head = mk('thead'), a = mk('tr'), b = mk('tr');
+    const sortable = (th, key, label, title) => {
+      const active = sort?.key === key, button = mk('button', label);
+      button.type = 'button'; button.dataset.sort = String(key);
+      th.setAttribute('aria-sort', active ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none');
+      button.setAttribute('aria-label', 'Sort by ' + title + (active ? (sort.dir === 1 ? ', ascending' : ', descending') : ''));
+      if (active) button.append(mk('span', sort.dir === 1 ? ' ↑' : ' ↓', 'rise-sort-mark'));
+      button.addEventListener('click', () => { sort = active ? {key, dir: -sort.dir} : {key, dir: typeof key === 'string' ? 1 : -1}; refocus = String(key); render(last); });
+      th.append(button);
+      return th;
+    };
+    for (const [label, key] of [['Name', 'name'], ['Ticker', 'ticker']]) { const th = mk('th'); th.rowSpan = 2; th.scope = 'col'; a.append(sortable(th, key, label, label)); }
+    ['Avg % weight', 'Total return (%)', 'CTR (pp)'].forEach((label, g) => {
+      const th = mk('th', label); th.colSpan = 2; th.scope = 'colgroup'; a.append(th);
+      ['Port', 'Bmrk'].forEach((side, s) => { const sub = mk('th'); sub.scope = 'col'; b.append(sortable(sub, g * 2 + s, side, label + ' ' + side)); });
+    });
+    head.append(a, b);
+    const body = mk('tbody');
+    body.append(row(value.total, 'rise-total'));
+    sortRiseGroups(value.groups, sort).forEach(({group, children}) => {
+      body.append(row(group, 'rise-sector'));
+      if (opened.has(group.name)) children.forEach(c => body.append(row(c, 'rise-holding')));
+    });
+    table.replaceChildren(head, body);
+    scroll.scrollLeft = x;
+    if (refocus !== null) { table.querySelector('[data-sort="' + refocus + '"]')?.focus(); refocus = null; }
+  }
+  return {scroll, table, render, reset() { opened.clear(); current = null; sort = null; }, setLabels(next) { labels = {...labels, ...next}; }};
 }
 
 // A chart problem hides the chart; it never interrupts the comparison results around it.

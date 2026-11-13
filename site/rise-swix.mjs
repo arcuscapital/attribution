@@ -2,7 +2,7 @@ import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveRe
 import {dateRange,drawReturnChart} from './ranges.mjs';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
 export function createRiseSwix({check,lock}){
- let generation=0,controller=new AbortController(),timer,report=null,busy=false,worker=null,rejectWorker=null,last=null,priorCurrency=null,entered=false,syncing=false;
+ let generation=0,controller=new AbortController(),timer,report=null,busy=false,worker=null,rejectWorker=null,last=null,priorCurrency=null,priorGrouping='none',entered=false,syncing=false;
  const prices=new Map(),opened=new Set();let current=null;
  let sort=null,refocus=null,cooldown;
  const panel=el('section',null,'panel rise-swix');panel.id='rise-swix';panel.hidden=true;$('results').before(panel);
@@ -18,6 +18,7 @@ export function createRiseSwix({check,lock}){
   const names=new Map((report?.groups||[]).flatMap(g=>g.children).filter(p=>!p.cash).map(p=>[p.symbol,p.name+' ('+p.ticker+')'])),list=[...new Set(symbols)].map(s=>names.get(s)||s);
   missingNote.textContent=list.length?(zeroed?(zeroed==='live'?'No live price from Yahoo or Sharenet, counted as 0% return: ':'No price from Yahoo or Sharenet for these dates, counted as 0% return: '):'Not getting prices for '+list.length+(list.length===1?' share: ':' shares: '))+list.join(', '):'';missingNote.hidden=!list.length;
  }
+ $('grouping')?.addEventListener('change',()=>{if(isActive()&&last)render(last);});
  const live=el('option','Live');live.value='live';live.hidden=true;live.disabled=true;$('range').options[0].after(live);
  const isActive=()=>isRisePair($('portfolio').value,$('benchmark').value);
  function cancel(clear=false){generation++;controller.abort();controller=new AbortController();clearTimeout(timer);clearTimeout(cooldown);refresh.disabled=false;worker?.terminate();worker=null;rejectWorker?.(Error('Selection changed'));rejectWorker=null;busy=false;$('run').disabled=false;if(clear){report=null;prices.clear();last=null;table.replaceChildren();drawReturnChart(chart,null);panel.hidden=true;opened.clear();showMissing();}}
@@ -42,8 +43,8 @@ export function createRiseSwix({check,lock}){
   else if(p.value!==RISE&&b.value===SWIX)choose(b,ordinary(b,p.value));
   else if(b.value!==SWIX&&p.value===RISE)choose(p,ordinary(p,b.value));
   const active=isActive();live.hidden=live.disabled=!active;$('range').options[0].textContent=active?'1D':'One Day';
-  if(active){if(!entered){priorCurrency=$('currency').value;entered=true;$('range').value='day';opened.clear();current=null;sort=null;}syncRange();}
-  else{panel.hidden=true;if(entered){entered=false;$('currency').disabled=false;$('currency').value=$('benchmark').value===SWIX?'ZAR':'USD';if($('range').value==='live')$('range').value='day';$('range').dispatchEvent(new Event('change'));}}
+  if(active){if(!entered){priorCurrency=$('currency').value;priorGrouping=$('grouping')?.value||'none';if($('grouping'))$('grouping').value='gics';entered=true;$('range').value='day';opened.clear();current=null;sort=null;}syncRange();}
+  else{panel.hidden=true;if(entered){entered=false;if($('grouping'))$('grouping').value=priorGrouping;$('currency').disabled=false;$('currency').value=$('benchmark').value===SWIX?'ZAR':'USD';if($('range').value==='live')$('range').value='day';$('range').dispatchEvent(new Event('change'));}}
   $('assume-zero').closest('label').hidden=active;
   syncing=false;
  }
@@ -79,7 +80,11 @@ export function createRiseSwix({check,lock}){
   for(const [text,key] of [['Name','name'],['Ticker','ticker']]){const th=el('th');th.rowSpan=2;th.scope='col';a.append(sortable(th,key,text,text));}
   ['Avg % weight','Total return (%)','CTR (pp)'].forEach((text,g)=>{const th=el('th',text);th.colSpan=2;th.scope='colgroup';a.append(th);['Port','Bmrk'].forEach((label,s)=>{const sub=el('th');sub.scope='col';b.append(sortable(sub,g*2+s,label,text+' '+label));});});
   head.append(a,b);const body=el('tbody');body.append(row(value.total,'rise-total'));
-  sortRiseGroups(value.groups,sort).forEach(({group,index,children})=>{body.append(row(group,'rise-sector',index));if(opened.has(index))children.forEach(c=>body.append(row(c,'rise-holding')));});table.replaceChildren(head,body);scroll.scrollLeft=x;
+  // Grouping: GICS sectors (default here) or No grouping, which lists every holding like the other comparisons.
+  const flat=$('grouping')?.value==='none';table.classList.toggle('rise-flat',flat);
+  if(flat)sortRiseGroups([{name:'',values:[],children:value.groups.flatMap(g=>g.children)}],sort)[0].children.forEach(c=>body.append(row(c,'rise-holding')));
+  else sortRiseGroups(value.groups,sort).forEach(({group,index,children})=>{body.append(row(group,'rise-sector',index));if(opened.has(index))children.forEach(c=>body.append(row(c,'rise-holding')));});
+  table.replaceChildren(head,body);scroll.scrollLeft=x;
   if(refocus!==null){table.querySelector('[data-sort="'+refocus+'"]')?.focus();refocus=null;}
   drawReturnChart(chart,value.series&&!value.live&&!value.exact?{...value.series,labelA:value.total?.name||'Rise',labelB:'SWIX ALL SHARE',note:'ZAR · report weights from the start · adjusted closes (Sharenet closes where Yahoo had none)'}:null);
   note.textContent='Port = Rise · Bmrk = Swix · '+value.start+' to '+value.end+' · ZAR · '+value.basis;

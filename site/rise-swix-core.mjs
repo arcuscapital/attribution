@@ -46,6 +46,31 @@ export function period(start,end){
 // or a value column 0-5, dir 1 ascending or -1 descending. Sectors sort by the column first, then the
 // holdings inside each sector by the same column. Ticker sorts sectors by name. Blanks stay last in
 // both directions; ties fall back to name A to Z, then report order. Returns each sector's report index.
+// GICS grouping for ordinary comparisons (owner, 2026-11-13): result rows grouped by Bloomberg GICS sector in
+// the Rise vs Swix table shape. Values are percent: [weight Port, weight Bmrk, return Port, return Bmrk, CTR Port,
+// CTR Bmrk]. A side that does not hold a share has no weight or contribution and shows the share's own return
+// for reference (italic). Holdings without a GICS sector (cash, funds, private, unlisted) go to Unknown GICS.
+export const UNKNOWN_GICS='Unknown GICS';
+const gicsKey=v=>String(v||'').trim().toUpperCase();
+export function gicsSector(row,sectors={}){
+ for(const k of [row.id,row.symbol,row.ticker].map(gicsKey).filter(Boolean)){const v=sectors[k]||sectors[k.replace(/[/.](?=[A-Z]$)/,'-')];if(v)return v;}
+ return UNKNOWN_GICS;
+}
+export function groupByGics(rows,sectors={},{total='Total',returnA=null,returnB=null}={}){
+ const pc=v=>Number.isFinite(v)?v*100:null,held=w=>Number.isFinite(w)&&Math.abs(w)>1e-12,groups=new Map();
+ for(const r of rows||[]){
+  const name=gicsSector(r,sectors),ret=pc(r.securityReturn),a=held(r.weightA),b=held(r.weightB);
+  if(!groups.has(name))groups.set(name,{name,children:[]});
+  groups.get(name).children.push({name:r.name||r.ticker||r.id,ticker:r.ticker||'',values:[a?pc(r.weightA):null,b?pc(r.weightB):null,ret,ret,a?pc(r.ctrA):null,b?pc(r.ctrB):null],
+   reference:[...(!a&&ret!==null?[2]:[]),...(!b&&ret!==null?[3]:[])],zeroed:!!r.assumedZero});
+ }
+ const sum=(list,i)=>{const v=list.map(c=>c.values[i]).filter(Number.isFinite);return v.length?v.reduce((s,x)=>s+x,0):null;};
+ const out=[...groups.values()].map(g=>{const wA=sum(g.children,0),wB=sum(g.children,1),cA=sum(g.children,4),cB=sum(g.children,5);
+  return {...g,values:[wA,wB,wA&&cA!==null?cA/wA*100:null,wB&&cB!==null?cB/wB*100:null,cA,cB]};})
+  .sort((x,y)=>(x.name===UNKNOWN_GICS)-(y.name===UNKNOWN_GICS)||x.name.localeCompare(y.name));
+ const all=out.flatMap(g=>g.children);
+ return {total:{name:total,values:[sum(all,0),sum(all,1),pc(returnA),pc(returnB),sum(all,4),sum(all,5)]},groups:out};
+}
 export function sortRiseGroups(groups,sort){
  const text=(a,b)=>String(a??'').localeCompare(String(b??''),'en',{sensitivity:'base',numeric:true});
  const blank=v=>v===null||v===undefined||!Number.isFinite(v);

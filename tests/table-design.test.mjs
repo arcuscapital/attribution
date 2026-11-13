@@ -104,9 +104,9 @@ test('dark mode colours follow Bloomberg PORT in both tables', () => {
   const css = fs.readFileSync('site/style.css', 'utf8'), rise = fs.readFileSync('site/rise-swix.mjs', 'utf8');
   const has = (text, part, message) => assert.ok(text.includes(part), message || part);
   has(css, 'html:not(.light) #results #rows[data-group=security] td:is([data-col=name],[data-col=ticker],[data-col=weightA],[data-col=weightB],[data-col=activeWeight]),html:not(.light) #results #rows[data-group=security] td[data-col=ticker] a.security-link{color:var(--bbg-amber)}', 'companies, tickers and weights orange');
-  has(css, 'html:not(.light) #rise-swix .rise-holding td:nth-child(-n+4){color:var(--bbg-amber)}', 'Rise companies, tickers and weights orange');
-  has(css, 'html:not(.light) #rise-swix .rise-sector button{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text)}', 'sector names stay white');
-  has(css, 'html:not(.light) #rise-swix tr.rise-current td,html:not(.light) #rise-swix tr.rise-current td:first-child{background:#2354B8}');
+  has(css, 'html:not(.light) :is(#rise-swix,#gics-table) .rise-holding td:nth-child(-n+4){color:var(--bbg-amber)}', 'Rise and GICS companies, tickers and weights orange');
+  has(css, 'html:not(.light) :is(#rise-swix,#gics-table) .rise-sector button{font-family:var(--bbg-font);font-weight:400;color:var(--bbg-text)}', 'sector names stay white');
+  has(css, 'html:not(.light) :is(#rise-swix,#gics-table) tr.rise-current td,html:not(.light) :is(#rise-swix,#gics-table) tr.rise-current td:first-child{background:#2354B8}');
   has(rise, 'current=index;render(last)'); has(rise, "if(current===index)tr.classList.add('rise-current')");
   has(css, '#results .scroll thead{position:sticky;top:0;z-index:3}', 'both heading rows stay visible');
 });
