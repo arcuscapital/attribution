@@ -1,10 +1,22 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {resolveKnownListings,isNonListed,normalizeArcusPacket} from '../site/arcus-source.mjs';
+import {resolveKnownListings,isNonListed,normalizeArcusPacket,primaryThemePath} from '../site/arcus-source.mjs';
 test('verified listing themes are reused without classifying a different company or private holding',()=>{
  const data={positions:[{ticker:'ABC',name:'Alpha Inc'},{ticker:'ABC',name:'Different Inc'},{symbol:'ABC',ticker:'ABC',name:'Alpha Inc'},{ticker:'ABC',name:'Alpha Inc Prvt',asset:'Private'}]};
  resolveKnownListings(data,[{ticker:'ABC',name:'Alpha Corporation',memberships:[['AI','Software'],['AI','Infrastructure'],['Technology','Software']]}]);
- assert.deepEqual(data.positions[0].theme,['AI','Technology']);assert.deepEqual(data.positions[2].theme,['AI','Technology']);assert.equal(data.positions[1].theme,undefined);assert.equal(data.positions[3].theme,undefined);
+ assert.equal(data.positions[0].theme,'AI');assert.equal(data.positions[0].subTheme,'Software');assert.equal(data.positions[2].theme,'AI');assert.equal(data.positions[1].theme,undefined);assert.equal(data.positions[3].theme,undefined);
+});
+test('one main theme and one sub-theme per company from its Arcus path; folders and overlays are not themes',()=>{
+ const nvda=[['Watch','Semis','Accelerators'],['Feb2025','Semis','Accelerators'],['Ai','Semis','Accelerators'],['Chips','Semis','Accelerators'],['Bai','Semis','Accelerators'],['AI Bottleneck','Custom Silicon',''],['JPM CPU Ecosystem','','']];
+ assert.deepEqual(primaryThemePath(nvda),{theme:'Ai',subTheme:'Semis',path:'Ai › Semis › Accelerators'});
+ assert.deepEqual(primaryThemePath([['Ai','Equipment','Deposition'],['Qualitysustainablegrow','Equipment','Deposition'],['AI Bottleneck','Lithography & Fab Tools','']]),{theme:'Ai',subTheme:'Equipment',path:'Ai › Equipment › Deposition'});
+ assert.deepEqual(primaryThemePath([['Watch','Cooling','Datacentre'],['Infrastructure','Cooling','Datacentre'],['Industrial','Cooling','Datacentre'],['LOUP','Cooling','Datacentre']]),{theme:'Infrastructure',subTheme:'Cooling',path:'Infrastructure › Cooling › Datacentre'});
+ assert.deepEqual(primaryThemePath([['AI Bottleneck','Photonics / CPO',''],['JPM AI Photonics & Optics','','']]),{theme:'AI Bottleneck',subTheme:'Photonics / CPO',path:'AI Bottleneck › Photonics / CPO'},'research overlay only when there is no Arcus theme');
+ assert.deepEqual(primaryThemePath([['JPM US Drones','','']]),{theme:'JPM US Drones',subTheme:'',path:'JPM US Drones'});
+ assert.deepEqual(primaryThemePath([['Watch','Software','Data']]),{theme:'Unclassified',subTheme:'Software',path:'Software › Data'},'a watchlist folder is never the theme');
+ assert.deepEqual(primaryThemePath([['Feb2025','Software','Defence'],['Bai','Software','Defence'],['WCLD','','']]),{theme:'Unclassified',subTheme:'Software',path:'Software › Defence'},'an ETF holdings list is not a theme');
+ assert.deepEqual(primaryThemePath([['Dow','Payments','Cards'],['JPM US Drones','','']]),{theme:'JPM US Drones',subTheme:'Payments',path:'JPM US Drones › Payments › Cards'});
+ assert.equal(primaryThemePath([]),null); assert.equal(primaryThemePath(undefined),null);
 });
 test('public-source cash currencies remain cash, not missing equities',()=>{
  for(const name of ['South Korean Won','Taiwan Dollar','New Taiwan Dollar','Swedish Krona','Great British Pound','Australian Dollar','Hong Kong Dollar','OTHER ASSETS AND LIABILITIES']) assert(isNonListed({name}),name);

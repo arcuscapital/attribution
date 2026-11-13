@@ -1,6 +1,6 @@
 import { dateRange, drawReturnChart } from './ranges.mjs';
 import { createSessionGuard } from './session.mjs';
-import { isNonListed } from './arcus-source.mjs?v=issuer-nav1-20261110';
+import { isNonListed } from './arcus-source.mjs?v=themes-20261113';
 const $ = (id) => document.getElementById(id);
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
 let online = null, onlineMode = false;
@@ -458,7 +458,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=return-chart2-20261112", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=themes-20261113", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -719,11 +719,15 @@ const columns = [
   ["activeWeight", "Difference · Avg % weight"],
   ["activeCtr", "Difference · CTR (pp)"],
   ["theme", "Theme"],
+  ["subTheme", "Sub-theme"],
 ];
 const columnGroups = [["Avg % weight", ["weightA", "weightB"]], ["Total return (%)", ["returnA", "returnB"]],
   ["CTR (pp)", ["ctrA", "ctrB"]], ["Difference", ["activeWeight", "activeCtr"]]];
 const shortLabel = {weightA: "Port", weightB: "Bmrk", returnA: "Port", returnB: "Bmrk", ctrA: "Port", ctrB: "Bmrk", activeWeight: "Wgt", activeCtr: "CTR"};
-const textColumn = key => key === 'name' || key === 'ticker' || key === 'theme';
+const textColumn = key => key === 'name' || key === 'ticker' || key === 'theme' || key === 'subTheme';
+// Sorting by Theme groups each theme's sub-themes together; sorting by Sub-theme keeps same-named sub-themes
+// of different themes apart. Ties end in name order.
+const textTieBreak = {theme: ['subTheme', 'name'], subTheme: ['theme', 'name'], name: [], ticker: []};
 function themeLabel(row) {
   const value = Array.isArray(row.theme) ? row.theme.filter(Boolean).join(' / ') : row.theme;
   return typeof value === 'string' && value.trim() ? value.trim() : 'Unclassified';
@@ -749,6 +753,7 @@ function tableTotals(rows) {
 }
 function tableCellValue(row, key) {
   if (key === 'name') return row.aggregate ? row.ticker : row.name || row.ticker;
+  if (key === 'subTheme') return typeof row.subTheme === 'string' && row.subTheme.trim() ? row.subTheme.trim() : '—';
   return key === 'ticker' ? row.ticker : key === 'theme' ? themeLabel(row) : cellNumber(rowValue(row, key));
 }
 // The total is the first row under the headings, as in the Rise vs Swix table.
@@ -771,7 +776,7 @@ function tableTotalRow(visible) {
     } else if (key === 'securityReturn') {
       cell = text('td', '—');
       cell.title = 'Individual security returns cannot be added together.';
-    } else if (textColumn(key)) cell = text('td', key === 'theme' ? '—' : '');
+    } else if (textColumn(key)) cell = text('td', key === 'theme' || key === 'subTheme' ? '—' : '');
     else {
       cell = text('td', cellNumber(totals[key]), signClass(key, totals[key]));
       cell.title = missing[key] ? `Sum of available values; ${missing[key]} missing. Calculated before rounding.` : 'Sum calculated before rounding.';
@@ -888,7 +893,7 @@ function renderRows() {
     (a, b) =>
       Number(!!a.nonListed)-Number(!!b.nonListed) || sortDirection *
       (textColumn(sortKey)
-        ? String(tableCellValue(a, sortKey)).localeCompare(String(tableCellValue(b, sortKey)))
+        ? [sortKey, ...(textTieBreak[sortKey] || [])].reduce((order, key) => order || String(tableCellValue(a, key)).localeCompare(String(tableCellValue(b, key))), 0)
         : (rowValue(a, sortKey) ?? -Infinity) - (rowValue(b, sortKey) ?? -Infinity)),
   );
   renderContributionChart(rows);
@@ -899,7 +904,10 @@ function renderRows() {
       for (const [key] of visible) {
         const value = rowValue(r, key), cell = text("td", tableCellValue(r, key));
         cell.dataset.col = key; // dark mode colours companies and their weights orange, sectors white
-        if (key === 'theme') cell.classList.add('theme-cell');
+        if (key === 'theme' || key === 'subTheme') {
+          cell.classList.add('theme-cell');
+          if (r.themePath) cell.title = r.themePath; // full Arcus path, e.g. Ai › Semis › Accelerators
+        }
         if (!compact && (key === 'name' || key === 'ticker')) cell.title = cell.textContent + (key === 'name' && r.assumedZero ? ' · Assumed 0%' : ''); // full text when a fixed-width cell is cut short
         if (key === 'ticker' && !compact && r.aggregate) cell.textContent = '';
         if (key === 'ticker' && !sectors && !r.nonListed && securityLinks.has(r.id)) {
@@ -1053,7 +1061,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=issuer-nav1-20261110');
+  const {createOnlineSource}=await import('./online.mjs?v=themes-20261113');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;

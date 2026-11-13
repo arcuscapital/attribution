@@ -25,7 +25,9 @@ function harness(rows = []) {
 
 test('Theme follows Difference and uses real labels with explicit unclassified fallback', () => {
   const {ctx} = harness();
-  assert.deepEqual(Array.from(ctx.columnsForTest.slice(-2), column => column[0]), ['activeCtr', 'theme']);
+  assert.deepEqual(Array.from(ctx.columnsForTest.slice(-3), column => column[0]), ['activeCtr', 'theme', 'subTheme']);
+  assert.equal(ctx.tableCellValue({subTheme:'Equipment'}, 'subTheme'), 'Equipment');
+  assert.equal(ctx.tableCellValue({}, 'subTheme'), '—');
   assert.equal(ctx.tableCellValue({theme:'Semiconductors'}, 'theme'), 'Semiconductors');
   assert.equal(ctx.themeLabel({theme:['AI', 'Optics']}), 'AI / Optics');
   assert.equal(ctx.themeLabel({}), 'Unclassified');
@@ -68,6 +70,7 @@ test('the total is the first row: available unrounded sums, headline returns, mi
   assert.equal(cells[6].textContent, '0.01');
   assert.equal(cells[7].textContent, '—'); assert.equal(cells[7].children[0].textContent, '1 missing');
   assert.equal(cells[10].textContent, '—', 'a total has no Theme classification');
+  assert.equal(cells[11].textContent, '—', 'nor a Sub-theme');
   const phoneCells = ctx.tableTotalRow([['ticker', 'Security'], ['securityReturn', 'Return'], ['activeCtr', 'Diff']]).children;
   assert.equal(phoneCells[0].textContent, 'Total');
   assert.equal(phoneCells[1].textContent, '—'); assert.match(phoneCells[1].title, /cannot be added/);
@@ -76,7 +79,10 @@ test('the total is the first row: available unrounded sums, headline returns, mi
 test('ordinary comparisons use the Rise vs Swix layout: Name, Ticker, then Port and Bmrk pairs', () => {
   const {ctx} = harness();
   assert.deepEqual(Array.from(ctx.columnsForTest, column => column[0]),
-    ['name', 'ticker', 'weightA', 'weightB', 'returnA', 'returnB', 'ctrA', 'ctrB', 'activeWeight', 'activeCtr', 'theme']);
+    ['name', 'ticker', 'weightA', 'weightB', 'returnA', 'returnB', 'ctrA', 'ctrB', 'activeWeight', 'activeCtr', 'theme', 'subTheme']);
+  const ties = vm.runInContext('textTieBreak', ctx);
+  assert.deepEqual(Array.from(ties.theme), ['subTheme', 'name'], 'sorting by Theme groups its sub-themes');
+  assert.deepEqual(Array.from(ties.subTheme), ['theme', 'name']);
   const groups = vm.runInContext('columnGroups', ctx), labels = vm.runInContext('shortLabel', ctx);
   assert.deepEqual(Array.from(groups.slice(0, 3), group => group[0]), ['Avg % weight', 'Total return (%)', 'CTR (pp)']);
   assert.deepEqual([labels.weightA, labels.weightB, labels.returnA, labels.returnB, labels.ctrA, labels.ctrB], ['Port', 'Bmrk', 'Port', 'Bmrk', 'Port', 'Bmrk']);

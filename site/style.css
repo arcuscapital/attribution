@@ -463,7 +463,7 @@ summary::before{content:'›';font-size:25px;margin-right:12px;flex:none}details
 #results .scroll tfoot th,#results .scroll tfoot td{font-weight:600;background:var(--table-head);border-top:2px solid var(--border);border-bottom:0;cursor:default}
 #results .scroll tfoot small{display:block;font-weight:400;font-size:11px;white-space:normal;line-height:1.4;margin-top:5px}
 #results .scroll tfoot td{border-left:1px solid var(--border)}
-#results #rows td.theme-cell{min-width:180px;max-width:300px;text-align:left;white-space:normal;font-size:13px}
+#results #rows td.theme-cell{min-width:120px;max-width:220px;text-align:left;white-space:normal;font-size:13px}
 .table-scroll-nav{display:flex;align-items:center;gap:8px;padding:12px 0 8px;flex-wrap:wrap}
 .table-scroll-status{flex:1 1 230px;color:var(--muted);font-size:13px;line-height:1.5}
 .table-scroll-nav button{min-height:40px;padding:7px 12px;font-size:13px;white-space:nowrap}
@@ -594,7 +594,7 @@ html:not(.light) #results .scroll a.security-link{color:var(--bbg-text)}
  html:not(.light) #results #rows tr.table-total small{display:inline;margin:0 0 0 8px;white-space:nowrap}
  html:not(.light) #results #rows tr.table-total:not(.detail) small{display:none}
  html:not(.light) #results #rows tr:not(.detail)>td small{display:inline;margin:0 0 0 10px;font-size:15px;line-height:22px}
- html:not(.light) #results #rows td.theme-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+ html:not(.light) #results #rows td.theme-cell,html:not(.light) #results .scroll thead tr:first-child:not(:last-child) th:nth-last-child(-n+2){white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:100px;max-width:188px;text-align:left}
  html:not(.light) #results .scroll tfoot small{display:inline;margin:0 0 0 8px}
 }
 /* Ordinary comparisons use the Rise vs Swix table layout (2026-11-12): Name, Ticker, then Port and Bmrk

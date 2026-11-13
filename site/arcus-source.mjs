@@ -84,13 +84,29 @@ export function completedReturns(data,today=new Date().toISOString().slice(0,10)
   if(!validDate(data?.oneDOn))return {};
   return Object.fromEntries(Object.entries(data.dailyReturns||{}).filter(([day,value])=>validDate(day)&&day<=data.oneDOn&&day<today&&Number.isFinite(value)&&value>-100));
 }
+// Theme columns (owner, 2026-11-13): one main Arcus theme and one sub-theme per company, so companies sort
+// and group cleanly. Arcus paths are [theme, sub-theme, detail]; a company has one sub-theme path across all
+// its Arcus themes. Watchlist folders and ETF holdings lists (e.g. WCLD) are never the theme; a company held
+// only in folders keeps the folder entry's Arcus sub-theme. Research lists (AI/Energy/Robotics Bottleneck,
+// JPM lists) give the theme only when the company has no Arcus theme.
+const THEME_CONTAINERS=new Set(['Watch','Td','Ibkr2','Indices','Ark','ARKunderlying','Arkx','Bai','Dow','LOUP','Feb2025','Regimeshift2025','Watchingainow','Cloudbestbeats','Qualitysustainablegrow','Currency']);
+export function primaryThemePath(memberships) {
+  const all=(Array.isArray(memberships)?memberships:[]).filter(m=>Array.isArray(m)&&m[0]).map(m=>m.map(v=>typeof v==='string'?v.trim():''));
+  const etfList=m=>/^[A-Z][A-Z0-9]{1,5}$/.test(m[0])&&!m[1];
+  const real=all.filter(m=>!THEME_CONTAINERS.has(m[0])&&!etfList(m)), folder=all.find(m=>THEME_CONTAINERS.has(m[0])&&m[1]);
+  const core=real.find(m=>m[1]&&m[2]);
+  if(core)return {theme:core[0],subTheme:core[1],path:core.filter(Boolean).join(' › ')};
+  const other=real.find(m=>m[1])||real[0];
+  if(other){const [sub,detail]=other[1]?[other[1],other[2]]:[folder?.[1]||'',folder?.[2]||''];return {theme:other[0],subTheme:sub,path:[other[0],sub,detail].filter(Boolean).join(' › ')};}
+  return folder?{theme:'Unclassified',subTheme:folder[1],path:folder.slice(1).filter(Boolean).join(' › ')}:null;
+}
 export function resolveKnownListings(snapshot,companies) {
   const known=new Map(companies.map(c=>[c.ticker,c]));
   for(const p of snapshot.positions) {
     const c=known.get(p.symbol||p.ticker);
     if(!p.symbol && !isNonListed(p) && c && nameMatches(p.name,c.name))
       Object.assign(p,{id:c.ticker,symbol:c.ticker});
-    if(c && (p.symbol===c.ticker || nameMatches(p.name,c.name))) p.theme=[...new Set((c.memberships||[]).map(m=>m[0]).filter(Boolean))];
+    if(c && (p.symbol===c.ticker || nameMatches(p.name,c.name))){const t=primaryThemePath(c.memberships);if(t)Object.assign(p,{theme:t.theme,subTheme:t.subTheme,themePath:t.path});}
   }
   return snapshot;
 }

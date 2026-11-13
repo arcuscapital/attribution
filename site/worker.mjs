@@ -1,4 +1,4 @@
-import { compare, returnSeries } from "./engine.mjs?v=return-chart2-20261112";
+import { compare, returnSeries } from "./engine.mjs?v=themes-20261113";
 self.onmessage = ({ data }) => {
   try {
     const result = compare(data.dataset, data.options);
