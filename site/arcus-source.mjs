@@ -43,6 +43,8 @@ function asset(p){
   if(/^FX$/i.test(p.asset||'') || /\bTRS\s*:|\b(?:futures?|swaps?|options?|warrants?|derivatives?)\b|\bEMINI\b|\bWTS$/i.test(description))return 'Derivative';
   return p.asset||'Equity';
 }
+// Asset kind of a position or result row (Cash, Money Market, Private, Corporate action, Derivative, or its own).
+export function assetKind(p){return asset(p||{});}
 export function isNonListed(p){return ['Cash','Private','Money Market','Corporate action','Derivative'].includes(asset(p));}
 export function allocationSnapshot(fund,allocation,members=[],index=[]) {
   if(!validDate(allocation?.asOf) || !allocation.positions?.length)throw Error('Arcus source weights unavailable');

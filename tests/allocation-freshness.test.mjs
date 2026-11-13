@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {resolveKnownListings,isNonListed,normalizeArcusPacket,primaryThemePath} from '../site/arcus-source.mjs';
+import {resolveKnownListings,isNonListed,normalizeArcusPacket,primaryThemePath,assetKind} from '../site/arcus-source.mjs';
 test('verified listing themes are reused without classifying a different company or private holding',()=>{
  const data={positions:[{ticker:'ABC',name:'Alpha Inc'},{ticker:'ABC',name:'Different Inc'},{symbol:'ABC',ticker:'ABC',name:'Alpha Inc'},{ticker:'ABC',name:'Alpha Inc Prvt',asset:'Private'}]};
  resolveKnownListings(data,[{ticker:'ABC',name:'Alpha Corporation',memberships:[['AI','Software'],['AI','Infrastructure'],['Technology','Software']]}]);
@@ -17,6 +17,12 @@ test('one main theme and one sub-theme per company from its Arcus path; folders 
  assert.deepEqual(primaryThemePath([['Feb2025','Software','Defence'],['Bai','Software','Defence'],['WCLD','','']]),{theme:'Unclassified',subTheme:'Software',path:'Software › Defence'},'an ETF holdings list is not a theme');
  assert.deepEqual(primaryThemePath([['Dow','Payments','Cards'],['JPM US Drones','','']]),{theme:'JPM US Drones',subTheme:'Payments',path:'JPM US Drones › Payments › Cards'});
  assert.equal(primaryThemePath([]),null); assert.equal(primaryThemePath(undefined),null);
+});
+test('cash row kinds: cash lines and money-market funds count as cash, equities do not',()=>{
+ assert.equal(assetKind({asset:'Cash',name:'USD cash'}),'Cash'); assert.equal(assetKind({asset:'Equity',name:'USD CASH'}),'Cash');
+ assert.equal(assetKind({asset:'Money Market',name:'BLK CSH FND TREASURY SL AGENCY'}),'Money Market');
+ assert.equal(assetKind({asset:'Equity',name:'CASH COLLATERAL'}),'Money Market'); assert.equal(assetKind({asset:'Equity',name:'NVIDIA Corp'}),'Equity');
+ assert.equal(assetKind(undefined),'Equity');
 });
 test('public-source cash currencies remain cash, not missing equities',()=>{
  for(const name of ['South Korean Won','Taiwan Dollar','New Taiwan Dollar','Swedish Krona','Great British Pound','Australian Dollar','Hong Kong Dollar','OTHER ASSETS AND LIABILITIES']) assert(isNonListed({name}),name);

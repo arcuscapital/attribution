@@ -619,6 +619,21 @@ html:not(.light) #results #rows a.security-link:hover{text-decoration:underline}
 html:not(.light) #rise-swix .rise-holding td:nth-child(-n+4){color:var(--bbg-amber)}
 html:not(.light) #rise-swix tr.rise-current td,html:not(.light) #rise-swix tr.rise-current td:first-child{background:#2354B8}
 html:not(.light) #rise-swix tr.rise-current button span:first-child{color:var(--bbg-text)}
+/* Cash row between the contribution chart and the table (owner, 2026-11-13; mini design agent spec):
+   portfolio cash left, benchmark cash right; lighter than a panel; stacks on phones. */
+#cash-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px 20px;margin:0 0 20px;padding:10px 16px;border:1px solid var(--border);border-radius:10px;font-size:12px}
+#cash-row:empty{display:none}
+#cash-row .cash-side{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px}
+#cash-row .cash-side:last-child{justify-content:flex-end;text-align:right}
+#cash-row .cash-label{color:var(--muted)}
+#cash-row .cash-figure{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+#cash-row .cash-note{font-size:11px;color:var(--muted)}
+.light #cash-row .cash-figure{color:#17212b}
+html:not(.light) #cash-row{background:var(--bbg-row);border-color:var(--bbg-line);border-radius:0}
+html:not(.light) #cash-row .cash-label{color:var(--bbg-grey);font-family:var(--bbg-font)}
+html:not(.light) #cash-row .cash-figure{color:var(--bbg-amber);font-weight:400;font-family:var(--bbg-font)}
+html:not(.light) #cash-row .cash-note{color:var(--bbg-dim);font-family:var(--bbg-font)}
+@media(max-width:600px){#cash-row{flex-direction:column;align-items:stretch;padding:10px 14px}#cash-row .cash-side:last-child{justify-content:flex-start;text-align:left}}
 /* Holdings without a price, counted as 0% by default (ordinary comparisons). */
 .missing-zero{color:#F2606A;font-weight:600}.light .missing-zero{color:#A3262D}
 /* Cumulative return chart under the comparison tables. Dark follows the Bloomberg Total Return chart:

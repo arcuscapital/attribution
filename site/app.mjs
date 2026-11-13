@@ -1,6 +1,6 @@
 import { dateRange, drawReturnChart } from './ranges.mjs';
 import { createSessionGuard } from './session.mjs';
-import { isNonListed } from './arcus-source.mjs?v=themes-20261113';
+import { isNonListed, assetKind } from './arcus-source.mjs?v=cash-20261113';
 const $ = (id) => document.getElementById(id);
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
 let online = null, onlineMode = false;
@@ -22,7 +22,7 @@ const session = createSessionGuard({onLock() {
   activeWorker?.terminate(); activeWorker = null;
   cancelCalculation?.(); cancelCalculation = null;
   folder = dataset = manifest = result = null; onlineMode = false;
-  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','message','price-status','return-chart']) $(id).replaceChildren();
+  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','cash-row','message','price-status','return-chart']) $(id).replaceChildren();
   $('return-chart').hidden = true;
   $('rows').closest('table')?.tFoot?.replaceChildren();
   $('results').hidden = true;
@@ -458,7 +458,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=themes-20261113", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=cash-20261113", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -786,6 +786,34 @@ function tableTotalRow(visible) {
   }
   return tr;
 }
+// Cash row (owner, 2026-11-13): average cash weight of each side (cash and money-market holdings), shown
+// between the contribution chart and the table. A reference index with no holdings shows "No holdings data".
+const CASH_KINDS = new Set(['Cash', 'Money Market']);
+const cashLabel = row => {
+  const ticker = String(row.ticker || '').trim();
+  return ticker && ticker.length <= 6 && !/^(?:cash|money market)$/i.test(ticker) ? ticker : String(row.name || ticker || 'Cash').trim();
+};
+function cashSide(rows, side) {
+  const key = 'weight' + side, fund = lastOptions?.[side === 'A' ? 'portfolio' : 'benchmark'];
+  const held = rows.filter(row => Number.isFinite(row[key]) && Math.abs(row[key]) > 1e-9);
+  if (!held.length || (held.length === 1 && held[0].id === fund)) return null;
+  const cash = held.filter(row => CASH_KINDS.has(assetKind(row)));
+  return {total: cash.reduce((sum, row) => sum + row[key], 0),
+    parts: cash.map(row => [cashLabel(row), row[key]]).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))};
+}
+function renderCashRow() {
+  const root = document.getElementById('cash-row');
+  if (!root) return;
+  root.replaceChildren(...['A', 'B'].map(side => {
+    const data = cashSide(result?.rows || [], side), box = text('div', '', 'cash-side');
+    const note = !data ? 'No holdings data' : !data.parts.length ? 'No cash holdings'
+      : data.parts.slice(0, 3).map(([label, weight]) => label + ' ' + cellNumber(weight)).join(' · ') + (data.parts.length > 3 ? ' · +' + (data.parts.length - 3) + ' more' : '');
+    box.append(text('span', 'Cash · ' + fundLabel(lastOptions?.[side === 'A' ? 'portfolio' : 'benchmark']), 'cash-label'),
+      text('strong', data ? cellNumber(data.total) + '%' : '—', 'cash-figure'), text('small', note, 'cash-note'));
+    if (data?.parts.length) box.title = data.parts.map(([label, weight]) => label + ' ' + cellNumber(weight) + '%').join('\n');
+    return box;
+  }));
+}
 function wireTableScroll(table) {
   const scroll = table.closest('.scroll');
   if (!scroll) return;
@@ -897,6 +925,7 @@ function renderRows() {
         : (rowValue(a, sortKey) ?? -Infinity) - (rowValue(b, sortKey) ?? -Infinity)),
   );
   renderContributionChart(rows);
+  renderCashRow();
   $("rows").replaceChildren(
     tableTotalRow(visible),
     ...rows.flatMap((r) => {
@@ -1061,7 +1090,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=themes-20261113');
+  const {createOnlineSource}=await import('./online.mjs?v=cash-20261113');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;

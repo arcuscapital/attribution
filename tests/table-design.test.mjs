@@ -111,6 +111,19 @@ test('dark mode colours follow Bloomberg PORT in both tables', () => {
   has(css, '#results .scroll thead{position:sticky;top:0;z-index:3}', 'both heading rows stay visible');
 });
 
+test('cash row: average cash weight per side, largest cash lines first, no holdings for a reference index', () => {
+  const {ctx} = harness();
+  ctx.assetKind = row => row.kind || 'Equity'; ctx.lastOptions = {portfolio: 'PORTFOLIO:X', benchmark: 'IDX'};
+  const rows = [{id:'CASH:USD', ticker:'USD', kind:'Cash', weightA:.0766, weightB:0}, {id:'CASH:ZAR', ticker:'ZAR', kind:'Cash', weightA:.0246, weightB:0},
+    {id:'NVDA', ticker:'NVDA', weightA:.8988, weightB:0}];
+  const a = ctx.cashSide(rows, 'A');
+  assert.ok(Math.abs(a.total - .1012) < 1e-12); assert.deepEqual(Array.from(a.parts, p => p[0]), ['USD', 'ZAR']);
+  assert.equal(ctx.cashSide(rows, 'B'), null, 'a side with no holdings has no cash figure');
+  assert.equal(ctx.cashSide([{id:'IDX', ticker:'IDX', weightB:1}], 'B'), null, 'a reference index has no holdings data');
+  assert.equal(JSON.stringify(ctx.cashSide([{id:'MSFT', ticker:'MSFT', weightB:1}], 'B')), JSON.stringify({total:0, parts:[]}));
+  assert.equal(vm.runInContext('cashLabel', ctx)({ticker:'Money Market', name:'BLK CSH FND TREASURY'}), 'BLK CSH FND TREASURY');
+});
+
 test('horizontal scroll controls expose hidden columns and disable at their respective ends', () => {
   const {ctx, ids} = harness();
   const scroll = Object.assign(new Element('div'), {scrollWidth:1500, clientWidth:500, scrollLeft:0,
