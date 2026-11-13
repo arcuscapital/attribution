@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {returnSeries} from '../site/engine.mjs';
 import {riseSeries,estimate} from '../site/rise-swix-core.mjs';
-import {niceTicks,labelIndexes} from '../site/ranges.mjs';
+import {niceTicks,labelIndexes,intradaySeries} from '../site/ranges.mjs';
 
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,a+' vs '+b);
 
@@ -21,6 +21,28 @@ test('chart series: a reference fund follows its own price, a portfolio its aver
  assert.equal(returnSeries(input,{...result,end:'2026-11-03'},{portfolio:'PORTFOLIO:P',benchmark:'FUND'}),null); // one day: no chart
 });
 
+test('1D intraday series: starts at 0, follows each holding\'s bars, ends at the headline; missing bars move at the close',()=>{
+ const clock={format:d=>d.toISOString().slice(11,16)};
+ const bars=new Map([['AAA',{t:[100,400,700],c:[10,11,12]}],['FUND',{t:[400,700],c:[50,49]}]]);
+ const s=intradaySeries([[{id:'AAA',weight:.5,daily:.2},{id:'BBB',weight:.5,daily:-.1}],[{id:'FUND',weight:1,daily:-.02}]],bars,clock);
+ assert.deepEqual(s.dates,['Prev close','00:01','00:06','00:11','Close']);
+ assert.equal(s.a[0],0); close(s.a.at(-1),100*(.5*.2+.5*-.1)); close(s.b.at(-1),-2);
+ close(s.a[1],100*.5*(10*1.2/12-1)); close(s.a[3],100*.5*.2);   // AAA follows its bars; BBB has none until the close
+ assert.equal(s.b[1],0); close(s.b[2],100*(50*.98/49-1));          // before its first bar the fund is at the previous close
+ assert.deepEqual(s.coverage,[.5,1]);
+ assert.equal(intradaySeries([[{id:'X',weight:1,daily:0}],[]],new Map([['X',{t:[1],c:[1]}]]),clock),null);
+});
+test('intraday prices: one session only, filtered to the listing\'s local date, cached',async()=>{
+ const {dataResponse}=await import('../cloudflare/data.mjs');
+ let calls=0;const day=Date.parse('2026-11-12')/1000;
+ const fetcher=async url=>{calls++;assert.match(String(url),/interval=5m/);return Response.json({chart:{result:[{meta:{symbol:'AMD',currency:'USD',exchangeTimezoneName:'America/New_York',gmtoffset:-18000},
+  timestamp:[day-3600*20,day+14.5*3600,day+15*3600,day+21*3600],indicators:{quote:[{close:[1,100,101,102]}]}}]}});};
+ const store=new Map(),cache={match:async k=>store.get(k.url)?.clone(),put:async(k,v)=>{store.set(k.url,v);}};
+ const one=await dataResponse(new Request('https://a.invalid/data/prices?symbol=AMD&start=2026-11-12&end=2026-11-12&interval=5m'),{}, {},fetcher,cache);
+ const body=await one.json();assert.deepEqual(body.c,[100,101,102]);assert.equal(body.t.length,3);
+ await dataResponse(new Request('https://a.invalid/data/prices?symbol=AMD&start=2026-11-12&end=2026-11-12&interval=5m'),{}, {},fetcher,cache);assert.equal(calls,1);
+ assert.equal((await dataResponse(new Request('https://a.invalid/data/prices?symbol=AMD&start=2026-11-11&end=2026-11-12&interval=5m'),{}, {},fetcher,cache)).status,400);
+});
 test('Rise chart series: report weights times each holding return to date; last point equals the table total',()=>{
  const report={schemaVersion:1,version:'t',currency:'ZAR',period:['2026-11-04','2026-11-05'],total:{name:'Total',values:[100,100,0,0,0,0]},groups:[{name:'G',values:[100,100,0,0,0,0],children:[
   {id:'A',name:'A',symbol:'AAA.JO',values:[60,20,0,0,0,0]},{id:'B',name:'B',symbol:'BBB.JO',values:[30,80,0,0,0,0]},{id:'C',name:'Cash',cash:true,values:[10,null,0,null,0,null]}]}]};

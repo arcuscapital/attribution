@@ -65,6 +65,31 @@ export function labelIndexes(count, plotWidth) {
   return out;
 }
 
+// 1D chart (owner, 2026-11-13): the session's path from 5-minute prices. Each holding starts at 0% (the
+// previous close), follows its own bars scaled so that its last bar equals its official 1D return, and holds
+// that value afterwards; a holding without bars moves only at the close. Sides are lists of
+// {id, weight, daily} (a reference fund is one item with weight 1), so the last point equals the headline.
+export function intradaySeries(sides, bars, clock = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', hour12: false})) {
+  const times = [...new Set([].concat(...[...bars.values()].map(b => b.t)))].sort((x, y) => x - y);
+  if (times.length < 2) return null;
+  const path = item => {
+    const b = bars.get(item.id);
+    if (!b || !(b.c.at(-1) > 0)) return () => 0;
+    const k = (1 + item.daily) / b.c.at(-1);
+    let j = -1; // times are visited in order, once each
+    return t => { while (j + 1 < b.t.length && b.t[j + 1] <= t) j++; return j < 0 ? 0 : b.c[j] * k - 1; };
+  };
+  const out = sides.map(items => {
+    const fns = items.map(item => [item, path(item)]);
+    const values = times.map(t => fns.reduce((sum, [item, f]) => sum + item.weight * f(t), 0));
+    const total = items.reduce((sum, item) => sum + Math.abs(item.weight), 0);
+    const covered = items.filter(item => bars.has(item.id)).reduce((sum, item) => sum + Math.abs(item.weight), 0);
+    return {values: [0, ...values.map(v => 100 * v), 100 * items.reduce((sum, item) => sum + item.weight * item.daily, 0)], coverage: total ? covered / total : 0};
+  });
+  return {times: [null, ...times, null], dates: ['Prev close', ...times.map(t => clock.format(new Date(t * 1000))), 'Close'],
+    a: out[0].values, b: out[1].values, coverage: [out[0].coverage, out[1].coverage]};
+}
+
 // A chart problem hides the chart; it never interrupts the comparison results around it.
 export function drawReturnChart(root, series) {
   try { drawChart(root, series); }
@@ -92,7 +117,7 @@ function drawChart(root, series) {
   const heading = document.createElement('div'); heading.className = 'return-chart-head';
   const h = document.createElement('h3'); h.textContent = title || 'Cumulative return (%)';
   const sub = document.createElement('p');
-  sub.textContent = dates[0] + ' to ' + dates.at(-1) + ' · daily · ' + (series.note || 'from the starting close');
+  sub.textContent = series.subtitle || dates[0] + ' to ' + dates.at(-1) + ' · daily · ' + (series.note || 'from the starting close');
   heading.append(h, sub);
 
   const phone = root.clientWidth < 600;
@@ -124,9 +149,10 @@ function drawChart(root, series) {
   let month = '';
   const yAxis = top + H1 + gap + H2 + 16;
   for (const i of labels) {
-    const [yy, mm, dd] = dates[i].split('-');
     // Labels at the edges align inwards so they are not cut off.
     const anchor = x(i) < padL + 30 ? 'start' : x(i) > padL + plotW - 30 ? 'end' : 'middle';
+    if (series.times) { svg.append(node('text', {x: x(i), y: yAxis, class: 'rc-axis', 'text-anchor': anchor}, dates[i])); continue; } // 1D: clock times
+    const [yy, mm, dd] = dates[i].split('-');
     svg.append(node('text', {x: x(i), y: yAxis, class: 'rc-axis', 'text-anchor': anchor}, String(+dd)));
     if (mm + yy !== month) { month = mm + yy; svg.append(node('text', {x: x(i), y: yAxis + 15, class: 'rc-axis', 'text-anchor': anchor}, MONTHS[+mm - 1] + ' ' + yy)); }
   }

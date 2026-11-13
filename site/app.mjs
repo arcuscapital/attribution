@@ -1,4 +1,4 @@
-import { dateRange, drawReturnChart } from './ranges.mjs';
+import { dateRange, drawReturnChart, intradaySeries } from './ranges.mjs?v=intraday-20261113';
 import { createSessionGuard } from './session.mjs';
 import { isNonListed, assetKind } from './arcus-source.mjs?v=cash-20261113';
 const $ = (id) => document.getElementById(id);
@@ -556,6 +556,8 @@ $("controls").addEventListener("submit", async (e) => {
     // Cumulative return chart under the table (periods of two or more valuation days).
     drawReturnChart($('return-chart'), result.series ? {...result.series, labelA: fundLabel(options.portfolio), labelB: fundLabel(options.benchmark),
       note: options.currency + ' · each side follows its headline return method' + (options.assumeMissingZero ? ' · missing returns at 0%' : '')} : null);
+    // 1D: one session has no daily path, so the chart follows the session's 5-minute prices instead.
+    if (!result.series && onlineMode && online?.intraday && result.end && (options.start === options.end || $('range').value === 'day')) drawIntradayChart(result, options);
     renderMethod();
     if(onlineMode) $('price-status').textContent = (data.arcusSource ? 'Arcus completed returns first · '+data.arcusReturnCount+' securities/funds reused · ' : 'Adjusted daily returns · ')+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
     $('research-note').replaceChildren(
@@ -785,6 +787,32 @@ function tableTotalRow(visible) {
     tr.append(cell);
   }
   return tr;
+}
+// 1D chart (owner, 2026-11-13): 5-minute prices for the largest holdings (up to 150 listings per side, four at a
+// time), drawn only if this comparison is still the one on screen. A failure leaves the chart hidden.
+let intradayRun = 0;
+async function drawIntradayChart(shown, options) {
+  const run = ++intradayRun, date = shown.end;
+  const side = key => shown['returnMethod' + key] === 'reference' && Number.isFinite(shown['fundReturn' + key])
+    ? [{id: options[key === 'A' ? 'portfolio' : 'benchmark'], weight: 1, daily: shown['fundReturn' + key]}]
+    : (shown.rows || []).filter(r => r['weight' + key] && !r.assumedZero && Number.isFinite(r['ctr' + key]) && Number.isFinite(r.securityReturn))
+        .map(r => ({id: r.id, weight: r['weight' + key], daily: r.securityReturn}));
+  const sides = [side('A'), side('B')], listed = id => /^[A-Z0-9][A-Z0-9.\-^=]{0,24}$/.test(id || '');
+  const symbols = [...new Set(sides.flatMap(items => [...items].sort((x, y) => Math.abs(y.weight) - Math.abs(x.weight)).map(i => i.id).filter(listed).slice(0, 150)))];
+  const bars = new Map();
+  let next = 0;
+  await Promise.all([0, 1, 2, 3].map(async () => {
+    while (next < symbols.length && run === intradayRun) {
+      const id = symbols[next++];
+      try { const data = await online.intraday(id, date); if (data?.t?.length > 1 && data.t.length === data.c?.length) bars.set(id, data); } catch {}
+    }
+  }));
+  if (run !== intradayRun || shown !== result) return;
+  const series = intradaySeries(sides, bars);
+  if (!series) return;
+  const share = v => Math.round(100 * v) + '%';
+  drawReturnChart($('return-chart'), {...series, minPoints: 3, labelA: fundLabel(options.portfolio), labelB: fundLabel(options.benchmark), title: 'Intraday return (%)',
+    subtitle: date + ' · 5-minute prices, your local time · ends at the official 1D close · ' + options.currency + ' · intraday prices for ' + share(series.coverage[0]) + ' / ' + share(series.coverage[1]) + ' of weight'});
 }
 // Cash row (owner, 2026-11-13): average cash weight of each side (cash and money-market holdings), shown
 // between the contribution chart and the table. A reference index with no holdings shows "No holdings data".
@@ -1090,7 +1118,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=cash-20261113');
+  const {createOnlineSource}=await import('./online.mjs?v=intraday-20261113');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;

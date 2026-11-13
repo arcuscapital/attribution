@@ -55,6 +55,8 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
     try{return await promise;}catch(e){if(prices.get(key)===entry)prices.delete(key);throw e;}
   }
   return {
+    // 1D chart: one completed session's 5-minute prices for a listing (chart only, never the returns).
+    intraday(symbol,date){return get('prices?'+new URLSearchParams({symbol,start:date,end:date,interval:'5m'}));},
     clear(){generation++;controller.abort();controller=new AbortController();prices.clear();holdings.clear();refreshSymbols.clear();lastSnapshots=[];lastDownloaded.clear();},
     retryMissing(missing=[]) {
       const keys=new Set(missing.map(p=>p.fund+'|'+p.id));

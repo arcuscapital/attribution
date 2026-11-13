@@ -55,6 +55,26 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
       return new Response(body,{headers:{'Content-Type':'application/json','Cache-Control':'private, no-store'}});
     }catch{return reply({error:'Closing-price history unavailable'},502);}
   }
+  // 1D chart (owner, 2026-11-13): 5-minute prices for one completed session (the comparison's end date),
+  // filtered to that date in the listing's own time zone. One symbol per request; cached for six hours.
+  if(url.searchParams.get('interval')==='5m'){
+    if(query.start!==query.end)return reply({error:'Choose one session.'},400);
+    const key=new Request('https://analysis-market-cache.invalid/intraday-v1/'+encodeURIComponent(query.symbol)+'/'+query.start);
+    const saved=await cache?.match(key);if(saved)return reply(await saved.json());
+    const day=Math.floor(Date.parse(query.start)/1000);
+    try{
+      const response=await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(query.symbol)+'?period1='+(day-14*3600)+'&period2='+Math.min(Math.floor(Date.now()/1000),day+38*3600)+'&interval=5m',{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(15000)});
+      if(!response.ok)throw Error('Intraday prices are temporarily unavailable');
+      const raw=(await response.json()).chart?.result?.[0];
+      if(raw?.meta?.symbol?.toUpperCase()!==query.symbol.toUpperCase())throw Error('Price identity mismatch');
+      const offset=Number(raw.meta.gmtoffset)||0,closes=raw.indicators?.quote?.[0]?.close||[],t=[],c=[];
+      (raw.timestamp||[]).forEach((s,i)=>{if(Number.isFinite(closes[i])&&closes[i]>0&&new Date((s+offset)*1000).toISOString().slice(0,10)===query.start){t.push(s);c.push(closes[i]);}});
+      if(t.length<2)throw Error('No intraday prices for this session');
+      const result={symbol:raw.meta.symbol,currency:raw.meta.currency,timeZone:raw.meta.exchangeTimezoneName,date:query.start,t,c};
+      if(cache){const write=cache.put(key,Response.json(result,{headers:{'Cache-Control':'public, max-age=21600'}}));if(ctx.waitUntil)ctx.waitUntil(write);else await write;}
+      return reply(result);
+    }catch(e){return reply({error:e.message||'Intraday prices unavailable',symbol:query.symbol},502);}
+  }
   // Cache only public market data, behind authentication. One symbol per invocation.
   const key=new Request('https://analysis-market-cache.invalid/v1/'+encodeURIComponent(query.symbol)+'?start='+query.start+'&end='+query.end);
   const cached=url.searchParams.get('refresh')==='1' ? null : await cache?.match(key);
