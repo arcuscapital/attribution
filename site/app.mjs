@@ -1,4 +1,4 @@
-import { dateRange, drawReturnChart, intradaySeries } from './ranges.mjs?v=intraday-20261113';
+import { dateRange, drawReturnChart, intradaySeries } from './ranges.mjs?v=intraday2-20261113';
 import { createSessionGuard } from './session.mjs';
 import { isNonListed, assetKind } from './arcus-source.mjs?v=cash-20261113';
 const $ = (id) => document.getElementById(id);

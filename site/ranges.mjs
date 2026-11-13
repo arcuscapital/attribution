@@ -151,7 +151,8 @@ function drawChart(root, series) {
   for (const i of labels) {
     // Labels at the edges align inwards so they are not cut off.
     const anchor = x(i) < padL + 30 ? 'start' : x(i) > padL + plotW - 30 ? 'end' : 'middle';
-    if (series.times) { svg.append(node('text', {x: x(i), y: yAxis, class: 'rc-axis', 'text-anchor': anchor}, dates[i])); continue; } // 1D: clock times
+    // 1D: clock times; the first point (previous close) is the 0 line, so it has no label to crowd the first time.
+    if (series.times) { if (i > 0) svg.append(node('text', {x: x(i), y: yAxis, class: 'rc-axis', 'text-anchor': anchor}, dates[i])); continue; }
     const [yy, mm, dd] = dates[i].split('-');
     svg.append(node('text', {x: x(i), y: yAxis, class: 'rc-axis', 'text-anchor': anchor}, String(+dd)));
     if (mm + yy !== month) { month = mm + yy; svg.append(node('text', {x: x(i), y: yAxis + 15, class: 'rc-axis', 'text-anchor': anchor}, MONTHS[+mm - 1] + ' ' + yy)); }
