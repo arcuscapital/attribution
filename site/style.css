@@ -635,30 +635,31 @@ html:not(.light) #cash-row .cash-figure{color:var(--bbg-amber);font-weight:400;f
 html:not(.light) #cash-row .cash-note{color:var(--bbg-dim);font-family:var(--bbg-font)}
 @media(max-width:600px){#cash-row{flex-direction:column;align-items:stretch;padding:10px 14px}#cash-row .cash-side:last-child{justify-content:flex-start;text-align:left}}
 /* GICS sector weights (owner, 2026-11-13): site table look in light mode; Bloomberg look in dark mode with sector
-   names white and weights amber, like the other comparison tables. */
+   names white and weights amber, like the other comparison tables. Scoped by id so neither the page's general
+   table rules nor the Rise vs Swix table rules (it also sits inside that panel) change it. */
 .sector-weights h2,.sector-weights h3{margin:0 0 4px}
 .sector-weights-note{margin:0 0 10px;font-size:12px;color:var(--muted)}
-.sector-weights-scroll{overflow-x:auto;max-width:100%}
-.sector-weights table{width:auto;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
-.sector-weights th,.sector-weights td{min-width:0;padding:8px 14px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border);cursor:default}
-.sector-weights th:first-child,.sector-weights td:first-child{position:static;text-align:left;min-width:220px;max-width:none;box-shadow:none;background:transparent}
-.sector-weights th{font-size:12px;color:var(--muted);background:var(--table-head)}
-.sector-weights tfoot td{font-weight:600;background:var(--table-head);border-bottom:0}
+.sector-weights-scroll{overflow-x:auto;max-width:100%;margin-top:0;border:0}
+:is(#gics-weights,#rise-swix .sector-weights) table{width:auto;min-width:0;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
+:is(#gics-weights,#rise-swix .sector-weights) th,:is(#gics-weights,#rise-swix .sector-weights) td{position:static;min-width:0;max-width:none;width:auto;height:auto;padding:8px 14px;text-align:right;white-space:nowrap;border:0;border-bottom:1px solid var(--border);box-shadow:none;background:transparent;color:inherit;font-size:14px;font-weight:400;cursor:default}
+:is(#gics-weights,#rise-swix .sector-weights) th:first-child,:is(#gics-weights,#rise-swix .sector-weights) td:first-child{text-align:left;min-width:220px}
+:is(#gics-weights,#rise-swix .sector-weights) thead th{font-size:12px;font-weight:600;color:var(--muted);background:var(--table-head);border-bottom:2px solid var(--border)}
+:is(#gics-weights,#rise-swix .sector-weights) tfoot td{font-weight:600;background:var(--table-head);border-bottom:0}
 .rise-swix .sector-weights{margin-top:18px}
 html:not(.light) #gics-weights{background:var(--bbg-black);border-color:var(--bbg-head)}
 html:not(.light) .sector-weights h2,html:not(.light) .sector-weights h3{color:var(--bbg-grey);font-weight:400;font-family:var(--bbg-font)}
 html:not(.light) .sector-weights-note{color:var(--bbg-dim)}
-html:not(.light) .sector-weights table{font-family:var(--bbg-font);background:var(--bbg-row);border:1px solid var(--bbg-line)}
-html:not(.light) .sector-weights th,html:not(.light) .sector-weights td{font-weight:400;border-bottom:0;border-left:1px solid var(--bbg-line)}
-html:not(.light) .sector-weights th:first-child,html:not(.light) .sector-weights td:first-child{border-left:0}
-html:not(.light) .sector-weights thead th{background:var(--bbg-head);color:var(--bbg-grey);border-bottom:10px solid var(--bbg-amber)}
-html:not(.light) .sector-weights tbody td{color:var(--bbg-text);background:var(--bbg-row)}
-html:not(.light) .sector-weights tbody td.w{color:var(--bbg-amber)}
-html:not(.light) .sector-weights tfoot td{background:var(--bbg-black);color:var(--bbg-grey)}
+html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) table{font-family:var(--bbg-font);background:var(--bbg-row);border:1px solid var(--bbg-line)}
+html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) th,html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) td{font-family:var(--bbg-font);font-weight:400;border-bottom:0;border-left:1px solid var(--bbg-line)}
+html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) th:first-child,html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) td:first-child{border-left:0}
+html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) thead th{background:var(--bbg-head);color:var(--bbg-grey);border-bottom:10px solid var(--bbg-amber)}
+html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) tbody td{color:var(--bbg-text);background:var(--bbg-row)}
+html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) tbody td.w{color:var(--bbg-amber)}
+html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) tfoot td{background:var(--bbg-black);color:var(--bbg-grey);font-weight:400}
 @media(min-width:601px){
- html:not(.light) .sector-weights thead th{border-bottom-width:20px;font-size:18px;padding:0 8px;height:24px;line-height:22px}
- html:not(.light) .sector-weights td{height:24px;padding:0 8px;line-height:22px;font-size:18px;min-width:100px}
- html:not(.light) .sector-weights th:first-child,html:not(.light) .sector-weights td:first-child{min-width:280px}
+ html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) thead th{border-bottom-width:20px}
+ html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) th,html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) td{height:24px;padding:0 8px;line-height:22px;font-size:18px;min-width:100px}
+ html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) th:first-child,html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) td:first-child{min-width:280px}
 }
 /* Grouping control and grouped tables (owner, 2026-11-13). */
 :is(#rise-swix,#gics-table) table.rise-flat .rise-holding td:first-child{padding-left:8px}
