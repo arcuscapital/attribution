@@ -70,5 +70,6 @@ test('Grouping control sits between Date range and Currency, No grouping first; 
   assert.match(rise, /if\(\$\('grouping'\)\)\$\('grouping'\)\.value=priorGrouping;/);
   assert.match(rise, /const flat=\$\('grouping'\)\?\.value==='none';/);
   const css = fs.readFileSync('site/style.css', 'utf8');
-  assert.ok(!/#rise-swix(?!,#gics-table\))/.test(css.replace(/:is\(#rise-swix,#gics-table\)/g, '')), 'every Rise table rule also styles the GICS table');
+  // The sector-weights table scopes itself with #rise-swix .sector-weights on purpose (it sits inside that panel).
+  assert.ok(!/#rise-swix(?!,#gics-table\))/.test(css.replace(/:is\(#rise-swix,#gics-table\)/g, '').replace(/#rise-swix \.sector-weights/g, '')), 'every Rise table rule also styles the GICS table');
 });
