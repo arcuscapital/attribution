@@ -1,5 +1,5 @@
 import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns,jseCloseReturn,checkCoverage,adjustedLevels,jseCloseLevels,riseSeries} from './rise-swix-core.mjs?v=return-chart-20261112';
-import {dateRange,drawReturnChart,renderSectorWeights} from './ranges.mjs?v=weights-20261113';
+import {dateRange,drawReturnChart,renderSectorWeights,collapsible} from './ranges.mjs?v=collapse-20261115';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
 export function createRiseSwix({check,lock}){
  let generation=0,controller=new AbortController(),timer,report=null,busy=false,worker=null,rejectWorker=null,last=null,priorCurrency=null,priorGrouping='none',entered=false,syncing=false;
@@ -16,6 +16,7 @@ export function createRiseSwix({check,lock}){
  // GICS sector weights under the chart, with or without grouping (owner, 2026-11-13).
  const weights=el('div',null,'sector-weights');weights.hidden=true;
  scroll.append(table);panel.append(title,note,status,missingNote,actions,scroll,chart,weights,foot);
+ collapsible(chart,'Return % graph');collapsible(weights,'GICS sector weights');
  function showMissing(symbols=[],zeroed=false){ // zeroed: 'live', 'history' or false
   const names=new Map((report?.groups||[]).flatMap(g=>g.children).filter(p=>!p.cash).map(p=>[p.symbol,p.name+' ('+p.ticker+')'])),list=[...new Set(symbols)].map(s=>names.get(s)||s);
   missingNote.textContent=list.length?(zeroed?(zeroed==='live'?'No live price from Yahoo or Sharenet, counted as 0% return: ':'No price from Yahoo or Sharenet for these dates, counted as 0% return: '):'Not getting prices for '+list.length+(list.length===1?' share: ':' shares: '))+list.join(', '):'';missingNote.hidden=!list.length;

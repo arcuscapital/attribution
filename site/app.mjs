@@ -1,8 +1,11 @@
-import { dateRange, drawReturnChart, intradaySeries, createGroupedTable, renderSectorWeights } from './ranges.mjs?v=weights-20261113';
+import { dateRange, drawReturnChart, intradaySeries, createGroupedTable, renderSectorWeights, collapsible } from './ranges.mjs?v=collapse-20261115';
 import { groupByGics, UNKNOWN_GICS, gicsWeights } from './rise-swix-core.mjs?v=weights-20261113';
 import { createSessionGuard } from './session.mjs';
 import { isNonListed, assetKind } from './arcus-source.mjs?v=cash-20261113';
 const $ = (id) => document.getElementById(id);
+// Return % graph and GICS sector weights can be hidden with an arrow; both open on every load (owner, 2026-11-15).
+collapsible($('return-chart'), 'Return % graph');
+collapsible($('gics-weights'), 'GICS sector weights');
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
 let online = null, onlineMode = false;
 let riseSwix=null;
@@ -1168,7 +1171,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=weights-20261113');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=collapse-20261115');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';

@@ -696,3 +696,17 @@ html:not(.light) :is(#rise-swix,#gics-table) table.rise-flat .rise-holding td:fi
 .return-chart .rc-hover text{fill:var(--rc-text)}
 .rise-swix .return-chart{margin-top:18px;padding:12px;border:1px solid var(--border)}
 html:not(.light) .rise-swix .return-chart{border-color:var(--bbg-line)}
+
+/* Collapsible return % graph and GICS sector weights (owner, 2026-11-15). Open by default. */
+.collapsible{margin:0 0 20px}
+.collapsible[hidden]{display:none}
+.collapsible>.panel,.collapsible>.sector-weights,.collapsible>.return-chart{margin-top:0;margin-bottom:0}
+.collapsible.collapsed>:not(.collapsible-toggle){display:none}
+.collapsible-toggle{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin:0 0 8px;padding:8px 14px;border:1px solid var(--border);border-radius:10px;background:transparent;color:inherit;font:inherit;font-size:14px;font-weight:600;text-align:left;cursor:pointer}
+.collapsible-toggle:focus-visible{outline:2px solid var(--accent,#2d7ff9);outline-offset:2px}
+.collapsible-arrow{display:inline-block;width:1em;font-size:16px;line-height:1;transition:transform .15s}
+.collapsible.collapsed .collapsible-arrow{transform:rotate(-90deg)}
+.collapsible.collapsed .collapsible-toggle{margin-bottom:0}
+html:not(.light) .collapsible-toggle{border-radius:0;border-color:var(--bbg-line);background:var(--bbg-row);color:var(--bbg-grey);font-family:var(--bbg-font);font-weight:400}
+html:not(.light) .collapsible-arrow{color:var(--bbg-amber)}
+@media(prefers-reduced-motion:reduce){.collapsible-arrow{transition:none}}

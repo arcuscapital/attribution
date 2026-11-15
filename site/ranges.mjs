@@ -94,6 +94,26 @@ export function intradaySeries(sides, bars, clock = new Intl.DateTimeFormat(unde
 
 // GICS sector weights table (owner, 2026-11-13): sector, portfolio % weight, benchmark % weight and a total, for
 // the holdings and period of the comparison. value = {list:[{name, a, b}], total:{name, a, b}} in percent.
+// Collapsible sections (owner, 2026-11-15): the return % graph and the GICS sector weights sit under a slim
+// toggle with an arrow. Open by default on every load; the choice is not stored. The wrapper follows the
+// section's own hidden state, so the toggle never shows over an empty section, and the section is only hidden
+// with CSS while closed (its content keeps rendering and redraws at full width when reopened).
+export function collapsible(host, label) {
+  if (!host || host.parentElement?.classList.contains('collapsible')) return null;
+  const wrap = document.createElement('div'); wrap.className = 'collapsible';
+  const button = document.createElement('button'); button.type = 'button'; button.className = 'collapsible-toggle'; button.setAttribute('aria-expanded', 'true');
+  const arrow = document.createElement('span'); arrow.className = 'collapsible-arrow'; arrow.setAttribute('aria-hidden', 'true'); arrow.textContent = '▾';
+  const text = document.createElement('span'); text.textContent = label;
+  button.append(arrow, text);
+  host.before(wrap); wrap.append(button, host);
+  const sync = () => { wrap.hidden = host.hidden; };
+  new MutationObserver(sync).observe(host, {attributes: true, attributeFilter: ['hidden']}); sync();
+  button.addEventListener('click', () => {
+    const closed = wrap.classList.toggle('collapsed');
+    button.setAttribute('aria-expanded', String(!closed)); button.setAttribute('aria-label', (closed ? 'Show ' : 'Hide ') + label);
+  });
+  return wrap;
+}
 export function renderSectorWeights(host, value, {portfolio = 'Portfolio', benchmark = 'Benchmark', title = 'GICS sector weights', note = '', heading = 'h2'} = {}) {
   if (!host) return;
   if (!value?.list?.length) { host.replaceChildren(); host.hidden = true; return; }
