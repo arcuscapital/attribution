@@ -201,3 +201,10 @@ test('theme and sub-theme weights for both sides, with the new weights; Unclassi
   assert.deepEqual(t.total, {name: 'Total', a: 140, b: 91, n: 139});
   assert.ok(t.list[0].strong && !t.list[2].strong);
 });
+
+test('both bridges serve the trade module: Attribution allows it and the page imports nothing else new', () => {
+  const bridge = fs.readFileSync('cloudflare/bridge.mjs', 'utf8'), allowed = new Set([...bridge.match(/const ASSETS = new Set\(\[([^\]]+)\]\)/)[1].matchAll(/'([^']+)'/g)].map(m => m[1]));
+  assert.ok(allowed.has('trade.mjs'));
+  for (const file of fs.readdirSync('site').filter(name => name.endsWith('.mjs')))
+    for (const [, name] of fs.readFileSync('site/' + file, 'utf8').matchAll(/['"]\.\/([a-z-]+\.mjs)(?:\?v=[a-z0-9-]+)?['"]/g)) assert.ok(allowed.has(name), file + ' imports ' + name + ', which the bridge must serve');
+});
