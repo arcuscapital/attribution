@@ -61,7 +61,7 @@ export function groupByGics(rows,sectors={},{total='Total',returnA=null,returnB=
  for(const r of rows||[]){
   const name=gicsSector(r,sectors),ret=pc(r.securityReturn),a=held(r.weightA),b=held(r.weightB);
   if(!groups.has(name))groups.set(name,{name,children:[]});
-  groups.get(name).children.push({name:r.name||r.ticker||r.id,ticker:r.ticker||'',values:[a?pc(r.weightA):null,b?pc(r.weightB):null,ret,ret,a?pc(r.ctrA):null,b?pc(r.ctrB):null],
+  groups.get(name).children.push({id:r.id,name:r.name||r.ticker||r.id,ticker:r.ticker||'',values:[a?pc(r.weightA):null,b?pc(r.weightB):null,ret,ret,a?pc(r.ctrA):null,b?pc(r.ctrB):null],
    reference:[...(!a&&ret!==null?[2]:[]),...(!b&&ret!==null?[3]:[])],zeroed:!!r.assumedZero});
  }
  const sum=(list,i)=>{const v=list.map(c=>c.values[i]).filter(Number.isFinite);return v.length?v.reduce((s,x)=>s+x,0):null;};

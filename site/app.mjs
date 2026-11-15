@@ -1,11 +1,16 @@
-import { dateRange, drawReturnChart, intradaySeries, createGroupedTable, renderSectorWeights, collapsible } from './ranges.mjs?v=collapse-20261115';
-import { groupByGics, UNKNOWN_GICS, gicsWeights } from './rise-swix-core.mjs?v=weights-20261113';
+import { dateRange, drawReturnChart, intradaySeries, createGroupedTable, renderSectorWeights, collapsible } from './ranges.mjs?v=trade-20261115';
+import { groupByGics, UNKNOWN_GICS, gicsWeights, gicsSector, GICS_SECTORS } from './rise-swix-core.mjs?v=trade-20261115';
 import { createSessionGuard } from './session.mjs';
 import { isNonListed, assetKind } from './arcus-source.mjs?v=cash-20261113';
 const $ = (id) => document.getElementById(id);
 // Return % graph and GICS sector weights can be hidden with an arrow; both open on every load (owner, 2026-11-15).
 collapsible($('return-chart'), 'Return % graph');
 collapsible($('gics-weights'), 'GICS sector weights');
+collapsible($('theme-weights'), 'Theme and sub-theme weights');
+collapsible($('reg28-weights'), 'Reg 28 weights');
+collapsible($('sa-equity-weights'), 'SA equity by GICS sector');
+// Trade slider (owner, 2026-11-15), loaded near the end of this file. var: the session reset below may run first.
+var trade = null, tradeHelp = null, tradeSums = null, positionMeta = new Map(), jseSectors = null, mergedSectors = null;
 const integrated = location.pathname.startsWith('/portfolio-analysis/');
 let online = null, onlineMode = false;
 let riseSwix=null;
@@ -26,8 +31,10 @@ const session = createSessionGuard({onLock() {
   activeWorker?.terminate(); activeWorker = null;
   cancelCalculation?.(); cancelCalculation = null;
   folder = dataset = manifest = result = null; onlineMode = false;
-  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','cash-row','gics-weights','message','price-status','return-chart']) $(id).replaceChildren();
+  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','cash-row','gics-weights','theme-weights','reg28-weights','sa-equity-weights','message','price-status','return-chart']) $(id).replaceChildren();
   $('return-chart').hidden = true;
+  $('theme-weights').hidden = $('reg28-weights').hidden = $('sa-equity-weights').hidden = true;
+  trade?.clear(); positionMeta.clear();
   if (gicsView) gicsView.panel.hidden = true;
   $('gics-weights').hidden = true;
   $('rows').closest('table')?.tFoot?.replaceChildren();
@@ -117,13 +124,16 @@ function savedSelection() {
 }
 const fundsForRole=(funds,id)=>funds.filter(f=>!f.reportOnly || f.id===(id==='portfolio'?'PORTFOLIO:RISE':'PORTFOLIO:SWIX'));
 const hasOption = (id, value) => [...$(id).options].some(o => o.value === value);
+// Rise vs Swix and the rand funds (EasyBF, Best) open in rand; everything else in US dollars.
+const RAND_FUNDS = new Set(['PORTFOLIO:EASYBF', 'PORTFOLIO:EASYSA']);
+const defaultCurrency = () => $('benchmark').value === 'PORTFOLIO:SWIX' || RAND_FUNDS.has($('portfolio').value) ? 'ZAR' : 'USD';
 function restoreSelection(m) {
   const saved = savedSelection();
   if (!saved) return false;
   const ids = new Set(m.funds.map(f => f.id));
   if (!ids.has(saved.portfolio) || !ids.has(saved.benchmark) || !hasOption('portfolio',saved.portfolio) || !hasOption('benchmark',saved.benchmark) || saved.portfolio === saved.benchmark) return false;
   $('portfolio').value = saved.portfolio; $('benchmark').value = saved.benchmark;
-  $('currency').value = saved.benchmark === 'PORTFOLIO:SWIX' ? 'ZAR' : 'USD';
+  $('currency').value = defaultCurrency();
   // Ordinary comparisons always list companies; only Rise vs Swix has sector rows (owner, 2026-11-12).
   // The sector view code is kept; its View control is hidden and a saved "sector" choice is ignored.
   $('group').value = 'security';
@@ -194,7 +204,7 @@ function setup(m) {
   if (!restoreSelection(m) && m.funds.some(f => f.id === 'ARKK') && m.funds.some(f => f.id === 'BAI')) {
     $('portfolio').value = 'ARKK'; $('benchmark').value = 'BAI';
   }
-  $('currency').value = $('benchmark').value === 'PORTFOLIO:SWIX' ? 'ZAR' : 'USD';
+  $('currency').value = defaultCurrency();
   for (const id of ['portfolio','benchmark']) {
     if (!fundPickers.has(id)) fundPickers.set(id,createFundPicker(id));
     fundPickers.get(id).render(fundsForRole(m.funds,id));
@@ -337,6 +347,11 @@ for(const id of ['portfolio','benchmark','currency','range','start','end']) $(id
   saveSelection();
 });
 for(const id of ['portfolio','benchmark']) $(id).addEventListener('change', renderArchiveInfo);
+// A rand fund (EasyBF, Best) opens in rand; new weights typed for one portfolio do not carry to another.
+for (const id of ['portfolio', 'benchmark']) $(id).addEventListener('change', () => {
+  if (RAND_FUNDS.has($('portfolio').value) && !$('currency').disabled && hasOption('currency', 'ZAR')) { $('currency').value = 'ZAR'; saveSelection(); }
+  if (id === 'portfolio') trade?.setScope($('portfolio').value);
+});
 function applyRange() {
   if(riseSwix?.isActive()){riseSwix.syncRange();return;}
   const dates = manifest?.valuationDates || [];
@@ -394,7 +409,15 @@ $("import").addEventListener("change", async (event) => {
     event.target.value = "";
   }
 });
+// Listing, currency and asset of every position, the portfolio's own facts first (Reg 28 class, Trade button).
 async function loadRange(start, end) {
+  const data = await loadRangeData(start, end);
+  positionMeta = new Map();
+  for (const snapshot of data?.snapshots || []) for (const p of snapshot.positions || []) if (!positionMeta.has(p.id)) positionMeta.set(p.id, {symbol: p.symbol || null, ticker: p.ticker, name: p.name, currency: p.currency || null, asset: p.asset || ''});
+  trade?.setScope($('portfolio').value);
+  return data;
+}
+async function loadRangeData(start, end) {
   if (onlineMode) return online.load(manifest,[$('portfolio').value,$('benchmark').value],start,end,$('currency').value);
   if (dataset) return dataset;
   if (!folder) throw Error("Connect an archive first.");
@@ -577,6 +600,7 @@ $("controls").addEventListener("submit", async (e) => {
     );
     if (phone.matches) collapseSelection(options);
     scrollTo($('message').childElementCount ? 'message' : 'results');
+    void loadClassData(result);
   } catch (error) {
     message(error.message);
     scrollTo('message');
@@ -731,8 +755,100 @@ const columns = [
 ];
 const columnGroups = [["Avg % weight", ["weightA", "weightB"]], ["Total return (%)", ["returnA", "returnB"]],
   ["CTR (pp)", ["ctrA", "ctrB"]], ["Difference", ["activeWeight", "activeCtr"]]];
-const shortLabel = {weightA: "Port", weightB: "Bmrk", returnA: "Port", returnB: "Bmrk", ctrA: "Port", ctrB: "Bmrk", activeWeight: "Wgt", activeCtr: "CTR"};
-const textColumn = key => key === 'name' || key === 'ticker' || key === 'theme' || key === 'subTheme';
+const shortLabel = {weightA: "Port", weightB: "Bmrk", newWeight: "New", returnA: "Port", returnB: "Bmrk", ctrA: "Port", ctrB: "Bmrk", activeWeight: "Wgt", activeCtr: "CTR"};
+const textColumn = key => key === 'name' || key === 'ticker' || key === 'theme' || key === 'subTheme' || key === 'gics' || key === 'reg28';
+// Trade slider and class columns (owner, 2026-11-15). With the slider on, New sits after Bmrk under Avg % weight.
+// To the right of CTR: GICS sector for Best and EasyBF, and Reg 28 class for EasyBF.
+const classKind = () => tradeHelp?.tradeTables(lastOptions?.portfolio) || null;
+const classColumns = () => { const kind = classKind(); return kind === 'gics' || kind === 'reg28' ? [['gics', 'GICS sector'], ...(kind === 'reg28' ? [['reg28', 'Reg 28 class']] : [])] : []; };
+function tableColumns() {
+  const extra = classColumns();
+  return columns.flatMap(c => c[0] === 'weightB' && trade?.on ? [c, ['newWeight', 'Avg % weight · New']] : c[0] === 'ctrB' ? [c, ...extra] : [c]);
+}
+const tableGroups = () => columnGroups.map(([name, keys]) => keys[0] === 'weightA' && trade?.on ? [name, [...keys, 'newWeight']] : [name, keys]);
+// GICS sectors: the Bloomberg list for the Arcus shares, plus each JSE share's sector from the Rise vs Swix report.
+function sectorList() {
+  const base = manifest?.gics?.sectors || {};
+  if (!jseSectors) return base;
+  if (mergedSectors?.base !== base || mergedSectors.jse !== jseSectors) mergedSectors = {base, jse: jseSectors, all: {...base, ...jseSectors}};
+  return mergedSectors.all;
+}
+const reg28Api = () => globalThis.ArcusEasyTrades?.reg28 && globalThis.ArcusEasyTrades?.reg28Label ? globalThis.ArcusEasyTrades : null;
+const isCashRow = row => assetKind(row) === 'Cash';
+function reg28Class(row) {
+  const api = reg28Api(), meta = positionMeta.get(row.id) || {};
+  if (!api || row.aggregate) return '';
+  if (isCashRow(row)) return (meta.currency || row.ticker) === 'ZAR' ? 'Local cash' : 'Foreign cash';
+  try { return api.reg28Label({sourceTicker: row.ticker, ticker: meta.symbol, name: row.name, currency: meta.currency}) || ''; } catch { return ''; }
+}
+const percent = value => Number.isFinite(value) ? value * 100 : 0;
+// Holdings of the portfolio side, plus any other row given a new weight (a share to buy).
+function tradeItems() {
+  const sectors = sectorList();
+  return (result?.rows || []).filter(r => Math.abs(r.weightA || 0) > 1e-12 || trade?.has(r.id)).map(r => { const meta = positionMeta.get(r.id) || {};
+    return {key: r.id, current: percent(r.weightA), ticker: r.ticker, symbol: meta.symbol || null, name: r.name, currency: meta.currency || null, cash: isCashRow(r), sector: gicsSector(r, sectors)}; });
+}
+const newWeight = item => trade?.on ? trade.weight(item.key, item.current) : item.current;
+// JSE sectors and the Reg 28 rules are fetched once, only when a comparison needs them; the tables redraw when they arrive.
+let classLoading = null, rulesTried = false;
+async function loadClassData(shown) {
+  if (!integrated || !tradeHelp || classLoading) return;
+  const needSectors = !jseSectors && (shown.rows || []).some(r => /\.JO$/i.test(r.id));
+  const needRules = classKind() === 'reg28' && !reg28Api() && !rulesTried;
+  if (!needSectors && !needRules) return;
+  classLoading = (async () => {
+    if (needSectors) try {
+      const response = await fetch('./data/rise-swix', {credentials: 'same-origin', cache: 'no-store'});
+      if (response.status === 401) { session.lock(); return; }
+      const report = response.ok ? await response.json() : null, found = {};
+      for (const group of report?.groups || []) if (GICS_SECTORS.includes(group.name)) for (const p of group.children || []) if (typeof p.symbol === 'string') found[p.symbol.toUpperCase()] = group.name;
+      jseSectors = found;
+    } catch { jseSectors = {}; }
+    if (needRules) rulesTried = true;
+    if (needRules) await new Promise(resolve => { const script = document.createElement('script'); script.src = '/easy-trades.js'; script.onload = script.onerror = resolve; document.head.append(script); });
+  })();
+  try { await classLoading; } finally { classLoading = null; }
+  if (shown === result && ['complete', 'partial'].includes(result?.status)) renderRows();
+}
+function tradeList() {
+  return (trade?.entries() || []).map(([id, target]) => { const row = result?.rows.find(r => r.id === id), meta = positionMeta.get(id) || {};
+    return row ? {id, symbol: meta.symbol || null, ticker: row.ticker, name: row.name, current: percent(row.weightA), target} : null; }).filter(Boolean);
+}
+const tradeActionOptions = () => ({fund: () => lastOptions?.portfolio, fundName: () => fundLabel(lastOptions?.portfolio), trades: tradeList, integrated, check: () => session.check()});
+// The exposure table after the chart (owner, 2026-11-15): GICS sector weights; for EasyAI, EasyGE, IBKR and Marlow theme
+// and sub-theme weights instead; for EasyBF also the Reg 28 table and SA equity by GICS sector. With the Trade slider
+// on, those funds get a New column that follows the weights typed in the table.
+function renderSummaryTables() {
+  const kind = classKind(), on = !!trade?.on, items = tradeItems(), port = fundLabel(lastOptions?.portfolio), bench = fundLabel(lastOptions?.benchmark);
+  const period = (lastOptions?.start || '') + ' to ' + (lastOptions?.end || ''), typed = ' New follows the weights you type in the table; holdings you have not changed keep their weight.';
+  const empty = id => { $(id).replaceChildren(); $(id).hidden = true; };
+  if (kind === 'theme') {
+    empty('gics-weights');
+    const themed = result.rows.map(r => { const a = percent(r.weightA), cash = isCashRow(r);
+      return {theme: cash ? 'Cash' : themeLabel(r), subTheme: cash ? '' : (typeof r.subTheme === 'string' ? r.subTheme.trim() : ''), a, b: percent(r.weightB), n: on ? trade.weight(r.id, a) : a}; });
+    renderSectorWeights($('theme-weights'), tradeHelp.themeWeights(themed), {title: 'Theme and sub-theme weights', first: 'Theme · sub-theme', portfolio: port, benchmark: bench, newLabel: on ? 'New % weight' : null, compact: true,
+      note: 'Average weights, ' + period + ', by Arcus theme with its sub-themes underneath. Holdings without an Arcus theme are under Unclassified.' + (on ? typed : '')});
+  } else {
+    empty('theme-weights');
+    let weights = gicsWeights(result.rows, sectorList());
+    const gicsNew = on && kind === 'gics';
+    if (gicsNew) weights = tradeHelp.withNewSectors(weights, items, newWeight);
+    renderSectorWeights($('gics-weights'), weights, {portfolio: port, benchmark: bench, newLabel: gicsNew ? 'New % weight' : null,
+      note: 'Average weights, ' + period + '. Holdings without a GICS sector (cash, funds, private or not on the list) are under Unknown GICS.' + (gicsNew ? typed : '')});
+  }
+  const api = kind === 'reg28' ? reg28Api() : null;
+  let tables = null;
+  if (api) try { tables = tradeHelp.reg28Tables(api, items, newWeight); } catch (error) { console.warn('Reg 28 tables unavailable', error); }
+  if (!tables) { empty('reg28-weights'); empty('sa-equity-weights'); return; }
+  const limits = api.REG28_LIMITS || {};
+  renderSectorWeights($('reg28-weights'), {list: tables.rows.filter(r => !r.total), total: tables.rows.find(r => r.total)}, {title: 'Reg 28 weights', first: 'Reg 28 class', portfolioLabel: port + ' %', benchmark: null,
+    newLabel: on ? 'New %' : null, limit: true,
+    note: 'Average weights, ' + period + ', classed by the same rules as the Trade screen. Limits: total foreign ' + limits.totalForeign + '%, total equity ' + limits.totalEquity + '%, gold ' + limits.gold + '%; a figure over its limit is red.'
+      + (on ? typed + ' Cash is left as it is, so Total shows whether the new weights still add up.' : '')});
+  renderSectorWeights($('sa-equity-weights'), tables.equity, {title: 'SA equity by GICS sector', first: 'GICS sector', portfolioLabel: '% of SA equity', benchmark: null, newLabel: on ? 'New %' : null,
+    note: 'Local equity holdings only, each sector as a share of SA equity. SA equity is ' + tradeHelp.fmt2(tables.equity.shareA) + '% of ' + port + (on ? ' now and ' + tradeHelp.fmt2(tables.equity.shareN) + '% with the new weights' : '')
+      + '. Funds and shares without a GICS sector are under Unknown GICS.'});
+}
 // Sorting by Theme groups each theme's sub-themes together; sorting by Sub-theme keeps same-named sub-themes
 // of different themes apart. Ties end in name order.
 const textTieBreak = {theme: ['subTheme', 'name'], subTheme: ['theme', 'name'], name: [], ticker: []};
@@ -746,7 +862,8 @@ function sideReturn(row, side) {
   const weight = row['weight' + side], ctr = row['ctr' + side];
   return Number.isFinite(weight) && Number.isFinite(ctr) && Math.abs(weight) > 1e-12 ? ctr / weight : null;
 }
-const rowValue = (row, key) => key === 'returnA' ? sideReturn(row, 'A') : key === 'returnB' ? sideReturn(row, 'B') : row[key];
+const rowValue = (row, key) => key === 'returnA' ? sideReturn(row, 'A') : key === 'returnB' ? sideReturn(row, 'B')
+  : key === 'newWeight' ? (trade && !row.aggregate ? trade.weight(row.id, percent(row.weightA)) / 100 : row.weightA) : row[key];
 // Figures as in the Rise vs Swix table: two decimals, no % sign (the heading gives the unit).
 const cellNumber = value => Number.isFinite(value) ? (Math.abs(value) < .00005 ? 0 : value * 100).toFixed(2) : '—';
 // Sum original values, not displayed/rounded cells or incomplete sector groups.
@@ -762,6 +879,8 @@ function tableTotals(rows) {
 function tableCellValue(row, key) {
   if (key === 'name') return row.aggregate ? row.ticker : row.name || row.ticker;
   if (key === 'subTheme') return typeof row.subTheme === 'string' && row.subTheme.trim() ? row.subTheme.trim() : '—';
+  if (key === 'gics') return row.aggregate ? '—' : gicsSector(row, sectorList());
+  if (key === 'reg28') return reg28Class(row) || '—';
   return key === 'ticker' ? row.ticker : key === 'theme' ? themeLabel(row) : cellNumber(rowValue(row, key));
 }
 // The total is the first row under the headings, as in the Rise vs Swix table.
@@ -784,6 +903,8 @@ function tableTotalRow(visible) {
     } else if (key === 'securityReturn') {
       cell = text('td', '—');
       cell.title = 'Individual security returns cannot be added together.';
+    } else if (key === 'newWeight') {
+      cell = tradeSums.cell(result.rows.map(row => ({key: row.id, current: percent(row.weightA)})));
     } else if (textColumn(key)) cell = text('td', key === 'theme' || key === 'subTheme' ? '—' : '');
     else {
       cell = text('td', cellNumber(totals[key]), signClass(key, totals[key]));
@@ -825,11 +946,14 @@ async function drawIntradayChart(shown, options) {
 var gicsView = null, gicsShown = null; // var: the reset above may run before this line
 function gicsPanel() {
   if (gicsView) return gicsView;
-  const panel = text('section', '', 'panel rise-swix'), grid = createGroupedTable();
+  const rowOf = holding => result?.rows.find(r => r.id === holding.id) || {id: holding.id, ticker: holding.ticker, name: holding.name};
+  const panel = text('section', '', 'panel rise-swix'), grid = createGroupedTable({trade, extra: classColumns,
+    extraText: (holding, key) => tableCellValue(rowOf(holding), key), locked: holding => isNonListed(rowOf(holding))});
   panel.id = 'gics-table';
   panel.hidden = true;
-  const note = text('p'), foot = text('p');
-  panel.append(text('h2', 'Return contributions · GICS sectors'), note, grid.scroll, foot);
+  const note = text('p'), foot = text('p'), actions = text('div', '', 'rise-actions');
+  if (trade) actions.append(trade.actions(tradeActionOptions()));
+  panel.append(text('h2', 'Return contributions · GICS sectors'), note, actions, grid.scroll, foot);
   $('rows').closest('.panel').before(panel);
   return gicsView = {panel, grid, note, foot};
 }
@@ -837,7 +961,7 @@ function renderGicsTable() {
   const view = gicsPanel(), options = lastOptions || {}, port = fundLabel(options.portfolio), bench = fundLabel(options.benchmark);
   if (gicsShown !== result) { view.grid.reset(); gicsShown = result; }
   view.grid.setLabels({portfolio: port, benchmark: bench});
-  const value = groupByGics(result.rows, manifest?.gics?.sectors || {}, {total: port + ' vs ' + bench, returnA: result.returnA, returnB: result.returnB});
+  const value = groupByGics(result.rows, sectorList(), {total: port + ' vs ' + bench, returnA: result.returnA, returnB: result.returnB});
   view.grid.render(value);
   const unknown = value.groups.find(g => g.name === UNKNOWN_GICS)?.children.length || 0;
   view.note.textContent = 'Port = ' + port + ' · Bmrk = ' + bench + ' · ' + (options.start || '') + ' to ' + (options.end || '') + ' · ' + (options.currency || '') + ' · grouped by GICS sector';
@@ -912,6 +1036,7 @@ function wireTableScroll(table) {
 // Phones show three columns; the remaining figures open under the tapped row.
 const phoneColumns = () => $("group").value === "sector"
   ? [["ticker", "Sector"], ["activeWeight", "Active wt (%)"], ["activeCtr", "Diff (pp)"]]
+  : trade?.on ? [["ticker", "Security"], ["weightA", "Weight (%)"], ["newWeight", "New (%)"]] // Trade slider: weight now and the new weight
   : [["ticker", "Security"], ["returnA", "Return (%)"], ["activeCtr", "Diff (pp)"]];
 const signClass = (key, value) => ["ctrA", "ctrB", "activeCtr", "securityReturn", "returnA", "returnB", "activeWeight"].includes(key)
   ? (value === null || value === undefined ? "muted" : value >= 0 ? "positive" : "negative") : "";
@@ -927,10 +1052,13 @@ function syncSortControls() {
 }
 function renderRows() {
   if (!["complete", "partial"].includes(result?.status)) return;
-  const compact = phone.matches, sectors = $("group").value === "sector";
-  const visible = compact ? phoneColumns() : columns;
-  if (!$("sort").options.length) $("sort").replaceChildren(...columns.map(([key, name]) => { const o = text("option", name); o.value = key; return o; }));
+  const compact = phone.matches, sectors = $("group").value === "sector", all = tableColumns(), groups = tableGroups();
+  const visible = compact ? phoneColumns() : all;
+  if (!all.some(([key]) => key === sortKey)) { sortKey = 'activeCtr'; sortDirection = -1; }
+  if ([...$("sort").options].map(o => o.value).join() !== all.map(([key]) => key).join()) $("sort").replaceChildren(...all.map(([key, name]) => { const o = text("option", name); o.value = key; return o; }));
   syncSortControls();
+  tradeSums?.reset();
+  $('rows').closest('table').classList.toggle('trade-on', !!trade?.on);
   $("table-hint").textContent = compact
     ? "Weights and returns in %, contributions in percentage points. Tap a heading to sort, or a row for weights and contributions."
     : "Weights and returns in %, contributions (CTR) in percentage points. Click a heading to sort. The total is the first row, from unrounded values. Scroll inside the table.";
@@ -958,11 +1086,12 @@ function renderRows() {
   } else {
     // Two heading rows, as in the Rise vs Swix table: group headings over Port and Bmrk.
     const top = document.createElement("tr"), sub = document.createElement("tr");
-    for (const [key, name] of columns) {
-      const group = columnGroups.find(([, keys]) => keys.includes(key));
+    for (const [key, name] of all) {
+      const group = groups.find(([, keys]) => keys.includes(key));
       if (!group) {
         const th = heading(key, name, name);
         th.rowSpan = 2;
+        if (key === 'gics' || key === 'reg28') th.classList.add('class-head');
         top.append(th);
         continue;
       }
@@ -990,19 +1119,24 @@ function renderRows() {
   $('rows').closest('.panel').hidden = grouped;
   if (grouped) renderGicsTable(); else if (gicsView) gicsView.panel.hidden = true;
   // GICS sector weights after the chart, with or without grouping (owner, 2026-11-13).
-  renderSectorWeights($('gics-weights'), gicsWeights(result.rows, manifest?.gics?.sectors || {}), {portfolio: fundLabel(lastOptions?.portfolio), benchmark: fundLabel(lastOptions?.benchmark),
-    note: 'Average weights, ' + (lastOptions?.start || '') + ' to ' + (lastOptions?.end || '') + '. Holdings without a GICS sector (cash, funds, private or not on the list) are under Unknown GICS.'});
-  $("rows").replaceChildren(
+  renderSummaryTables();
+  const body = [
     tableTotalRow(visible),
     ...rows.flatMap((r) => {
       const row = document.createElement("tr");
+      if (trade?.on && !r.aggregate) trade.markRow(row, trade.has(r.id));
       for (const [key] of visible) {
+        if (key === 'newWeight') { // Trade slider: the current weight shows faintly until a new one is typed
+          row.append(trade.newCell({key: r.aggregate ? null : r.id, current: percent(r.weightA), locked: !!r.aggregate || isNonListed(r), label: r.name || r.ticker}));
+          continue;
+        }
         const value = rowValue(r, key), cell = text("td", tableCellValue(r, key));
         cell.dataset.col = key; // dark mode colours companies and their weights orange, sectors white
         if (key === 'theme' || key === 'subTheme') {
           cell.classList.add('theme-cell');
           if (r.themePath) cell.title = r.themePath; // full Arcus path, e.g. Ai › Semis › Accelerators
         }
+        if (key === 'gics' || key === 'reg28') { cell.classList.add('theme-cell'); cell.title = cell.textContent; }
         if (!compact && (key === 'name' || key === 'ticker')) cell.title = cell.textContent + (key === 'name' && r.assumedZero ? ' · Assumed 0%' : ''); // full text when a fixed-width cell is cut short
         if (key === 'ticker' && !compact && r.aggregate) cell.textContent = '';
         if (key === 'ticker' && !sectors && !r.nonListed && securityLinks.has(r.id)) {
@@ -1037,8 +1171,8 @@ function renderRows() {
       const cell = document.createElement("td");
       cell.colSpan = visible.length;
       const list = document.createElement("dl");
-      for (const [key, name] of columns) {
-        if (key === "ticker" || key === "name" || (key === "returnB" && !r.aggregate) || visible.some(([k]) => k === key)) continue;
+      for (const [key, name] of all) {
+        if (key === "ticker" || key === "name" || key === "newWeight" || (key === "returnB" && !r.aggregate) || visible.some(([k]) => k === key)) continue;
         list.append(text("dt", columnLabel(key, name)), text("dd", tableCellValue(r, key), signClass(key, rowValue(r, key))));
       }
       cell.append(list);
@@ -1047,17 +1181,18 @@ function renderRows() {
       row.tabIndex = 0;
       row.setAttribute("aria-expanded", "false");
       row.addEventListener("click", (e) => {
-        if (e.target.closest('a')) return;
+        if (e.target.closest('a,input')) return;
         detail.hidden = !detail.hidden;
         row.setAttribute("aria-expanded", String(!detail.hidden));
       });
       row.addEventListener("keydown", (e) => {
-        if (e.target.closest('a')) return;
+        if (e.target.closest('a,input')) return;
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); row.click(); }
       });
       return [row, detail];
     }),
-  );
+  ];
+  if (trade) trade.keepFocus($('rows'), () => $("rows").replaceChildren(...body)); else $("rows").replaceChildren(...body);
   const table = $('rows').closest('table');
   table.tFoot?.remove();
   wireTableScroll(table);
@@ -1157,12 +1292,29 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=intraday-20261113');
+  const {createOnlineSource}=await import('./online.mjs?v=trade-20261115');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;
   message('Saved online holdings are temporarily unavailable. You can still import an archive file.');
 }
+// Trade slider (owner, 2026-11-15). An older Arcus bridge does not serve trade.mjs: the page then works as before,
+// without the slider. The Marlow-only login (its back link is an empty span) never gets it.
+if ($('back-arcus')?.tagName !== 'SPAN') try {
+  tradeHelp = await import('./trade.mjs?v=trade-20261115');
+  trade = tradeHelp.createTradeMode();
+  tradeSums = trade.sums();
+  trade.setScope($('portfolio').value);
+  $('download-ready').after(trade.actions(tradeActionOptions()));
+  $('trade-toggle').hidden = false;
+  $('trade-mode').checked = false; // off on every load
+  $('trade-mode').addEventListener('change', () => trade.setOn($('trade-mode').checked));
+  // Slider on or off, or another portfolio: redraw. Typing only moves the sums (their own cells) and the summary tables.
+  trade.subscribe(why => {
+    if (why === 'order' || !result || !['complete', 'partial'].includes(result.status) || $('results').hidden) return;
+    if (why === 'value') renderSummaryTables(); else renderRows();
+  });
+} catch (error) { trade = tradeHelp = tradeSums = null; console.warn('Trade slider unavailable', error); }
 async function connectSaved() {
   const generation=accessGeneration;
   try {
@@ -1171,7 +1323,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=collapse-20261115');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock()});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=trade-20261115');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock(),trade});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';

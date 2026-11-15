@@ -640,26 +640,26 @@ html:not(.light) #cash-row .cash-note{color:var(--bbg-dim);font-family:var(--bbg
 .sector-weights h2,.sector-weights h3{margin:0 0 4px}
 .sector-weights-note{margin:0 0 10px;font-size:12px;color:var(--muted)}
 .sector-weights-scroll{overflow-x:auto;max-width:100%;margin-top:0;border:0}
-:is(#gics-weights,#rise-swix .sector-weights) table{width:auto;min-width:0;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
-:is(#gics-weights,#rise-swix .sector-weights) th,:is(#gics-weights,#rise-swix .sector-weights) td{position:static;min-width:0;max-width:none;width:auto;height:auto;padding:8px 14px;text-align:right;white-space:nowrap;border:0;border-bottom:1px solid var(--border);box-shadow:none;background:transparent;color:inherit;font-size:14px;font-weight:400;cursor:default}
-:is(#gics-weights,#rise-swix .sector-weights) th:first-child,:is(#gics-weights,#rise-swix .sector-weights) td:first-child{text-align:left;min-width:220px}
-:is(#gics-weights,#rise-swix .sector-weights) thead th{font-size:12px;font-weight:600;color:var(--muted);background:var(--table-head);border-bottom:2px solid var(--border)}
-:is(#gics-weights,#rise-swix .sector-weights) tfoot td{font-weight:600;background:var(--table-head);border-bottom:0}
+:is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) table{width:auto;min-width:0;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
+:is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) th,:is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) td{position:static;min-width:0;max-width:none;width:auto;height:auto;padding:8px 14px;text-align:right;white-space:nowrap;border:0;border-bottom:1px solid var(--border);box-shadow:none;background:transparent;color:inherit;font-size:14px;font-weight:400;cursor:default}
+:is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) th:first-child,:is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) td:first-child{text-align:left;min-width:220px}
+:is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) thead th{font-size:12px;font-weight:600;color:var(--muted);background:var(--table-head);border-bottom:2px solid var(--border)}
+:is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tfoot td{font-weight:600;background:var(--table-head);border-bottom:0}
 .rise-swix .sector-weights{margin-top:18px}
-html:not(.light) #gics-weights{background:var(--bbg-black);border-color:var(--bbg-head)}
+html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights){background:var(--bbg-black);border-color:var(--bbg-head)}
 html:not(.light) .sector-weights h2,html:not(.light) .sector-weights h3{color:var(--bbg-grey);font-weight:400;font-family:var(--bbg-font)}
 html:not(.light) .sector-weights-note{color:var(--bbg-dim)}
-html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) table{font-family:var(--bbg-font);background:var(--bbg-row);border:1px solid var(--bbg-line)}
-html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) th,html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) td{font-family:var(--bbg-font);font-weight:400;border-bottom:0;border-left:1px solid var(--bbg-line)}
-html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) th:first-child,html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) td:first-child{border-left:0}
-html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) thead th{background:var(--bbg-head);color:var(--bbg-grey);border-bottom:10px solid var(--bbg-amber)}
-html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) tbody td{color:var(--bbg-text);background:var(--bbg-row)}
-html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) tbody td.w{color:var(--bbg-amber)}
-html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) tfoot td{background:var(--bbg-black);color:var(--bbg-grey);font-weight:400}
+html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) table{font-family:var(--bbg-font);background:var(--bbg-row);border:1px solid var(--bbg-line)}
+html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) th,html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) td{font-family:var(--bbg-font);font-weight:400;border-bottom:0;border-left:1px solid var(--bbg-line)}
+html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) th:first-child,html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) td:first-child{border-left:0}
+html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) thead th{background:var(--bbg-head);color:var(--bbg-grey);border-bottom:10px solid var(--bbg-amber)}
+html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody td{color:var(--bbg-text);background:var(--bbg-row)}
+html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody td.w{color:var(--bbg-amber)}
+html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tfoot td{background:var(--bbg-black);color:var(--bbg-grey);font-weight:400}
 @media(min-width:601px){
- html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) thead th{border-bottom-width:20px}
- html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) th,html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) td{height:24px;padding:0 8px;line-height:22px;font-size:18px;min-width:100px}
- html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) th:first-child,html:not(.light) :is(#gics-weights,#rise-swix .sector-weights) td:first-child{min-width:280px}
+ html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) thead th{border-bottom-width:20px}
+ html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) th,html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) td{height:24px;padding:0 8px;line-height:22px;font-size:18px;min-width:100px}
+ html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) th:first-child,html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) td:first-child{min-width:280px}
 }
 /* Grouping control and grouped tables (owner, 2026-11-13). */
 :is(#rise-swix,#gics-table) table.rise-flat .rise-holding td:first-child{padding-left:8px}
@@ -710,3 +710,96 @@ html:not(.light) .rise-swix .return-chart{border-color:var(--bbg-line)}
 html:not(.light) .collapsible-toggle{border-radius:0;border-color:var(--bbg-line);background:var(--bbg-row);color:var(--bbg-grey);font-family:var(--bbg-font);font-weight:400}
 html:not(.light) .collapsible-arrow{color:var(--bbg-amber)}
 @media(prefers-reduced-motion:reduce){.collapsible-arrow{transition:none}}
+
+/* Trade slider (owner, 2026-11-15; colours from the mini design agent, each text colour at least 4.5:1 on the row).
+   A switch under Compare funds adds a New weight field to every holding. The field shows the current weight
+   faintly; once a weight is typed the whole row turns dark grey with its own text colours and an accent bar. */
+:root{--trade-row:#3A3A3A;--trade-text:#FFF;--trade-name:#F9A836;--trade-up:#4FEE74;--trade-down:#FF9497;--trade-muted:#BDBDBD;--trade-link:#F9A836;--trade-divider:#6E6E6E;--trade-bar:#F9A836;--trade-ph:#5A5A5A;--trade-in-border:#6E6E6E;--trade-in-hover:#A5A5A5;--trade-in-bg:#141414;--trade-in-text:#FFF;--trade-in-edit-border:#8A8A8A;--trade-focus:#86B4FF;--trade-off:#6E6E6E;--trade-bad:#FF9497}
+:root.light{--trade-row:#3F4955;--trade-text:#FFF;--trade-name:#FFF;--trade-up:#6CF0AF;--trade-down:#FFA3A9;--trade-muted:#BCC5CF;--trade-link:#FFF;--trade-divider:#6B7684;--trade-bar:#86B4FF;--trade-ph:#9AA4B0;--trade-in-border:#84909E;--trade-in-hover:#4B5868;--trade-in-bg:#FFF;--trade-in-text:#17212F;--trade-in-edit-border:#FFF;--trade-focus:#1967D2;--trade-off:#6B7684;--trade-bad:#A3262D}
+.run-stack{position:relative;display:flex;flex-direction:column;min-width:0}
+.trade-toggle{flex-direction:row;align-items:center;gap:10px;min-height:44px;font-size:14px;color:inherit;cursor:pointer;white-space:nowrap;position:relative}
+.trade-toggle input{position:absolute;left:0;top:50%;width:44px;height:24px;min-height:0;margin:-12px 0 0;padding:0;opacity:0;cursor:pointer}
+.trade-switch{position:relative;flex:none;width:44px;height:24px;border-radius:12px;border:1px solid transparent;background:var(--trade-off);transition:background .15s}
+.trade-switch::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s}
+.trade-toggle input:checked+.trade-switch{background:#1967D2}
+html:not(.light) .trade-toggle input:checked+.trade-switch{border-color:#86B4FF}
+.trade-toggle input:checked+.trade-switch::after{transform:translateX(20px)}
+.trade-toggle input:focus-visible+.trade-switch{outline:2px solid var(--accent);outline-offset:3px}
+.trade-toggle input:disabled+.trade-switch{opacity:.45}
+@media(min-width:601px){.run-stack .trade-toggle{position:absolute;top:100%;left:0;margin-top:4px}#controls:has(#trade-toggle:not([hidden])){margin-bottom:48px}}
+@media(max-width:600px){.run-stack{grid-column:1/-1}.run-stack .trade-toggle{margin-top:6px}}
+@media(prefers-reduced-motion:reduce){.trade-switch,.trade-switch::after{transition:none}}
+/* Trade button (blue, white writing) and order type, to the right of the download button. */
+.trade-actions{display:inline-flex;flex-wrap:wrap;align-items:center;gap:10px;min-width:0}
+.trade-actions[hidden]{display:none}
+button.trade-button{color:#fff;background:#1967d2;border-color:#1967d2;font-weight:650}
+button.trade-button:hover{background:#1558b8;border-color:#1558b8}
+.trade-actions select.trade-order-type{width:auto;min-width:132px}
+.trade-note{flex:1 1 220px;min-width:0;font-size:13px;line-height:1.4;color:var(--muted);white-space:normal}
+.trade-note:empty{display:none}
+#gics-table .rise-actions:empty{display:none}
+@media(max-width:600px){.trade-actions{width:100%}.trade-actions .trade-button,.trade-actions select.trade-order-type{flex:1 1 40%;width:auto}}
+/* New weight field. */
+td.trade-new{text-align:right}
+.trade-input{width:5.4em;min-width:0;height:32px;min-height:0;padding:0 6px;border:1px solid var(--trade-in-border);border-radius:4px;background:transparent;color:inherit;font:inherit;text-align:right;font-variant-numeric:tabular-nums}
+.trade-input::placeholder{color:var(--trade-ph);opacity:1}
+.trade-input:hover{border-color:var(--trade-in-hover)}
+.trade-input:focus-visible{outline:2px solid var(--trade-focus);outline-offset:-2px}
+.trade-input[aria-invalid=true]{border-color:var(--trade-bad);color:var(--trade-bad)}
+td.trade-locked{color:var(--trade-ph)}
+html:not(.light) #results #rows td.trade-new,html:not(.light) :is(#rise-swix,#gics-table) tbody td.trade-new{color:var(--bbg-text)}
+html:not(.light) #results #rows td.trade-locked,html:not(.light) :is(#rise-swix,#gics-table) tbody td.trade-locked{color:var(--trade-ph)}
+html:not(.light) #results #rows tr.table-total td.trade-sum,html:not(.light) :is(#rise-swix,#gics-table) tbody tr.rise-total td.trade-sum{color:var(--bbg-grey)}
+@media(min-width:601px){html:not(.light) .trade-input{width:100%;min-width:76px;height:22px;border-radius:0;vertical-align:top}}
+@media(max-width:600px){.trade-input{width:4.8em;height:44px;font-size:16px}}
+/* A row with a new weight: dark grey from far left to far right. */
+#results #rows tr.trade-edited>td,#results #rows tr.trade-edited:hover>td,#results #rows tr.trade-edited:focus-visible>td,
+:is(#rise-swix,#gics-table) tbody tr.trade-edited>td{background:var(--trade-row)!important;color:var(--trade-text)!important;border-left-color:var(--trade-divider)}
+#results #rows tr.trade-edited>td:is([data-col=name],[data-col=ticker],[data-col=weightA],[data-col=weightB],[data-col=activeWeight]),
+:is(#rise-swix,#gics-table) tbody tr.trade-edited>td:nth-child(-n+4){color:var(--trade-name)!important}
+#results #rows tr.trade-edited>td a.security-link{color:var(--trade-link)!important}
+#results #rows tr.trade-edited>td.positive,:is(#rise-swix,#gics-table) tbody tr.trade-edited>td.positive{color:var(--trade-up)!important}
+#results #rows tr.trade-edited>td:is(.negative,.zeroed),:is(#rise-swix,#gics-table) tbody tr.trade-edited>td:is(.negative,.rise-zeroed){color:var(--trade-down)!important}
+#results #rows tr.trade-edited>td.muted,#results #rows tr.trade-edited>td small{color:var(--trade-muted)!important}
+#results #rows tr.trade-edited>td:first-child::after{color:var(--trade-muted)}
+#results #rows tr.trade-edited>td:first-child,:is(#rise-swix,#gics-table) tbody tr.trade-edited>td:first-child{box-shadow:inset 3px 0 0 var(--trade-bar)}
+html:not(.light) #results #rows tr.trade-edited>td:first-child{box-shadow:inset 3px 0 0 var(--trade-bar),1px 0 var(--trade-divider)}
+tr.trade-edited .trade-input{background:var(--trade-in-bg);color:var(--trade-in-text);border-color:var(--trade-in-edit-border)}
+tr.trade-edited .trade-input[aria-invalid=true]{color:var(--trade-bad);border-color:var(--trade-bad)}
+/* Column groups with New under Avg % weight (light theme dividers), and the class columns right of CTR. */
+.rise-swix table.trade-on thead tr:nth-child(2) th:nth-child(odd),.rise-swix table.trade-on td:nth-child(5),.rise-swix table.trade-on td:nth-child(7){border-left:0}
+.rise-swix table.trade-on thead tr:nth-child(2) th:is(:nth-child(1),:nth-child(4),:nth-child(6)),.rise-swix table.trade-on td:is(:nth-child(3),:nth-child(6),:nth-child(8)){border-left:3px solid var(--rise-divider)}
+.rise-swix :is(th,td).rise-text{text-align:left;border-left:3px solid var(--rise-divider);min-width:150px}
+.rise-swix thead th.rise-text{vertical-align:bottom}
+.rise-swix td.rise-text{font-size:13px}
+#results .scroll thead th.class-head{text-align:left}
+html:not(.light) #results .scroll thead th.class-head{white-space:nowrap;min-width:100px;max-width:188px;text-align:left}
+@media(min-width:601px){html:not(.light) :is(#rise-swix,#gics-table) :is(th,td).rise-text{font-size:18px;min-width:100px;max-width:240px;overflow:hidden;text-overflow:ellipsis}}
+/* Sector weights with a New column, and the Reg 28 and SA equity tables (EasyBF). */
+:is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody tr.limited td{font-weight:700}
+:is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) td.breach{color:#F2606A;font-weight:700}
+.light :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) td.breach{color:#A3262D}
+html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody td.breach{color:var(--bbg-down)}
+html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody td.lim{color:var(--bbg-dim)}
+html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody td.n{color:var(--bbg-text)}
+:is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody tr.sub td:first-child{padding-left:30px}
+:is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody tr.sub td{font-size:13px}
+html:not(.light) #theme-weights tbody tr.limited td{font-weight:400}
+html:not(.light) #theme-weights tbody tr.sub td:first-child{color:var(--bbg-amber)}
+@media(min-width:601px){html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody tr.sub td{font-size:18px}html:not(.light) #theme-weights tbody tr.sub td:first-child{padding-left:32px}}
+/* Phones: the selection panel folds to a slim bar after a comparison. The Trade slider stays in that bar so it can
+   be switched without opening the panel again. */
+@media(max-width:600px){
+ #selection.collapsed:has(#trade-toggle:not([hidden])) #controls{display:block}
+ #selection.collapsed #controls>:not(.run-stack),#selection.collapsed #controls #run{display:none}
+ #selection.collapsed .run-stack{position:static}
+ #selection.collapsed .run-stack .trade-toggle{min-height:36px;margin-top:4px}
+ /* Beside the "Assume 0%" tick box, on its otherwise empty left side, so the bar is no taller than before. */
+ #selection.collapsed:has(.zero-option:not([hidden])) .run-stack .trade-toggle{position:absolute;left:16px;top:60px;margin:0}
+ /* Summary tables with a New column, and the Reg 28 and SA equity tables, fit the screen: names wrap. */
+ :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights).weights-compact :is(th,td){padding:8px 7px}
+ :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights).weights-compact :is(th,td):first-child{min-width:0;white-space:normal;overflow-wrap:anywhere}
+ :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights).weights-compact thead th{white-space:normal}
+ :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights).weights-compact tbody tr.sub td:first-child{padding-left:18px}
+}
+html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody td.breach{color:var(--bbg-down)}

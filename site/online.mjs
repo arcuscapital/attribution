@@ -33,6 +33,11 @@ export function navInCurrency(packet,{fund,date,previousDate,currency,fx=[]}) {
   if(!(before>0)||!(after>0))return absent;
   return {...packet,currency,issuerCurrency:'USD',issuerReturn:packet.return,return:(1+packet.return)*after/before-1,fxAdjusted:true};
 }
+// London quotes pence (GBp) and the JSE quotes cents (ZAc): the major currency and the scale to reach it.
+export const minorUnit=currency=>currency==='GBp'?{currency:'GBP',scale:.01}:currency==='ZAc'?{currency:'ZAR',scale:.01}:{currency,scale:1};
+// JSE listings (EasyBF, Best) are always priced here from adjusted closes and same-date rand FX: Arcus's
+// completed returns for them are not reused as US dollar returns.
+export const reusableArcusReturn=symbol=>!/\.JO$/i.test(symbol);
 // Phone-independent data adapter; prices only for the two selected holdings lists.
 export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgress=()=>{}}={}) {
   let controller=new AbortController(), generation=0;
@@ -63,7 +68,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       for(const snap of lastSnapshots)for(const p of snap.positions)if(p.symbol && keys.has(snap.fund+'|'+p.id)) {
         refreshSymbols.add(p.symbol);
         const c=lastDownloaded.get(p.symbol)?.currency;
-        if(c && c!=='USD')refreshSymbols.add((c==='GBp'?'GBP':c)+'USD=X');
+        if(c && c!=='USD')refreshSymbols.add(minorUnit(c).currency+'USD=X');
       }
       if(lastCurrency==='ZAR' && refreshSymbols.size)refreshSymbols.add('USDZAR=X');
       return refreshSymbols.size;
@@ -117,7 +122,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       // A shared listing must not change when the two requests finish in a
       // different order. Prefer the selected portfolio's dated facts on overlap.
       for(const fund of [...ids].reverse())for(const [symbol,values] of Object.entries(arcusPackets.get(fund)?.returns||{}))
-        arcusReturns[symbol]={...(arcusReturns[symbol]||{}),...values};
+        if(reusableArcusReturn(symbol))arcusReturns[symbol]={...(arcusReturns[symbol]||{}),...values};
       const calendar=arcus ? manifest.valuationDates||[] : [];
       const useCalendar=calendar.some(d=>d<start)&&calendar.some(d=>d>=start&&d<=end);
       const reused=arcusReturnLevels(arcusReturns,calendar,start,end);
@@ -141,7 +146,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       await batch([...symbols]);
       if(!useCalendar && !downloaded.get('SPY')?.points.length)throw Error('Could not verify the trading dates. Please retry when prices are available.');
       const fxCurrencies=new Set();
-      for(const data of downloaded.values())if(!data.symbol.endsWith('=X') && data.currency!=='USD')fxCurrencies.add(data.currency==='GBp'?'GBP':data.currency);
+      for(const data of downloaded.values())if(!data.symbol.endsWith('=X') && data.currency!=='USD')fxCurrencies.add(minorUnit(data.currency).currency);
       const supported=new Set('TWD KRW JPY HKD EUR GBP CHF CAD AUD CNY SEK NOK DKK ILS INR SGD NZD BRL MXN ZAR'.split(' '));
       await batch([...fxCurrencies].filter(c=>supported.has(c)).map(c=>c+'USD=X'));
       const levels=[...reused.levels],priceNotes=[...sourceNotes];
@@ -153,10 +158,10 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
         if(data.currency==='USD' || id==='USDZAR=X') {
           for(const [date,value] of data.points)levels.push({id,date,value,currency:data.currency,basis:id.endsWith('=X')?'fx':'vendor-adjusted'});
         } else if(!id.endsWith('=X')) {
-          const c=data.currency==='GBp'?'GBP':data.currency,fx=downloaded.get(c+'USD=X');
+          const unit=minorUnit(data.currency),fx=downloaded.get(unit.currency+'USD=X');
           if(fx?.currency!=='USD')continue;
           const map=new Map(fx.points);
-          for(const [date,value] of aligned.points)if(map.has(date))levels.push({id,date,value:value*(data.currency==='GBp'?.01:1)*map.get(date),currency:'USD',basis:'vendor-adjusted'});
+          for(const [date,value] of aligned.points)if(map.has(date))levels.push({id,date,value:value*unit.scale*map.get(date),currency:'USD',basis:'vendor-adjusted'});
         }
       }
       if(run!==generation)throw Error('Data request cancelled');

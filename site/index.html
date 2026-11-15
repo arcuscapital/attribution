@@ -10,7 +10,7 @@
     />
     <title>Portfolio Analysis · Arcus</title>
     <meta name="theme-color" content="#151c17" />
-    <link rel="stylesheet" href="style.css?v=collapse-20261115" />
+    <link rel="stylesheet" href="style.css?v=trade-20261115" />
   </head>
   <body>
     <header>
@@ -81,7 +81,12 @@
             </select></label
           ><label id="field-start" class="field-date">From<input type="date" id="start" required disabled /></label
           ><label id="field-end" class="field-date">Through<input type="date" id="end" required disabled /></label
-          ><button class="primary" id="run" disabled>Compare funds</button>
+          ><div class="run-stack"
+            ><button class="primary" id="run" disabled>Compare funds</button
+            ><label class="trade-toggle" id="trade-toggle" hidden
+              ><input id="trade-mode" type="checkbox" role="switch" /><span class="trade-switch" aria-hidden="true"></span><span>Trade slider</span></label
+            ></div
+          >
         </form>
         <p id="range-note">Date presets use completed prices in your archive.</p>
         <label class="zero-option"><input id="assume-zero" type="checkbox" checked /> Assume 0% for missing returns (labelled estimate)</label>
@@ -118,6 +123,9 @@
         </div>
         <section id="return-chart" class="panel return-chart" hidden aria-label="Cumulative return chart"></section>
         <section id="gics-weights" class="panel sector-weights" hidden aria-label="GICS sector weights"></section>
+        <section id="theme-weights" class="panel sector-weights" hidden aria-label="Theme and sub-theme weights"></section>
+        <section id="reg28-weights" class="panel sector-weights" hidden aria-label="Reg 28 weights"></section>
+        <section id="sa-equity-weights" class="panel sector-weights" hidden aria-label="SA equity by GICS sector"></section>
         <details class="panel">
           <summary>Method, reconciliation and sector attribution</summary>
           <div id="method"></div>
@@ -169,6 +177,6 @@
         source dates and investigate unexplained differences.
       </footer>
     </main>
-    <script type="module" src="app.mjs?v=collapse-20261115"></script>
+    <script type="module" src="app.mjs?v=trade-20261115"></script>
   </body>
 </html>

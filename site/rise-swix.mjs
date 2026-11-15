@@ -1,14 +1,19 @@
-import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns,jseCloseReturn,checkCoverage,adjustedLevels,jseCloseLevels,riseSeries} from './rise-swix-core.mjs?v=return-chart-20261112';
-import {dateRange,drawReturnChart,renderSectorWeights,collapsible} from './ranges.mjs?v=collapse-20261115';
+import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns,jseCloseReturn,checkCoverage,adjustedLevels,jseCloseLevels,riseSeries} from './rise-swix-core.mjs?v=trade-20261115';
+import {dateRange,drawReturnChart,renderSectorWeights,collapsible} from './ranges.mjs?v=trade-20261115';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
-export function createRiseSwix({check,lock}){
+// trade (optional) is the Trade slider (owner, 2026-11-15): while it is on, each holding has a New weight field after
+// Bmrk, the total and sector rows show the sum, and the GICS sector weights gain a New column. Rise has no Arcus trade
+// portfolio, so its Trade button only explains that.
+export function createRiseSwix({check,lock,trade=null}){
  let generation=0,controller=new AbortController(),timer,report=null,busy=false,worker=null,rejectWorker=null,last=null,priorCurrency=null,priorGrouping='none',entered=false,syncing=false;
  const prices=new Map(),opened=new Set();let current=null;
  let sort=null,refocus=null,cooldown;
+ const sums=trade?.sums(),trading=()=>!!trade?.on,items=list=>list.map(c=>({key:c.id,current:c.values[0]}));
  const panel=el('section',null,'panel rise-swix');panel.id='rise-swix';panel.hidden=true;$('results').before(panel);
  const title=el('h2','Rise vs Swix'),note=el('p'),status=el('p'),scroll=el('div',null,'rise-scroll'),table=el('table'),foot=el('p'),download=el('button','Download CSV');download.type='button';
  // Live only: refresh now without clearing the table; disabled while refreshing and for 5 s after a press.
  const refresh=el('button','Refresh'),actions=el('div',null,'rise-actions');refresh.type='button';refresh.hidden=true;refresh.setAttribute('aria-label','Refresh live prices now');actions.append(download,refresh);
+ if(trade)download.after(trade.actions({fund:()=>RISE,fundName:()=>'Rise',trades:()=>{const all=new Map((last?.groups||[]).flatMap(g=>g.children).map(p=>[p.id,p]));return trade.entries().filter(([id])=>all.has(id)).map(([id,target])=>{const p=all.get(id);return {id,symbol:p.symbol||null,ticker:p.ticker||'',name:p.name,current:p.values[0]??0,target};});},check}));
  // Red list of holdings without a usable price in the latest attempt; hidden when every holding is priced.
  const missingNote=el('p',null,'rise-missing');missingNote.hidden=true;
  // Cumulative return chart for periods of two or more sessions, directly under the table.
@@ -22,6 +27,8 @@ export function createRiseSwix({check,lock}){
   missingNote.textContent=list.length?(zeroed?(zeroed==='live'?'No live price from Yahoo or Sharenet, counted as 0% return: ':'No price from Yahoo or Sharenet for these dates, counted as 0% return: '):'Not getting prices for '+list.length+(list.length===1?' share: ':' shares: '))+list.join(', '):'';missingNote.hidden=!list.length;
  }
  $('grouping')?.addEventListener('change',()=>{if(isActive()&&last)render(last);});
+ // Slider on or off redraws the table; typing only updates the sums (their own cells) and the sector weights.
+ trade?.subscribe(why=>{if(!isActive()||!last||panel.hidden)return;if(why==='value')drawWeights(last);else if(why!=='order')render(last);});
  const live=el('option','Live');live.value='live';live.hidden=true;live.disabled=true;$('range').options[0].after(live);
  const isActive=()=>isRisePair($('portfolio').value,$('benchmark').value);
  function cancel(clear=false){generation++;controller.abort();controller=new AbortController();clearTimeout(timer);clearTimeout(cooldown);refresh.disabled=false;worker?.terminate();worker=null;rejectWorker?.(Error('Selection changed'));rejectWorker=null;busy=false;$('run').disabled=false;if(clear){report=null;prices.clear();last=null;table.replaceChildren();drawReturnChart(chart,null);panel.hidden=true;opened.clear();showMissing();}}
@@ -52,7 +59,7 @@ export function createRiseSwix({check,lock}){
   syncing=false;
  }
  function format(v){return v===null?'—':(Math.abs(v)<.005?0:v).toFixed(2);}
- function row(x,type,index){
+ function row(x,type,index,sector=''){
   const tr=el('tr',null,type),name=el('td');
   if(type==='rise-sector'){
    const button=el('button');button.type='button';button.append(el('span',opened.has(index)?'▾':'▸'),el('span',x.name));button.setAttribute('aria-expanded',String(opened.has(index)));
@@ -65,11 +72,20 @@ export function createRiseSwix({check,lock}){
    if(x.reference?.includes(i)){td.classList.add('rise-reference');td.title=(i===2?'Rise':'Swix')+' does not hold this share. Its own return, for reference.';}
    if(x.zeroed&&(i===2||i===3)&&v!==null){td.classList.add('rise-zeroed');td.title='No price from Yahoo or Sharenet: counted as 0% return.';}
    tr.append(td);
+   if(i===1&&trading())tr.append(type==='rise-holding'?trade.newCell({key:x.id,current:x.values[0],locked:!!x.cash||!x.id,label:x.name}):sums.cell(items(type==='rise-total'?last.groups.flatMap(g=>g.children):x.children)));
   });
+  // GICS sector to the right of CTR (owner, 2026-11-15): the report sector of each holding.
+  const gics=el('td',type==='rise-holding'?sector:'','rise-text');gics.title=gics.textContent;tr.append(gics);
+  if(trading()&&type==='rise-holding'&&x.id)trade.markRow(tr,trade.has(x.id));
   return tr;
  }
+ function drawWeights(value){
+  const on=trading(),n=list=>list.reduce((sum,c)=>sum+trade.weight(c.id,c.values[0]),0);
+  renderSectorWeights(weights,{list:value.groups.map(g=>({name:g.name,a:g.values[0]??0,b:g.values[1]??0,...(on?{n:n(g.children)}:{})})),total:{name:'Total',a:value.total.values[0],b:value.total.values[1],...(on?{n:n(value.groups.flatMap(g=>g.children))}:{})}},
+   {portfolio:'Rise',benchmark:'Swix',heading:'h3',newLabel:on?'New % weight':null,note:'Report average weights by GICS sector (Bloomberg report sectors).'+(on?' New follows the weights you type in the table; holdings you have not changed keep their weight.':'')});
+ }
  function render(value){
-  if(!value)return;last=value;const x=scroll.scrollLeft;
+  if(!value)return;last=value;sums?.reset();const x=scroll.scrollLeft;
   const head=el('thead'),a=el('tr'),b=el('tr');
   // Every column heading sorts: sectors first, then the holdings inside each open sector. Total stays on top.
   const sortable=(th,key,label,name)=>{
@@ -81,16 +97,20 @@ export function createRiseSwix({check,lock}){
    th.append(button);return th;
   };
   for(const [text,key] of [['Name','name'],['Ticker','ticker']]){const th=el('th');th.rowSpan=2;th.scope='col';a.append(sortable(th,key,text,text));}
-  ['Avg % weight','Total return (%)','CTR (pp)'].forEach((text,g)=>{const th=el('th',text);th.colSpan=2;th.scope='colgroup';a.append(th);['Port','Bmrk'].forEach((label,s)=>{const sub=el('th');sub.scope='col';b.append(sortable(sub,g*2+s,label,text+' '+label));});});
+  ['Avg % weight','Total return (%)','CTR (pp)'].forEach((text,g)=>{const th=el('th',text);th.colSpan=g===0&&trading()?3:2;th.scope='colgroup';a.append(th);['Port','Bmrk'].forEach((label,s)=>{const sub=el('th');sub.scope='col';b.append(sortable(sub,g*2+s,label,text+' '+label));});
+   if(g===0&&trading()){const sub=el('th','New','trade-new-head');sub.scope='col';sub.title='New weight (%). Type in a holding’s row.';b.append(sub);}});
+  {const th=el('th','GICS sector','rise-text');th.rowSpan=2;th.scope='col';a.append(th);}
+  table.classList.toggle('trade-on',trading());
   head.append(a,b);const body=el('tbody');body.append(row(value.total,'rise-total'));
+  const sectorOf=new Map(value.groups.flatMap(g=>g.children.map(c=>[c.id,g.name])));
   // Grouping: GICS sectors (default here) or No grouping, which lists every holding like the other comparisons.
   const flat=$('grouping')?.value==='none';table.classList.toggle('rise-flat',flat);
-  if(flat)sortRiseGroups([{name:'',values:[],children:value.groups.flatMap(g=>g.children)}],sort)[0].children.forEach(c=>body.append(row(c,'rise-holding')));
-  else sortRiseGroups(value.groups,sort).forEach(({group,index,children})=>{body.append(row(group,'rise-sector',index));if(opened.has(index))children.forEach(c=>body.append(row(c,'rise-holding')));});
-  table.replaceChildren(head,body);scroll.scrollLeft=x;
+  if(flat)sortRiseGroups([{name:'',values:[],children:value.groups.flatMap(g=>g.children)}],sort)[0].children.forEach(c=>body.append(row(c,'rise-holding',undefined,sectorOf.get(c.id))));
+  else sortRiseGroups(value.groups,sort).forEach(({group,index,children})=>{body.append(row(group,'rise-sector',index));if(opened.has(index))children.forEach(c=>body.append(row(c,'rise-holding',undefined,group.name)));});
+  if(trade)trade.keepFocus(table,()=>table.replaceChildren(head,body));else table.replaceChildren(head,body);scroll.scrollLeft=x;
   if(refocus!==null){table.querySelector('[data-sort="'+refocus+'"]')?.focus();refocus=null;}
   drawReturnChart(chart,value.series&&!value.live&&!value.exact?{...value.series,labelA:value.total?.name||'Rise',labelB:'SWIX ALL SHARE',note:'ZAR · report weights from the start · adjusted closes (Sharenet closes where Yahoo had none)'}:null);
-  renderSectorWeights(weights,{list:value.groups.map(g=>({name:g.name,a:g.values[0]??0,b:g.values[1]??0})),total:{name:'Total',a:value.total.values[0],b:value.total.values[1]}},{portfolio:'Rise',benchmark:'Swix',heading:'h3',note:'Report average weights by GICS sector (Bloomberg report sectors).'});
+  drawWeights(value);
   note.textContent='Port = Rise · Bmrk = Swix · '+value.start+' to '+value.end+' · ZAR · '+value.basis;
   const reference=' Italic returns are for shares that side does not hold: the share’s own return, for reference, with no weight or contribution.';
   foot.textContent=value.exact?'Source: Bloomberg report, 4–5 November 2026. Reported sector totals and source blanks retained, except share returns where one side does not hold the share.'+reference:'Holdings-based estimate. The 4–5 November 2026 report’s average weights are assumed across the selected period; trades and actual average holdings are not reconstructed. ZAR cash is held constant with 0% assumed income. '+(value.live?'Live uses price returns; intraday distributions are not included. Provider quotes may be delayed; Updated is the fetch time.'+(value.backup?.length?' Sharenet’s latest price (possibly delayed) is the backup for '+count(value.backup.length)+' without a usable Yahoo quote.':''):'Shares use vendor-adjusted returns. NEWSLV and SBCOP use Sharenet closing-price returns (price-only estimates).'+(value.backup?.length?' Where Yahoo had no adjusted price on a required date, '+count(value.backup.length)+' use Sharenet closing prices as the backup (price only; a dividend on those dates is not included).':''))+(value.zero?.length?' Shares with no price from Yahoo or Sharenet count as 0% return and are listed in red.':'')+reference+' All figures are in ZAR. Swipe horizontally for more columns.';

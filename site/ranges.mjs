@@ -47,7 +47,7 @@ const node = (tag, attrs = {}, text) => {
 const fmt = v => (Math.abs(v) < 0.005 ? 0 : v).toFixed(2);
 
 // Evenly spaced round tick values covering lo..hi.
-import {sortRiseGroups} from './rise-swix-core.mjs?v=gics-20261113';
+import {sortRiseGroups} from './rise-swix-core.mjs?v=trade-20261115';
 
 export function niceTicks(lo, hi, count = 6) {
   if (!(hi > lo)) { lo -= 1; hi += 1; }
@@ -114,16 +114,23 @@ export function collapsible(host, label) {
   });
   return wrap;
 }
-export function renderSectorWeights(host, value, {portfolio = 'Portfolio', benchmark = 'Benchmark', title = 'GICS sector weights', note = '', heading = 'h2'} = {}) {
+// Trade slider (owner, 2026-11-15): newLabel adds a New column from each row's n; first names the first column;
+// benchmark = null leaves the benchmark column out; limit adds a Limit column (Reg 28) and marks breaches.
+export function renderSectorWeights(host, value, {portfolio = 'Portfolio', benchmark = 'Benchmark', title = 'GICS sector weights', note = '', heading = 'h2',
+  first = 'GICS sector', portfolioLabel = null, newLabel = null, limit = false, compact = false} = {}) {
   if (!host) return;
   if (!value?.list?.length) { host.replaceChildren(); host.hidden = true; return; }
+  host.classList?.toggle('weights-compact', compact || newLabel !== null || limit || benchmark === null); // phones: wrap names so every column fits
   const mk = (tag, text, cls) => { const n = document.createElement(tag); n.textContent = text ?? ''; if (cls) n.className = cls; return n; };
   const f = v => (Number.isFinite(v) ? (Math.abs(v) < .005 ? 0 : v) : 0).toFixed(2);
   const table = mk('table'), head = mk('thead'), body = mk('tbody'), foot = mk('tfoot'), hr = mk('tr');
-  for (const [label, cls] of [['GICS sector', ''], [portfolio + ' % weight', 'w'], [benchmark + ' % weight', 'w']]) { const th = mk('th', label, cls); th.scope = 'col'; hr.append(th); }
+  const bench = benchmark !== null, added = newLabel !== null;
+  for (const [label, cls] of [[first, ''], [portfolioLabel || portfolio + ' % weight', 'w'], ...(bench ? [[benchmark + ' % weight', 'w']] : []), ...(added ? [[newLabel, 'w n']] : []), ...(limit ? [['Limit', 'w']] : [])]) { const th = mk('th', label, cls); th.scope = 'col'; hr.append(th); }
   head.append(hr);
-  for (const x of value.list) { const tr = mk('tr'); tr.append(mk('td', x.name), mk('td', f(x.a), 'w'), mk('td', f(x.b), 'w')); body.append(tr); }
-  if (value.total) { const tr = mk('tr', null, 'total'); tr.append(mk('td', value.total.name || 'Total'), mk('td', f(value.total.a), 'w'), mk('td', f(value.total.b), 'w')); foot.append(tr); }
+  const cells = x => [mk('td', x.name), mk('td', f(x.a), 'w' + (x.breachA ? ' breach' : '')), ...(bench ? [mk('td', f(x.b), 'w')] : []), ...(added ? [mk('td', f(x.n), 'w n' + (x.breachN ? ' breach' : ''))] : []),
+    ...(limit ? [mk('td', Number.isFinite(x.limit) ? '≤ ' + x.limit + '%' : '', 'w lim')] : [])];
+  for (const x of value.list) { const tr = mk('tr', null, Number.isFinite(x.limit) || x.strong ? 'limited' : x.sub ? 'sub' : ''); tr.append(...cells(x)); body.append(tr); }
+  if (value.total) { const tr = mk('tr', null, 'total'); tr.append(...cells({...value.total, name: value.total.name || 'Total'})); foot.append(tr); }
   table.append(head, body, foot);
   const wrap = mk('div', null, 'sector-weights-scroll');
   wrap.append(table);
@@ -134,11 +141,15 @@ export function renderSectorWeights(host, value, {portfolio = 'Portfolio', bench
 // Grouped comparison table (owner, 2026-11-13): the Rise vs Swix table markup and behaviour (two heading rows,
 // sortable headings, total first, sector rows that open with ▸/▾, the last clicked sector on the selection band)
 // for any grouped value {total, groups:[{name, values, children:[{name, ticker, values, reference, zeroed}]}]}.
-export function createGroupedTable() {
+// trade (optional) is the Trade slider: while it is on, holdings get a New weight field after Bmrk and the total
+// and sector rows show the sum. extra() lists text columns after CTR, e.g. [['gics','GICS sector']];
+// extraText(holding, key) is their text; locked(holding) marks rows that are not traded (cash).
+export function createGroupedTable({trade = null, extra = () => [], extraText = () => '', locked = () => false} = {}) {
   const mk = (tag, value, cls) => { const n = document.createElement(tag); n.textContent = value ?? ''; if (cls) n.className = cls; return n; };
   const scroll = mk('div', null, 'rise-scroll'), table = mk('table');
   scroll.append(table);
-  const opened = new Set();
+  const opened = new Set(), sums = trade?.sums(), trading = () => !!trade?.on;
+  const items = list => list.filter(c => c.id).map(c => ({key: c.id, current: c.values[0]}));
   let current = null, sort = null, refocus = null, last = null, labels = {portfolio: 'The portfolio', benchmark: 'The benchmark'};
   const format = v => v === null || v === undefined || !Number.isFinite(v) ? '—' : (Math.abs(v) < .005 ? 0 : v).toFixed(2);
   function row(x, type) {
@@ -158,12 +169,17 @@ export function createGroupedTable() {
       if (x.reference?.includes(i)) { td.classList.add('rise-reference'); td.title = (i === 2 ? labels.portfolio : labels.benchmark) + ' does not hold this share. Its own return, for reference.'; }
       if (x.zeroed && (i === 2 || i === 3) && v !== null) { td.classList.add('rise-zeroed'); td.title = 'No price: counted as 0% return.'; }
       tr.append(td);
+      if (i === 1 && trading()) tr.append(type === 'rise-holding' ? trade.newCell({key: x.id, current: x.values[0], locked: !x.id || locked(x), label: x.name})
+        : sums.cell(items(type === 'rise-total' ? last.groups.flatMap(g => g.children) : x.children)));
     });
+    for (const [key] of extra()) { const td = mk('td', type === 'rise-holding' ? extraText(x, key) : '', 'rise-text'); td.title = td.textContent; tr.append(td); }
+    if (trading() && type === 'rise-holding' && x.id) trade.markRow(tr, trade.has(x.id));
     return tr;
   }
   function render(value) {
     if (!value) return;
     last = value;
+    sums?.reset();
     const x = scroll.scrollLeft, head = mk('thead'), a = mk('tr'), b = mk('tr');
     const sortable = (th, key, label, title) => {
       const active = sort?.key === key, button = mk('button', label);
@@ -177,9 +193,12 @@ export function createGroupedTable() {
     };
     for (const [label, key] of [['Name', 'name'], ['Ticker', 'ticker']]) { const th = mk('th'); th.rowSpan = 2; th.scope = 'col'; a.append(sortable(th, key, label, label)); }
     ['Avg % weight', 'Total return (%)', 'CTR (pp)'].forEach((label, g) => {
-      const th = mk('th', label); th.colSpan = 2; th.scope = 'colgroup'; a.append(th);
+      const th = mk('th', label); th.colSpan = g === 0 && trading() ? 3 : 2; th.scope = 'colgroup'; a.append(th);
       ['Port', 'Bmrk'].forEach((side, s) => { const sub = mk('th'); sub.scope = 'col'; b.append(sortable(sub, g * 2 + s, side, label + ' ' + side)); });
+      if (g === 0 && trading()) { const sub = mk('th', 'New', 'trade-new-head'); sub.scope = 'col'; sub.title = 'New weight (%). Type in a holding’s row.'; b.append(sub); }
     });
+    for (const [, label] of extra()) { const th = mk('th', label, 'rise-text'); th.rowSpan = 2; th.scope = 'col'; a.append(th); }
+    table.classList.toggle('trade-on', trading());
     head.append(a, b);
     const body = mk('tbody');
     body.append(row(value.total, 'rise-total'));
@@ -187,11 +206,11 @@ export function createGroupedTable() {
       body.append(row(group, 'rise-sector'));
       if (opened.has(group.name)) children.forEach(c => body.append(row(c, 'rise-holding')));
     });
-    table.replaceChildren(head, body);
+    if (trade) trade.keepFocus(table, () => table.replaceChildren(head, body)); else table.replaceChildren(head, body);
     scroll.scrollLeft = x;
     if (refocus !== null) { table.querySelector('[data-sort="' + refocus + '"]')?.focus(); refocus = null; }
   }
-  return {scroll, table, render, reset() { opened.clear(); current = null; sort = null; }, setLabels(next) { labels = {...labels, ...next}; }};
+  return {scroll, table, render, redraw() { render(last); }, reset() { opened.clear(); current = null; sort = null; }, setLabels(next) { labels = {...labels, ...next}; }};
 }
 
 // A chart problem hides the chart; it never interrupts the comparison results around it.
