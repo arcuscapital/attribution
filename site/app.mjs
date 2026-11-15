@@ -1310,7 +1310,14 @@ if ($('back-arcus')?.tagName !== 'SPAN') try {
   $('trade-mode').checked = false; // off on every load
   $('trade-mode').addEventListener('change', () => trade.setOn($('trade-mode').checked));
   // Slider on or off, or another portfolio: redraw. Typing only moves the sums (their own cells) and the summary tables.
+  // Phones show Security, Weight and New while the slider is on: list the fund's own holdings first (largest weight),
+  // and go back to the earlier order when it is switched off.
+  let sortBeforeTrade = null;
   trade.subscribe(why => {
+    if (why === 'mode' && phone.matches) {
+      if (trade.on && !['ticker', 'weightA', 'newWeight'].includes(sortKey)) { sortBeforeTrade = [sortKey, sortDirection]; sortKey = 'weightA'; sortDirection = -1; }
+      else if (!trade.on && sortBeforeTrade) { [sortKey, sortDirection] = sortBeforeTrade; sortBeforeTrade = null; }
+    }
     if (why === 'order' || !result || !['complete', 'partial'].includes(result.status) || $('results').hidden) return;
     if (why === 'value') renderSummaryTables(); else renderRows();
   });
