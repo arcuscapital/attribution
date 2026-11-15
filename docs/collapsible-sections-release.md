@@ -34,6 +34,9 @@ should be open by default for both but there must be a little drop down arrow so
   GICS bar collapsed it (arrow turned, Method panel moved up) and a second tap reopened it. **Not tested:** a physical phone; dark
   mode on the emulator (desktop dark mode only).
 
+## Independent check (mini review agent, after deploy, read-only in the owner's Brave)
+PASS: both toggles open after a run, each hides only its own section and restores, in the ordinary comparison and in Rise vs Swix; IBKR vs BAI last month weights sum to 99.99 / 100.01 with an Unknown GICS row (21.66 / 19.70), chart end values -13.49 / -16.83 and difference 3.33 match the metric cards; Rise vs Swix weights sum to 100.00 / 99.99, Not Classified 10.44. Controls were restored and read back as GPT / MTUM / day / USD / none.
+
 ## Rollback
 ```powershell
 $env:XDG_CONFIG_HOME='C:/Users/Skrom/AppData/Local/ArcusAttribution/cloudflare-auth'
