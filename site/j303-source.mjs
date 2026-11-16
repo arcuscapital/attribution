@@ -48,7 +48,7 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
     data.levels.push({id:'USDZAR=X',date,value:fx.get(date),currency:'ZAR',basis:'fx'});
     for(const symbol of involved){const q=returns(symbol,date);if(q)data.levels.push({id:symbol,date,value:q.value/fx.get(date),currency:'USD',basis:returnBasis});}
   }
-  return {...data,returnBasis,dailyHoldings:true,valuationDates:dates,calendarThrough:end,priceCheckedAt:new Date().toISOString(),arcusSource:true,
+  return {...data,returnBasis,dailyHoldings:true,dailyHoldingsFunds:[...paths.keys()],valuationDates:dates,calendarThrough:end,priceCheckedAt:new Date().toISOString(),arcusSource:true,
     priceNotes:[...(data.priceNotes||[]),basisLabel(returnBasis)+' for both portfolio and benchmark. J303 weights drift with prices and rebalance automatically each quarter with 12% capping. Weights shown are average opening weights; contributions compound daily. '+(total?'SA gross cash dividends are reinvested at the ex-date close.':'Ordinary dividends are excluded for this single session.'),
       'J303 history reconstructs public fund disclosures and dated membership changes. Historical calibrations use later published information; future reviews carry the latest inferred float units until new source data is available.',
       ...(model.provenanceNotes||[]),

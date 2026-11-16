@@ -90,7 +90,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
     },
     async load(manifest,ids,start,end,currency,basisOverride=null) {
       if(ids.includes('PORTFOLIO:J303')||(ids.includes('PORTFOLIO:SWIX')&&manifest.funds?.some(f=>f.id==='PORTFOLIO:J303'))){
-        const {loadJ303}=await import('./j303-source.mjs?v=returns-20261116');
+        const {loadJ303}=await import('./j303-source.mjs?v=returns-20261116c');
         return loadJ303({manifest,ids,start,end,currency,onProgress,loadOther:(others,basis)=>this.load(manifest,others,start,end,currency,basis),get:async path=>{
         const saved=j303Cache.get(path);if(saved&&Date.now()-saved.at<900000)return saved.data;
         const data=await get(path);j303Cache.set(path,{at:Date.now(),data});return data;

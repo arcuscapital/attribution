@@ -109,6 +109,9 @@ function carino(a, b) {
     : (Math.log1p(a) - Math.log1p(b)) / (a - b);
 }
 export function compare(input, options) {
+  if(input.dailyHoldings && input.dailyHoldingsFunds &&
+      input.dailyHoldingsFunds.includes(options.portfolio)!==input.dailyHoldingsFunds.includes(options.benchmark))
+    return mixedHoldingsComparison(input,options);
   if(!input.dailyHoldings && !options.assumptionsApplied && (options.assumeMissingZero || input.nonListedIds?.length)) {
     const nonListed=new Set(input.nonListedIds||[]);
     const original=compare({...input,levels:input.levels.filter(l=>!nonListed.has(l.id))},{...options,assumptionsApplied:true,assumeMissingZero:false,allowPartialReturns:true});
@@ -370,6 +373,59 @@ export function compare(input, options) {
   });
 }
 
+// Keep each side's established calculation when a drifting index is compared
+// with a saved allocation. A cash assumption on the allocation must never mask
+// missing index prices or turn the index into a period-weight estimate.
+function mixedHoldingsComparison(input,options){
+  if(options.portfolio===options.benchmark)throw Error('Choose two different funds.');
+  const alias='__comparison_reference__';
+  const sides=[options.portfolio,options.benchmark].map(fund=>{
+    const dailyHoldings=input.dailyHoldingsFunds.includes(fund);
+    const snapshots=input.snapshots.filter(s=>s.fund===fund);
+    const fundLevels=input.levels.filter(l=>l.id===fund);
+    const data={...input,dailyHoldings,dailyHoldingsFunds:null,
+      snapshots:[...snapshots,...snapshots.map(s=>({...s,fund:alias}))],
+      levels:[...input.levels,...fundLevels.map(l=>({...l,id:alias}))]};
+    const ownOptions={...options,portfolio:fund,benchmark:alias};
+    const result=compare(data,ownOptions);
+    const series=['complete','partial'].includes(result.status)?returnSeries(data,result,ownOptions):null;
+    return {fund,result,series};
+  });
+  const [a,b]=sides.map(s=>s.result),missing=sides.flatMap(s=>(s.result.missing||[]).filter(m=>m.fund===s.fund));
+  if(sides.some(s=>!['complete','partial'].includes(s.result.status)))
+    return {status:'incomplete',rows:[],missing,issues:[...new Set(sides.flatMap(s=>s.result.issues||[]))],returnBasis:input.returnBasis};
+  const rows=new Map();
+  for(const [i,side] of sides.entries())for(const r of side.result.rows){
+    const row=rows.get(r.id)||{...r,weightA:0,weightB:0,ctrA:0,ctrB:0};
+    row[i?'weightB':'weightA']=r.weightA;row[i?'ctrB':'ctrA']=r.ctrA;
+    row.assumedZero=!!row.assumedZero||!!r.assumedZero;row.nonListed=!!row.nonListed||!!r.nonListed;
+    rows.set(r.id,row);
+  }
+  for(const row of rows.values()){
+    row.activeWeight=row.weightA-row.weightB;
+    row.activeCtr=row.ctrA===null||row.ctrB===null?null:row.ctrA-row.ctrB;
+  }
+  let mixedSeries=null;
+  if(sides.every(s=>s.series)){
+    const maps=sides.map(s=>new Map(s.series.dates.map((d,i)=>[d,s.series.a[i]])));
+    const dates=sides[0].series.dates.filter(d=>maps[1].has(d));
+    mixedSeries={dates,a:dates.map(d=>maps[0].get(d)),b:dates.map(d=>maps[1].get(d))};
+  }
+  const coverage=r=>r.coverage?.portfolio??r.rows.reduce((sum,row)=>sum+(Number.isFinite(row.ctrA)&&!row.assumedZero?Math.abs(row.weightA):0),0);
+  return {...a,status:a.status==='complete'&&b.status==='complete'?'complete':'partial',returnA:a.returnA,returnB:b.returnA,
+    activeReturn:a.returnA===null||b.returnA===null?null:a.returnA-b.returnA,
+    fundReturnA:a.fundReturnA,fundReturnB:b.fundReturnA,fundReturnBasisA:a.fundReturnBasisA,fundReturnBasisB:b.fundReturnBasisA,
+    returnMethodA:a.returnMethodA,returnMethodB:b.returnMethodA,residualA:a.residualA,residualB:b.residualA,
+    knownContributionA:a.knownContributionA??a.returnA,knownContributionB:b.knownContributionA??b.returnA,
+    rows:[...rows.values()].sort((x,y)=>Number(!!x.nonListed)-Number(!!y.nonListed)||(y.activeCtr??0)-(x.activeCtr??0)),
+    missing,issues:[],sectors:[],contributionMethod:'mixed-holdings',coverage:{portfolio:coverage(a),benchmark:coverage(b)},mixedSeries,
+    assumedReturns:[...new Map(sides.flatMap(s=>s.result.assumedReturns||[]).map(p=>[p.id,p])).values()],
+    approximateHoldings:a.approximateHoldings||b.approximateHoldings,
+    holdingsWarnings:[...new Set([...(a.holdingsWarnings||[]),...(b.holdingsWarnings||[])])],
+    notes:[...new Set([...a.notes,...b.notes].filter(n=>!n.includes('Cash income and private holdings require actual return levels.'))),
+      'The drifting index uses daily opening holdings and linked contributions. The saved allocation retains its period-weight calculation and any explicitly labelled cash/private-position assumptions. Both sides use the same price or total-return basis; cross-method sector attribution is withheld.']};
+}
+
 /** Account estimates use exactly the displayed average weights and period returns.
  * Unknown contributions stay null; the headline is the available weighted estimate,
  * never a listed stock masquerading as an account or a rescaled allocation.
@@ -520,6 +576,7 @@ function partialComparison(prices, history, options, baseline, missing) {
 // price on any day has no contribution and is left out, as in the headline. A security's last known value
 // carries over days without a price; rows counted at 0% stay at 0.
 export function returnSeries(input, result, options) {
+  if(result?.contributionMethod==='mixed-holdings')return result.mixedSeries;
   if (!result?.baseline || !result?.end || !Array.isArray(result.rows) || !Array.isArray(input?.levels)) return null;
   const {portfolio, benchmark} = options, currency = result.currency || options.currency || 'USD';
   const map = levelIndex(input), ids = new Set([portfolio, benchmark, ...result.rows.map(r => r.id)]);

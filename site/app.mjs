@@ -490,7 +490,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=returns-20261116", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=returns-20261116c", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -510,7 +510,7 @@ $("controls").addEventListener("submit", async (e) => {
     });
     if (generation !== accessGeneration || !await session.check()) return;
     result = response;
-    const zeroLabel=$('assume-zero').closest?.('label');if(zeroLabel)zeroLabel.hidden=!!data.dailyHoldings;
+    const zeroLabel=$('assume-zero').closest?.('label');if(zeroLabel)zeroLabel.hidden=!!data.dailyHoldings&&(!data.dailyHoldingsFunds||[options.portfolio,options.benchmark].every(id=>data.dailyHoldingsFunds.includes(id)));
     result.issuerNav = data.issuerNav || {};
     securityLinks = buildSecurityLinks(data.snapshots);
     if(data.arcusSource) {
@@ -595,7 +595,7 @@ $("controls").addEventListener("submit", async (e) => {
     if(onlineMode) $('price-status').textContent = basisLabel(data.returnBasis)+' · '+(data.dailyHoldings?'Daily floating holdings · automatic quarterly rebalance · ':data.returnBasis==='total-return'?'Dividend-adjusted security histories · ':data.arcusSource ? 'Arcus completed price returns first · '+data.arcusReturnCount+' securities/funds reused · ' : 'Completed closing prices · ')+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
     $('research-note').replaceChildren(
       text('strong','Research estimate — use for ideas, not exact accounting.'),
-      text('p',data.dailyHoldings ? 'J303 holdings drift with daily closing prices and rebalance automatically each quarter. Dividends are excluded for one session and reinvested in multi-session total returns. Historical weights reconstruct public disclosures; source dates and assumptions are recorded in Method. SWIX uses its independently saved allocation. Both sides use daily compounded contributions, and missing latest prices stop the comparison.' : data.arcusSource ? 'Current holdings come from Arcus. One-session comparisons can reuse completed Arcus price returns; multi-session comparisons use dividend-inclusive histories. ETF weights come from its issuer sources, retaining cash and private holdings. Where Arcus does not hold the requested dated return history, adjusted-price history and same-date FX fill the gap. Current allocations are applied to the selected period; historical trades are not reconstructed. Any archive allocation fallback is disclosed below.' : onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Both sides use the displayed return basis and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
+      text('p',data.dailyHoldings ? 'J303 holdings drift with daily closing prices and rebalance automatically each quarter. Dividends are excluded for one session and reinvested in multi-session total returns. Historical weights reconstruct public disclosures; source dates and assumptions are recorded in Method. SWIX uses its independently saved allocation. J303 and SWIX use daily compounded contributions; other saved portfolios retain their period-weight calculation and labelled cash assumptions. Missing index prices stop the comparison.' : data.arcusSource ? 'Current holdings come from Arcus. One-session comparisons can reuse completed Arcus price returns; multi-session comparisons use dividend-inclusive histories. ETF weights come from its issuer sources, retaining cash and private holdings. Where Arcus does not hold the requested dated return history, adjusted-price history and same-date FX fill the gap. Current allocations are applied to the selected period; historical trades are not reconstructed. Any archive allocation fallback is disclosed below.' : onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Both sides use the displayed return basis and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
       ...(result.holdingsWarnings || []).map(n => text('p',n)),
       ...(data.sourceWarnings || []).map(n=>text('p',n)),
       ...(result.assumedReturns?.length ? [text('p','Private holdings, cash, money-market funds, derivatives and corporate-action positions are shown at the bottom with an assumed 0% return. They are excluded from measured coverage. Missing listed-share returns remain blank unless you select the additional 0% assumption.')] : []),
@@ -1347,7 +1347,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=returns-20261116');
+  const {createOnlineSource}=await import('./online.mjs?v=returns-20261116c');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;
@@ -1385,7 +1385,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=returns-20261116');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock(),trade});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=returns-20261116c');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock(),trade});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';
