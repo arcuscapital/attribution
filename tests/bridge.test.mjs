@@ -12,6 +12,9 @@ test('only fresh request-bound server assertions open listed assets',async()=>{
  const env={ANALYSIS_BRIDGE_KEY:secret};
  assert.equal(await bridgeAsset(await request(),env,now),'app.mjs');
  assert.equal(await bridgeAsset(await request({asset:'export.mjs'}),env,now),'export.mjs');
+ assert.equal(await bridgeAsset(await request({asset:'j303-core.mjs'}),env,now),'j303-core.mjs');
+ assert.equal(await bridgeAsset(await request({asset:'data/j303?symbol=NPN.JO'}),env,now),'data/j303');
+ assert.equal(await bridgeAsset(await request({asset:'data/j303?symbol=NPN.JO',signPath:'/arcus-bridge/data/j303?symbol=GFI.JO'}),env,now),null);
  assert.equal(await bridgeAsset(new Request(origin+'/arcus-bridge/export.mjs'),env,now),null);
  for(const options of [{seconds:now/1000-31},{seconds:now/1000+6},{asset:'private.json'},{method:'POST'},{signPath:'/arcus-bridge/engine.mjs'},{signMethod:'HEAD'}])
   assert.equal(await bridgeAsset(await request(options),env,now),null);

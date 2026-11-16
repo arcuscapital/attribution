@@ -29,7 +29,7 @@ function levelIndex(data) {
 function levelReturn(map, id, from, to, currency) {
   let ret = null,
     basis = null;
-  for (const b of ["verified-total-return", "arcus-completed-session", "vendor-adjusted"]) {
+  for (const b of ["price-return", "verified-total-return", "arcus-completed-session", "vendor-adjusted"]) {
     const a = map.get(`${id}|${from}|${b}`),
       z = map.get(`${id}|${to}|${b}`);
     if (a && z && a.currency === "USD" && z.currency === "USD") {
@@ -106,7 +106,7 @@ function carino(a, b) {
     : (Math.log1p(a) - Math.log1p(b)) / (a - b);
 }
 export function compare(input, options) {
-  if(!options.assumptionsApplied && (options.assumeMissingZero || input.nonListedIds?.length)) {
+  if(!input.dailyHoldings && !options.assumptionsApplied && (options.assumeMissingZero || input.nonListedIds?.length)) {
     const nonListed=new Set(input.nonListedIds||[]);
     const original=compare({...input,levels:input.levels.filter(l=>!nonListed.has(l.id))},{...options,assumptionsApplied:true,assumeMissingZero:false,allowPartialReturns:true});
     if(!['complete','partial'].includes(original.status))return original;
@@ -150,8 +150,12 @@ export function compare(input, options) {
     return chosen;
   }
   function withProxies(result) {
-    if ([portfolio, benchmark].some(id => id.startsWith('PORTFOLIO:')))
+    if (!data.dailyHoldings && [portfolio, benchmark].some(id => id.startsWith('PORTFOLIO:')))
       result = averageWeightReturns(result, portfolio, benchmark);
+    if(data.dailyHoldings){
+      result.returnMethodA=result.returnMethodB='daily-holdings';result.contributionMethod='daily-linked';
+      result.notes=(result.notes||[]).filter(n=>!n.includes('USD total-return levels'));
+    }
     result.approximateHoldings = proxyNotes.size > 0;
     result.holdingsWarnings = [...proxyNotes];
     result.notes = [...(result.notes || []), ...proxyNotes];
@@ -212,7 +216,7 @@ export function compare(input, options) {
   }
   // Account comparisons use period SUMPRODUCT, not daily wealth/Carino linking.
   // Still require every opening snapshot and the full requested calendar.
-  if ([portfolio, benchmark].some(id => id.startsWith('PORTFOLIO:')) &&
+  if (!data.dailyHoldings && [portfolio, benchmark].some(id => id.startsWith('PORTFOLIO:')) &&
       history.length === dates.length && issues.every(issue =>
         issue.startsWith('Incomplete return coverage') || issue.startsWith('Fund price missing'))) {
     const weighted = partialComparison(prices, history, {...options, allowPartialReturns:true}, prior, missing);
@@ -226,7 +230,7 @@ export function compare(input, options) {
       issue.startsWith("Incomplete return coverage") || (options.allowPartialReturns && issue.startsWith("Fund price missing")),
     );
     if (
-      onlyPriceGaps &&
+      !data.dailyHoldings && onlyPriceGaps &&
       history.length === dates.length &&
       (options.allowPartialReturns || history.every(
         (d) =>
@@ -515,6 +519,16 @@ export function returnSeries(input, result, options) {
   if (!result?.baseline || !result?.end || !Array.isArray(result.rows) || !Array.isArray(input?.levels)) return null;
   const {portfolio, benchmark} = options, currency = result.currency || options.currency || 'USD';
   const map = levelIndex(input), ids = new Set([portfolio, benchmark, ...result.rows.map(r => r.id)]);
+  if(input.dailyHoldings){
+    const dates=(input.valuationDates||[]).filter(d=>d>result.baseline&&d<=result.end);
+    const values=id=>{
+      const snapshots=input.snapshots.filter(s=>s.fund===id).sort((a,b)=>a.asOf.localeCompare(b.asOf));
+      let wealth=1,from=result.baseline;const out=[0];
+      for(const to of dates){const snap=snapshots.filter(s=>s.asOf<=from).at(-1)||snapshots[0];if(!snap)return [NaN];const day=daily(map,snap,from,to,currency);if(!day.complete)return [NaN];wealth*=1+day.total;out.push(100*(wealth-1));from=to;}return out;
+    };
+    const a=values(portfolio),b=values(benchmark);
+    return a.every(Number.isFinite)&&b.every(Number.isFinite)?{dates:[result.baseline,...dates],a,b}:null;
+  }
   const dates = [...new Set(input.levels.filter(l => l.basis !== 'fx' && ids.has(l.id) && l.date > result.baseline && l.date <= result.end).map(l => l.date))].sort();
   if (dates.length < 2) return null;
   const last = new Map();

@@ -1,5 +1,5 @@
 import { dateRange, drawReturnChart, intradaySeries, createGroupedTable, renderSectorWeights, collapsible } from './ranges.mjs?v=trade-20261115';
-import { groupByGics, UNKNOWN_GICS, gicsWeights, gicsSector, GICS_SECTORS } from './rise-swix-core.mjs?v=trade-20261115';
+import { groupByGics, UNKNOWN_GICS, gicsWeights, gicsSector, GICS_SECTORS, completedCalendar } from './rise-swix-core.mjs?v=trade-20261115';
 import { createSessionGuard } from './session.mjs';
 import { isNonListed, assetKind, primaryThemePath } from './arcus-source.mjs?v=cash-20261113';
 const $ = (id) => document.getElementById(id);
@@ -122,11 +122,13 @@ function saveSelection() {
 function savedSelection() {
   try { const saved = JSON.parse(localStorage.getItem(SELECTION_KEY) || 'null'); return saved && typeof saved === 'object' ? saved : null; } catch { return null; }
 }
-const fundsForRole=(funds,id)=>funds.filter(f=>!f.reportOnly || f.id===(id==='portfolio'?'PORTFOLIO:RISE':'PORTFOLIO:SWIX'));
+const fundsForRole=(funds,id)=>funds.filter(f=>!f.reportOnly || f.dailyIndexComparator || f.id===(id==='portfolio'?'PORTFOLIO:RISE':'PORTFOLIO:SWIX'));
 const hasOption = (id, value) => [...$(id).options].some(o => o.value === value);
 // Rise vs Swix and the rand funds (EasyBF, Best) open in rand; everything else in US dollars.
-const RAND_FUNDS = new Set(['PORTFOLIO:EASYBF', 'PORTFOLIO:EASYSA']);
-const defaultCurrency = () => $('benchmark').value === 'PORTFOLIO:SWIX' || RAND_FUNDS.has($('portfolio').value) ? 'ZAR' : 'USD';
+const RAND_FUNDS = new Set(['PORTFOLIO:EASYBF', 'PORTFOLIO:EASYSA','PORTFOLIO:J303','PORTFOLIO:SWIX']);
+const defaultCurrency = () => RAND_FUNDS.has($('benchmark').value) || RAND_FUNDS.has($('portfolio').value) ? 'ZAR' : 'USD';
+const j303Selected=()=>[$('portfolio').value,$('benchmark').value].includes('PORTFOLIO:J303');
+const portfolioOrder=id=>({'PORTFOLIO:MARLOW':'PORTFOLIO:M0','PORTFOLIO:J303':'PORTFOLIO:M1','PORTFOLIO:SWIX':'PORTFOLIO:M2'}[id]||id);
 function restoreSelection(m) {
   const saved = savedSelection();
   if (!saved) return false;
@@ -279,7 +281,7 @@ function createFundPicker(id) {
   function draw(){
     list.replaceChildren();const query=search.value.trim().toLowerCase();
     for(const theme of [...FUND_THEMES.map(([name])=>name),'Other ETFs',...(id==='benchmark'?['Indices 2']:[])]){
-      const matches=funds.filter(f=>fundTheme(f,id)===theme && `${f.id} ${f.name} ${theme}`.toLowerCase().includes(query)).sort((a,b)=>a.id.localeCompare(b.id));
+      const matches=funds.filter(f=>fundTheme(f,id)===theme && `${f.id} ${f.name} ${theme}`.toLowerCase().includes(query)).sort((a,b)=>portfolioOrder(a.id).localeCompare(portfolioOrder(b.id)));
       if(!matches.length)continue;
       const group=text('div','','fund-group');group.setAttribute('role','group');group.setAttribute('aria-label',theme);
       group.append(text('strong',theme,'fund-group-title'));
@@ -332,7 +334,7 @@ function renderArchiveInfo() {
         text("strong", f.id.startsWith('PORTFOLIO:') ? f.name : f.id),
         text(
           "p",
-          f.reportOnly ? 'Bloomberg report · 4–5 Nov 2026 · ZAR' : manifest.holdingsSource==='arcus' && !f.currentSource ? 'Current Arcus allocation checked when you compare.' : `${f.positions} positions · holdings ${f.latest || "not collected"} · ${f.currentSource || (onlineMode ? 'saved allocation' : f.dates.length+' saved dates')}`,
+          f.dailyIndex ? 'Daily floating weights · automatic quarterly rebalance · ZAR' : f.dailyIndexComparator&&j303Selected() ? 'Saved SWIX allocation · daily floating weights · ZAR' : f.reportOnly ? 'Bloomberg report · 4–5 Nov 2026 · ZAR' : manifest.holdingsSource==='arcus' && !f.currentSource ? 'Current Arcus allocation checked when you compare.' : `${f.positions} positions · holdings ${f.latest || "not collected"} · ${f.currentSource || (onlineMode ? 'saved allocation' : f.dates.length+' saved dates')}`,
         ),
       );
       if(f.allocationNote)card.append(text('p',f.allocationNote));
@@ -341,7 +343,7 @@ function renderArchiveInfo() {
   );
 }
 for(const id of ['portfolio','benchmark','currency','range','start','end']) $(id).addEventListener('change',()=>{
-  if(id==='benchmark')$('currency').value=$('benchmark').value==='PORTFOLIO:SWIX'?'ZAR':'USD';
+  if(id==='benchmark')$('currency').value=['PORTFOLIO:SWIX','PORTFOLIO:J303'].includes($('benchmark').value)?'ZAR':'USD';
   clearExport();
   result=null;$('missing-actions').hidden=true;$('results').hidden=true;$('price-status').textContent='';$('message').replaceChildren();
   saveSelection();
@@ -354,7 +356,7 @@ for (const id of ['portfolio', 'benchmark']) $(id).addEventListener('change', ()
 });
 function applyRange() {
   if(riseSwix?.isActive()){riseSwix.syncRange();return;}
-  const dates = manifest?.valuationDates || [];
+  const dates = j303Selected()?completedCalendar().filter(d=>d>='2025-11-13'):manifest?.valuationDates || [];
   const range = dateRange($('range').value, dates);
   if (range) { $('start').value = range.start; $('end').value = range.end; }
   $('range-note').textContent = dates.length
@@ -487,7 +489,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=cash-20261113", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=j303-20261116", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -584,11 +586,11 @@ $("controls").addEventListener("submit", async (e) => {
     renderRows();
     // Cumulative return chart under the table (periods of two or more valuation days).
     drawReturnChart($('return-chart'), result.series ? {...result.series, labelA: fundLabel(options.portfolio), labelB: fundLabel(options.benchmark),
-      note: options.currency + ' · each side follows its headline return method' + (options.assumeMissingZero ? ' · missing returns at 0%' : '')} : null);
+      note: options.currency + ' · each side follows its headline return method' + (!data.dailyHoldings&&options.assumeMissingZero ? ' · missing returns at 0%' : '')} : null);
     // 1D: one session has no daily path, so the chart follows the session's 5-minute prices instead.
     if (!result.series && onlineMode && online?.intraday && result.end && (options.start === options.end || $('range').value === 'day')) drawIntradayChart(result, options);
     renderMethod();
-    if(onlineMode) $('price-status').textContent = (data.arcusSource ? 'Arcus completed returns first · '+data.arcusReturnCount+' securities/funds reused · ' : 'Adjusted daily returns · ')+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
+    if(onlineMode) $('price-status').textContent = (data.dailyHoldings?'Daily floating holdings · automatic quarterly rebalance · price returns · ':data.arcusSource ? 'Arcus completed returns first · '+data.arcusReturnCount+' securities/funds reused · ' : 'Adjusted daily returns · ')+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
     $('research-note').replaceChildren(
       text('strong','Research estimate — use for ideas, not exact accounting.'),
       text('p',data.arcusSource ? 'Current holdings and completed USD daily returns come from Arcus. ETF weights come from its issuer sources, retaining cash and private holdings. Where Arcus does not hold the requested dated return history, adjusted-price history and same-date FX fill the gap. Current allocations are applied to the selected period; historical trades are not reconstructed. Any archive allocation fallback is disclosed below.' : onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Shares use adjusted closing prices and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
@@ -638,7 +640,7 @@ function reconciliationSide(comparison, options, side) {
   const showNav = !account && Boolean(options.start) && options.start === options.end;
   const nav = showNav ? comparison.issuerNav?.[fund] : null;
   const navReturn = nav?.status === 'ok' && nav.date === options.end && nav.currency === options.currency && Number.isFinite(nav.return) ? nav.return : null;
-  const referenceLabel = account ? 'Observed account reference' : marketReference ? 'Observed fund market return'
+  const referenceLabel = method==='daily-holdings' ? 'Reconstructed holdings index' : account ? 'Observed account reference' : marketReference ? 'Observed fund market return'
     : referenceBasis === 'verified-total-return' ? 'Imported verified total return'
     : referenceBasis === 'mixed' ? 'Observed fund reference (mixed sources)' : 'Observed fund reference';
   return {role, fund, reference, contribution, residual, coverage, missing, account, referenceLabel, marketReference, showNav, nav, navReturn,
@@ -1343,7 +1345,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=trade-20261115');
+  const {createOnlineSource}=await import('./online.mjs?v=j303-20261116');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;

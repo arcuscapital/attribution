@@ -1,5 +1,6 @@
 import {normalizeArcusPacket,resolveArchiveListings,resolveKnownListings,isNonListed} from './arcus-source.mjs?v=cash-20261113';
 import {completedPrices,valuationPrices} from './price-data.mjs?v=missing-recovery-20261028';
+import {loadJ303} from './j303-source.mjs?v=j303-20261116';
 // A failed price request is not evidence that a company is private.
 export function missingReturnReason(position) {
   const asset=String(position.asset || '').trim();
@@ -42,6 +43,7 @@ export const reusableArcusReturn=symbol=>!/\.JO$/i.test(symbol);
 export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgress=()=>{}}={}) {
   let controller=new AbortController(), generation=0;
   const prices=new Map(), holdings=new Map();
+  const j303Cache=new Map();
   const refreshSymbols=new Set();
   let lastSnapshots=[],lastDownloaded=new Map(),lastCurrency='USD';
   async function get(path) {
@@ -62,7 +64,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
   return {
     // 1D chart: one completed session's 5-minute prices for a listing (chart only, never the returns).
     intraday(symbol,date){return get('prices?'+new URLSearchParams({symbol,start:date,end:date,interval:'5m'}));},
-    clear(){generation++;controller.abort();controller=new AbortController();prices.clear();holdings.clear();refreshSymbols.clear();lastSnapshots=[];lastDownloaded.clear();},
+    clear(){generation++;controller.abort();controller=new AbortController();prices.clear();holdings.clear();j303Cache.clear();refreshSymbols.clear();lastSnapshots=[];lastDownloaded.clear();},
     retryMissing(missing=[]) {
       const keys=new Set(missing.map(p=>p.fund+'|'+p.id));
       for(const snap of lastSnapshots)for(const p of snap.positions)if(p.symbol && keys.has(snap.fund+'|'+p.id)) {
@@ -87,6 +89,10 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       return (await price('SPY',start,end)).points.map(p=>p[0]);
     },
     async load(manifest,ids,start,end,currency) {
+      if(ids.includes('PORTFOLIO:J303')||ids.includes('PORTFOLIO:SWIX'))return loadJ303({manifest,ids,start,end,currency,onProgress,loadOther:others=>this.load(manifest,others,start,end,currency),get:async path=>{
+        const saved=j303Cache.get(path);if(saved&&Date.now()-saved.at<900000)return saved.data;
+        const data=await get(path);j303Cache.set(path,{at:Date.now(),data});return data;
+      }});
       const run=generation, baseline=new Date(Date.parse(start)-14*86400000).toISOString().slice(0,10);
       if(!start || !end || start>end || Date.parse(end)-Date.parse(start)>1096*86400000)throw Error('Choose a period of at most three years.');
       const sourceNotes=[],arcusReturns={},arcusPackets=new Map();

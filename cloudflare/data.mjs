@@ -1,6 +1,8 @@
 // Authenticated, on-demand research data. No cron, queue, Arcus DB or private public assets.
 import {issuerNav,navQuery} from './issuer-nav.mjs';
 import {historicalNav} from './nav-history.mjs';
+import {fetchJseHistory} from './j303-market.mjs';
+import {MODEL_KEY,STATE_KEY,priceKey} from './j303-scheduled.mjs';
 const DAY = 86400000;
 const SYMBOL = /^[A-Za-z0-9^][A-Za-z0-9.^=\-]{0,29}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -15,6 +17,18 @@ export function priceQuery(params) {
 export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=globalThis.caches?.default) {
   const url=new URL(request.url), route=url.pathname.split('/').at(-1);
   if(request.method!=='GET')return reply({error:'GET required'},405);
+  if(route==='j303'){
+    const symbol=url.searchParams.get('symbol');
+    if(symbol){
+      if(!/^[A-Z0-9-]+\.JO$/.test(symbol))return reply({error:'Invalid JSE listing'},400);
+      const saved=await env.HOLDINGS_ARCHIVE?.get(priceKey(symbol),'json');
+      if(saved&&Date.now()-Date.parse(saved.checkedAt)<24*3600000)return reply(saved);
+      try{const packet=await fetchJseHistory(symbol);const write=env.HOLDINGS_ARCHIVE.put(priceKey(symbol),JSON.stringify(packet));if(ctx.waitUntil)ctx.waitUntil(write);else await write;return reply(packet);}
+      catch{return saved?reply(saved):reply({error:'J303 closing prices unavailable'},503);}
+    }
+    const model=await env.HOLDINGS_ARCHIVE?.get(MODEL_KEY,'json'),state=await env.HOLDINGS_ARCHIVE?.get(STATE_KEY,'json');
+    return model?reply({model,asOf:state?.asOf,lastRebalance:state?.lastRebalance}):reply({error:'J303 unavailable'},503);
+  }
   if(route==='nav') {
     let query;try{query=navQuery(url.searchParams);}catch(e){return reply({error:e.message},400);}
     const history = await historicalNav(query,env.HOLDINGS_ARCHIVE);
@@ -27,9 +41,10 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
   if(route==='catalog') {
     const catalog=await env.HOLDINGS_ARCHIVE?.get('catalog','json');
     const ready=await env.HOLDINGS_ARCHIVE?.get('rise-swix:ready');
+    const j303=await env.HOLDINGS_ARCHIVE?.get('j303:ready');
     // GICS sectors from Bloomberg for the Arcus share list (owner, 2026-11-13), saved in KV as gics:v1.
     const gics=await env.HOLDINGS_ARCHIVE?.get('gics:v1','json');
-    return catalog ? reply({...catalog,...(ready?{riseSwixAvailable:true}:{}),...(gics?.sectors?{gics:{asOf:gics.asOf||null,source:gics.source||null,sectors:gics.sectors}}:{})}) : reply({error:'Saved holdings are not available yet.'},503);
+    return catalog ? reply({...catalog,...(ready?{riseSwixAvailable:true}:{}),...(j303?{j303Available:true}:{}),...(gics?.sectors?{gics:{asOf:gics.asOf||null,source:gics.source||null,sectors:gics.sectors}}:{})}) : reply({error:'Saved holdings are not available yet.'},503);
   }
   if(route==='holdings') {
     const fund=url.searchParams.get('fund'), version=url.searchParams.get('version');
