@@ -46,8 +46,8 @@ export function advanceDay(state,model,quotes,date,anchors=null){
   if(!Number.isFinite(value)||value<=0||Math.abs(positions.reduce((s,p)=>s+p.weight,0)-1)>1e-9)throw Error('Invalid J303 publication');
   return {asOf:date,value,units,base,prices,pending,lastRebalance:applied,positions,modelVersion:model.version};
 }
-// Two listings per invocation keeps each job below free-plan subrequest/CPU
-// budgets. A complete session is published only after EVERY close is present.
+// One listing per invocation, with final publication in a separate invocation,
+// limits peak CPU. A complete session publishes only after EVERY close is present.
 export async function scheduledJ303(env,now=Date.now(),fetcher=fetch){
   const kv=env.HOLDINGS_ARCHIVE,model=await kv.get(MODEL_KEY,'json');if(!model)return;
   // Weekly source check is separate from price work. A parser/source failure
@@ -69,7 +69,8 @@ export async function scheduledJ303(env,now=Date.now(),fetcher=fetch){
   const future=[3,6,9,12].includes(Number(date.slice(5,7)))&&date>=review.reference&&date<=review.implementation?review.effective:nextSession(date);
   const symbols=model.holdings.filter(p=>(!p.to||p.to>state.asOf)&&(!p.from||p.from<=future)).map(p=>p.symbol);
   if(job.cursor>=symbols.length&&job.failures.length){job.cursor=0;job.failures=[];}
-  for(const symbol of symbols.slice(job.cursor,job.cursor+2)){
+  const fetching=job.cursor<symbols.length;
+  for(const symbol of symbols.slice(job.cursor,job.cursor+1)){
     try{
       const saved=await kv.get(priceKey(symbol),'json');
       const packet=preserveHistory(saved,await fetchJseHistory(symbol,{fetcher,now}));const value=new Map(packet.points).get(date);
@@ -78,6 +79,10 @@ export async function scheduledJ303(env,now=Date.now(),fetcher=fetch){
       await kv.put(priceKey(symbol),JSON.stringify(packet));job.quotes[symbol]={date,value,priorValue,...(anchors?{anchorValue:packet.points.filter(([d])=>d<=anchors.asOf).at(-1)?.[1]}:{})};
     }catch{job.failures.push(symbol);}
     job.cursor++;
+  }
+  if(fetching){
+    if(job.cursor>=symbols.length&&job.failures.length)await kv.put('j303:health:v1',JSON.stringify({status:'waiting-for-prices',asOf:state.asOf,pending:date,missing:job.failures,checkedAt:new Date(now).toISOString()}));
+    await kv.put(JOB_KEY,JSON.stringify(job));return;
   }
   if(job.cursor>=symbols.length&&!job.failures.length){
     const next=advanceDay(state,model,job.quotes,date,anchors);

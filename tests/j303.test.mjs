@@ -81,8 +81,10 @@ test('scheduler publishes only a complete day and duplicate completed runs do no
  const kv={get:async(k,t)=>store.has(k)?t==='json'?JSON.parse(store.get(k)):store.get(k):null,put:async(k,v)=>store.set(k,v)};
  let calls=0;const fetcher=async url=>{calls++;const symbol=url.match(/chart\/([^?]+)/)?.[1];return Response.json({chart:{result:[{meta:{symbol,currency:'ZAc'},timestamp:[Date.parse('2026-11-12')/1000,Date.parse('2026-11-13')/1000],indicators:{quote:[{close:[10000,10000]}]}}]}});};
  const now=Date.parse('2026-11-14T08:00Z');await scheduledJ303({HOLDINGS_ARCHIVE:kv},now,fetcher);assert.equal(JSON.parse(store.get(STATE_KEY)).asOf,m.anchor);
- for(let i=0;i<4;i++)await scheduledJ303({HOLDINGS_ARCHIVE:kv},now+i*300000,fetcher);
- assert.equal(JSON.parse(store.get(STATE_KEY)).asOf,'2026-11-13');assert.equal(calls,10);await scheduledJ303({HOLDINGS_ARCHIVE:kv},now+1800000,fetcher);assert.equal(calls,10);
+ for(let i=1;i<10;i++)await scheduledJ303({HOLDINGS_ARCHIVE:kv},now+i*120000,fetcher);
+ assert.equal(JSON.parse(store.get(STATE_KEY)).asOf,m.anchor,'price-fetch invocations cannot also publish');assert.equal(calls,10);
+ await scheduledJ303({HOLDINGS_ARCHIVE:kv},now+1200000,fetcher);
+ assert.equal(JSON.parse(store.get(STATE_KEY)).asOf,'2026-11-13');assert.equal(calls,10);await scheduledJ303({HOLDINGS_ARCHIVE:kv},now+1320000,fetcher);assert.equal(calls,10);
 });
 test('a newly reported split restates units without creating a capital loss',()=>{
  const m=model('2026-11-12'),initial=buildIndexPath(m,packets(m,m.anchor),m.anchor).state,date='2026-11-13';
