@@ -200,7 +200,7 @@ export function createTradeMode(){
     if(typeof matchMedia!=='function'||matchMedia('(pointer: fine)').matches)ticker.focus?.();
    };
    const submit=async()=>{
-    const text=ticker.value.trim(),w=parseWeight(weight.value);
+    const text=ticker.value.trim(),typed=weight.value,w=parseWeight(typed);
     if(!text){status.textContent='Type the share’s ticker or name.';ticker.focus?.();return;}
     if(w===null||Number.isNaN(w)||w<=0){status.textContent='Enter a % weight from 0.01 to 100.';weight.focus?.();return;}
     if(!findShare){status.textContent='Adding a share is not available here.';return;}
@@ -213,7 +213,8 @@ export function createTradeMode(){
       status.textContent=found.label+(found.held?' is already held: its new weight '+fmt2(w)+'% is set in the table.':' is in the table (the benchmark holds it): its new weight '+fmt2(w)+'% is set there.');}
      else if(found?.share&&mode.addShare(found.share,String(w)))status.textContent=found.share.ticker+(found.share.name&&found.share.name!==found.share.ticker?' · '+found.share.name:'')+' added at '+fmt2(w)+'%.';
      else{status.textContent='That share could not be added.';return;}
-     ticker.value='';weight.value='';ticker.focus?.();
+     // Clear only what was added: a ticker or weight typed while this one was being looked up stays.
+     if(ticker.value.trim()===text)ticker.value='';if(weight.value===typed)weight.value='';ticker.focus?.();
     }catch{status.textContent='The share could not be looked up. Try again.';}
     finally{confirm.disabled=false;}
    };

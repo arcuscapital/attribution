@@ -83,6 +83,20 @@ test('the Add new share button opens a panel: ticker and % weight, looked up by 
   mode.setOn(false);assert.equal(panel.hidden, true, 'closes with the slider');
 });
 
+test('a ticker typed while the last one is being looked up is kept', async () => {
+  fakeDom();
+  const mode = createTradeMode();mode.setScope('PORTFOLIO:EASYAI');mode.setOn(true);
+  let release;
+  const wrap = mode.actions({fund: () => 'PORTFOLIO:EASYAI', fundName: () => 'EasyAI', trades: () => [],
+    findShare: text => new Promise(resolve => { release = () => resolve({share: {id: text.toUpperCase(), ticker: text.toUpperCase(), name: text}}); })});
+  wrap.find('trade-add-button').fire('click');
+  const panel = wrap.find('trade-add-panel'), ticker = panel.find('trade-add-ticker'), weight = panel.find('trade-add-weight');
+  ticker.value = 'ASML.AS';weight.value = '1.5';panel.find('trade-add-confirm').fire('click');
+  ticker.value = 'SAP.DE';weight.value = '1';release();await tick();await tick();
+  assert.deepEqual(mode.entries(), [['ASML.AS', 1.5]]);
+  assert.equal(ticker.value, 'SAP.DE');assert.equal(weight.value, '1', 'the next share is still there to add');
+});
+
 test('funds without an Arcus trade portfolio, or outside Arcus, explain instead of opening the panel', () => {
   fakeDom();
   const mode = createTradeMode();mode.setOn(true);
