@@ -749,6 +749,33 @@ button.trade-button:hover{background:#1558b8;border-color:#1558b8}
 }
 #gics-table .rise-actions:empty{display:none}
 @media(max-width:600px){.trade-actions{width:100%}.trade-actions .trade-button,.trade-actions select.trade-order-type{flex:1 1 40%;width:auto}}
+/* Add new share (owner, 2026-11-16): beside Trade; opens a panel under the buttons for a share the fund does not hold. */
+button.trade-add-button{font-weight:600;white-space:nowrap}
+.trade-add-panel{position:absolute;top:100%;right:0;z-index:30;margin-top:32px;width:min(560px,92vw);padding:12px 14px 10px;border:1px solid var(--border);border-radius:10px;background:var(--panel);box-shadow:0 10px 28px rgba(0,0,0,.35);text-align:left;white-space:normal;font-size:14px}
+.trade-add-panel[hidden]{display:none}
+.rise-actions .trade-add-panel{left:0;right:auto}
+.trade-add-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;font-size:15px}
+.trade-add-panel button.trade-add-close{min-height:36px;width:36px;padding:0;border:0;background:transparent;color:inherit;font-size:22px;line-height:1}
+.trade-add-help,.trade-add-foot{margin:0 0 8px;font-size:13px;line-height:1.4;color:var(--muted)}
+.trade-add-foot{margin:8px 0 0}
+.trade-add-form{display:flex;gap:8px;align-items:center}
+.trade-add-form .trade-add-ticker{flex:1 1 auto;min-width:0}
+.trade-add-form .trade-add-weight{flex:none;width:7.5em;text-align:right}
+.trade-add-panel button.trade-add-confirm{flex:none;color:#fff;background:#1967d2;border-color:#1967d2;font-weight:650}
+.trade-add-status{margin:8px 0 0;font-size:13px;line-height:1.4}
+.trade-add-status:empty{display:none}
+table.trade-add-shares{width:100%;margin-top:8px;border-collapse:collapse}
+table.trade-add-shares[hidden]{display:none}
+.trade-add-shares :is(th,td){padding:4px 6px;border-top:1px solid var(--border);text-align:left;vertical-align:middle}
+.trade-add-shares th{font-weight:650;white-space:nowrap}
+.trade-add-name small{margin-left:6px;color:var(--muted);font-size:12px}
+.trade-add-shares td:nth-child(3){text-align:right;width:6em}
+.trade-add-shares td:last-child{width:40px;text-align:right}
+.trade-add-panel button.trade-add-remove{min-height:32px;width:32px;padding:0;font-size:18px;line-height:1}
+html:not(.light) .trade-add-panel{border-radius:0;border-color:var(--bbg-line);background:var(--bbg-black);font-family:var(--bbg-font)}
+html:not(.light) .trade-add-shares :is(th,td){border-color:var(--bbg-line)}
+html:not(.light) .trade-add-shares th{color:var(--bbg-amber);font-weight:400}
+@media(max-width:600px){.trade-actions .trade-add-button{flex:1 1 100%}.trade-add-panel{position:static;flex:1 1 100%;width:auto;margin-top:0;box-shadow:none}.trade-add-form{flex-wrap:wrap}.trade-add-form .trade-add-ticker{flex:1 1 100%}.trade-add-form .trade-add-weight{flex:1 1 auto}}
 /* New weight field. */
 td.trade-new{text-align:right}
 .trade-input{width:5.4em;min-width:0;height:32px;min-height:0;padding:0 6px;border:1px solid var(--trade-in-border);border-radius:4px;background:transparent;color:inherit;font:inherit;text-align:right;font-variant-numeric:tabular-nums}

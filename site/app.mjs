@@ -1,7 +1,7 @@
 import { dateRange, drawReturnChart, intradaySeries, createGroupedTable, renderSectorWeights, collapsible } from './ranges.mjs?v=trade-20261115';
 import { groupByGics, UNKNOWN_GICS, gicsWeights, gicsSector, GICS_SECTORS } from './rise-swix-core.mjs?v=trade-20261115';
 import { createSessionGuard } from './session.mjs';
-import { isNonListed, assetKind } from './arcus-source.mjs?v=cash-20261113';
+import { isNonListed, assetKind, primaryThemePath } from './arcus-source.mjs?v=cash-20261113';
 const $ = (id) => document.getElementById(id);
 // Return % graph and GICS sector weights can be hidden with an arrow; both open on every load (owner, 2026-11-15).
 collapsible($('return-chart'), 'Return % graph');
@@ -786,7 +786,14 @@ const percent = value => Number.isFinite(value) ? value * 100 : 0;
 function tradeItems() {
   const sectors = sectorList();
   return (result?.rows || []).filter(r => Math.abs(r.weightA || 0) > 1e-12 || trade?.has(r.id)).map(r => { const meta = positionMeta.get(r.id) || {};
-    return {key: r.id, current: percent(r.weightA), ticker: r.ticker, symbol: meta.symbol || null, name: r.name, currency: meta.currency || null, cash: isCashRow(r), sector: gicsSector(r, sectors)}; });
+    return {key: r.id, current: percent(r.weightA), ticker: r.ticker, symbol: meta.symbol || null, name: r.name, currency: meta.currency || null, cash: isCashRow(r), sector: gicsSector(r, sectors)}; })
+    .concat(addedShares().map(s => ({key: s.id, current: 0, ticker: s.ticker, symbol: s.symbol, name: s.name, currency: s.currency || null, cash: false, sector: gicsSector(s, sectors)})));
+}
+// Shares added with Add new share (owner, 2026-11-16) that are not rows of this comparison.
+function addedShares() {
+  if (!trade?.on || !trade.newShares) return [];
+  const ids = new Set((result?.rows || []).map(r => r.id));
+  return trade.newShares().filter(s => !ids.has(s.id));
 }
 const newWeight = item => trade?.on ? trade.weight(item.key, item.current) : item.current;
 // JSE sectors and the Reg 28 rules are fetched once, only when a comparison needs them; the tables redraw when they arrive.
@@ -811,10 +818,53 @@ async function loadClassData(shown) {
   if (shown === result && ['complete', 'partial'].includes(result?.status)) renderRows();
 }
 function tradeList() {
-  return (trade?.entries() || []).map(([id, target]) => { const row = result?.rows.find(r => r.id === id), meta = positionMeta.get(id) || {};
-    return row ? {id, symbol: meta.symbol || null, ticker: row.ticker, name: row.name, current: percent(row.weightA), target} : null; }).filter(Boolean);
+  return (trade?.entries() || []).map(([id, target]) => { const row = result?.rows.find(r => r.id === id), meta = positionMeta.get(id) || {}, added = trade.newShare?.(id);
+    return row ? {id, symbol: meta.symbol || null, ticker: row.ticker, name: row.name, current: percent(row.weightA), target}
+      : added ? {id, symbol: added.symbol, ticker: added.ticker, name: added.name, current: 0, target} : null; }).filter(Boolean);
 }
-const tradeActionOptions = () => ({fund: () => lastOptions?.portfolio, fundName: () => fundLabel(lastOptions?.portfolio), trades: tradeList, integrated, check: () => session.check()});
+// Add new share: a row of this comparison keeps its own New field; any other share is looked up through Arcus
+// (Yahoo Finance: name, trading currency). Names are matched against the Arcus share list and the table.
+const shareKey = text => String(text || '').trim().toUpperCase().replace(/\s+/g, '');
+let tradeCompanies = null;
+async function tradeSuggestions() {
+  if (!tradeCompanies) tradeCompanies = (async () => {
+    const out = new Map();
+    for (const r of result?.rows || []) if (!r.aggregate && !isNonListed(r) && /^[A-Z0-9^][A-Z0-9.\-^=]{0,24}$/.test(r.id || '')) out.set(r.id, {ticker: r.id, name: r.name || r.ticker});
+    try {
+      const response = integrated ? await fetch('/api/config', {credentials: 'same-origin', cache: 'no-store'}) : null;
+      const config = response?.ok ? await response.json() : null;
+      for (const c of config?.companies || []) { const t = shareKey(c.ticker); if (t && !out.has(t)) out.set(t, {ticker: t, name: String(c.name || t), memberships: c.memberships}); }
+    } catch {}
+    return [...out.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));
+  })().catch(() => { tradeCompanies = null; return []; });
+  return tradeCompanies;
+}
+async function findTradeShare(text) {
+  const raw = String(text || '').trim(), key = shareKey(raw), upper = raw.toUpperCase();
+  const rows = (result?.rows || []).filter(r => !r.aggregate && !isNonListed(r) && !isCashRow(r));
+  const inTable = symbol => rows.find(r => [r.id, r.ticker, positionMeta.get(r.id)?.symbol].some(v => shareKey(v) === symbol));
+  const asRow = r => ({key: r.id, existing: true, held: Math.abs(r.weightA || 0) > 1e-12, label: r.ticker || r.id});
+  const row = inTable(key) || rows.find(r => String(r.name || '').trim().toUpperCase() === upper);
+  if (row) return asRow(row);
+  const list = await tradeSuggestions(), named = list.find(s => s.ticker === key) || list.find(s => s.name.toUpperCase() === upper) || list.filter(s => s.name.toUpperCase().startsWith(upper)).sort((a, b) => a.name.length - b.name.length)[0];
+  const symbol = named?.ticker || key;
+  if (!/^[A-Z0-9^][A-Z0-9.\-^=]{0,24}$/.test(symbol)) return {error: 'No share matches “' + raw + '”. Type its ticker, for example NVDA, ASML.AS or NPN.JO.'};
+  if (named && inTable(symbol)) return asRow(inTable(symbol));
+  let found = null;
+  try {
+    const response = await fetch('/api/lookup?symbol=' + encodeURIComponent(symbol), {credentials: 'same-origin', cache: 'no-store'});
+    if (response.status === 401) { session.lock(); return {error: 'Signed out. Sign in again to add a share.'}; }
+    found = response.ok ? await response.json() : null;
+  } catch {}
+  if (!found?.ok || !found.currency) return {error: symbol + ' was not found on Yahoo Finance. Check the ticker: JSE shares end in .JO, London .L, Amsterdam .AS, Hong Kong .HK.'};
+  const ticker = shareKey(found.symbol) || symbol, again = inTable(ticker);
+  if (again) return asRow(again);
+  const theme = primaryThemePath((list.find(s => s.ticker === ticker) || named)?.memberships); // its Arcus theme, for EasyAI and EasyGE
+  return {share: {id: ticker, symbol: ticker, ticker, name: String(found.name || named?.name || ticker), currency: found.currency === 'ZAc' ? 'ZAR' : found.currency === 'GBp' ? 'GBP' : found.currency,
+    theme: theme?.theme || 'Unclassified', subTheme: theme?.subTheme || ''}};
+}
+const tradeActionOptions = () => ({fund: () => lastOptions?.portfolio, fundName: () => fundLabel(lastOptions?.portfolio), trades: tradeList, integrated, check: () => session.check(),
+  findShare: findTradeShare, suggest: tradeSuggestions});
 // The exposure table after the chart (owner, 2026-11-15): GICS sector weights; for EasyAI, EasyGE, IBKR and Marlow theme
 // and sub-theme weights instead; for EasyBF also the Reg 28 table and SA equity by GICS sector. With the Trade slider
 // on, those funds get a New column that follows the weights typed in the table.
@@ -825,7 +875,8 @@ function renderSummaryTables() {
   if (kind === 'theme') {
     empty('gics-weights');
     const themed = result.rows.map(r => { const a = percent(r.weightA), cash = isCashRow(r);
-      return {theme: cash ? 'Cash' : themeLabel(r), subTheme: cash ? '' : (typeof r.subTheme === 'string' ? r.subTheme.trim() : ''), a, b: percent(r.weightB), n: on ? trade.weight(r.id, a) : a}; });
+      return {theme: cash ? 'Cash' : themeLabel(r), subTheme: cash ? '' : (typeof r.subTheme === 'string' ? r.subTheme.trim() : ''), a, b: percent(r.weightB), n: on ? trade.weight(r.id, a) : a}; })
+      .concat(addedShares().map(s => ({theme: s.theme || 'Unclassified', subTheme: s.subTheme || '', a: 0, b: 0, n: trade.weight(s.id, 0)})));
     renderSectorWeights($('theme-weights'), tradeHelp.themeWeights(themed), {title: 'Theme and sub-theme weights', first: 'Theme · sub-theme', portfolio: port, benchmark: bench, newLabel: on ? 'New % weight' : null, compact: true,
       note: 'Average weights, ' + period + ', by Arcus theme with its sub-themes underneath. Holdings without an Arcus theme are under Unclassified.' + (on ? typed : '')});
   } else {
@@ -904,7 +955,7 @@ function tableTotalRow(visible) {
       cell = text('td', '—');
       cell.title = 'Individual security returns cannot be added together.';
     } else if (key === 'newWeight') {
-      cell = tradeSums.cell(result.rows.map(row => ({key: row.id, current: percent(row.weightA)})));
+      cell = tradeSums.cell(result.rows.map(row => ({key: row.id, current: percent(row.weightA)})).concat(addedShares().map(s => ({key: s.id, current: 0}))));
     } else if (textColumn(key)) cell = text('td', key === 'theme' || key === 'subTheme' ? '—' : '');
     else {
       cell = text('td', cellNumber(totals[key]), signClass(key, totals[key]));
