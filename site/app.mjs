@@ -558,7 +558,7 @@ $("controls").addEventListener("submit", async (e) => {
     if (result.status === "partial") {
       const missingNames = [...new Set(result.missing.map((m) => m.name))];
       message(
-        `Research estimate. Measured return coverage (absolute source weight): ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. ${missingNames.length ? missingNames.length+' listed/unresolved holdings have missing returns.' : 'No listed-share return gaps.'} ${result.assumedReturns?.length ? result.assumedReturns.length+' positions use a labelled 0% assumption. ' : ''}${result.contributionMethod === 'average-weight-period' ? 'Portfolio returns sum average weight × security return.' : result.contributionMethod === 'arithmetic-daily' ? 'Contributions sum daily estimates; they are not compounded returns.' : 'Contributions use reference-return linking.'}`,
+        `Research estimate. Measured return coverage (absolute source weight): ${fmt(result.coverage.portfolio)} / ${fmt(result.coverage.benchmark)}. ${missingNames.length ? missingNames.length+' listed/unresolved holdings have missing returns.' : 'No listed-share return gaps.'} ${result.assumedReturns?.length ? result.assumedReturns.length+(result.assumedReturns.length===1?' position uses':' positions use')+' a labelled 0% assumption. ' : ''}${result.contributionMethod === 'average-weight-period' ? 'Portfolio returns sum average weight × security return.' : result.contributionMethod === 'mixed-holdings' ? 'Index contributions compound daily; the saved allocation uses average weight × period return.' : result.contributionMethod === 'arithmetic-daily' ? 'Contributions sum daily estimates; they are not compounded returns.' : 'Contributions use reference-return linking.'}`,
       );
     }
     // Listed holdings without a price are counted as 0% by default and reported here in red.
@@ -570,13 +570,13 @@ $("controls").addEventListener("submit", async (e) => {
       ...[
         [options.portfolio, result.returnA, result.returnMethodA],
         [options.benchmark, result.returnB, result.returnMethodB],
-        ["Difference", result.activeReturn, result.contributionMethod === 'average-weight-period' ? 'comparison' : null],
+        ["Difference", result.activeReturn, 'comparison'],
       ].map(([label, value, method]) => {
         const card = text("div", "", label === "Difference" ? "metric difference" : "metric");
         const body = text("div", "", "metric-text");
         body.append(
           text("span", label === "Difference" ? label : fundLabel(label)),
-          text("small", options.currency + (result.returnBasis ? ' · '+basisLabel(result.returnBasis) : '') + (method === 'weighted-estimate' ? ' · weighted return estimate' : method === 'reference' ? ' · reference return' : method === 'comparison' ? ' · return difference' : result.status === "partial" ? " · reference return" : " · holdings estimate")),
+          text("small", options.currency + (result.returnBasis ? ' · '+basisLabel(result.returnBasis) : '') + (method === 'weighted-estimate' ? ' · weighted return estimate' : method === 'reference' ? ' · reference return' : method === 'comparison' ? ' · return difference' : method === 'daily-holdings' ? ' · holdings estimate' : result.status === "partial" ? " · reference return" : " · holdings estimate")),
         );
         const figure = text("strong", fmt(value), value === null || value === undefined ? "muted" : value >= 0 ? "positive" : "negative");
         if (label === "Difference") card.append(body, figure);
@@ -599,7 +599,7 @@ $("controls").addEventListener("submit", async (e) => {
       ...(result.holdingsWarnings || []).map(n => text('p',n)),
       ...(data.sourceWarnings || []).map(n=>text('p',n)),
       ...(result.assumedReturns?.length ? [text('p','Private holdings, cash, money-market funds, derivatives and corporate-action positions are shown at the bottom with an assumed 0% return. They are excluded from measured coverage. Missing listed-share returns remain blank unless you select the additional 0% assumption.')] : []),
-      ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. ${result.contributionMethod === 'average-weight-period' ? 'Your portfolio headline is the sum of available average weight × security return contributions. ETF headlines use observed fund returns; the contribution subtotal may differ.' : 'Missing returns stay blank; available headline figures are fund reference returns, not these subtotals.'} ${result.contributionMethod === 'arithmetic-daily' ? 'Both contribution columns use arithmetic daily sums because a complete reference series is unavailable.' : ''}`)] : []),
+      ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. ${result.contributionMethod === 'average-weight-period' ? 'Your portfolio headline is the sum of available average weight × security return contributions. ETF headlines use observed fund returns; the contribution subtotal may differ.' : 'Missing returns stay blank; available headline figures are fund reference returns, not these subtotals.'} ${result.contributionMethod === 'mixed-holdings' ? 'Index contributions compound daily; the saved allocation uses average weight × period return.' : result.contributionMethod === 'arithmetic-daily' ? 'Both contribution columns use arithmetic daily sums because a complete reference series is unavailable.' : ''}`)] : []),
       ...(result.missing?.length ? [text('p','Missing returns: '+[...new Set(result.missing.map(p=>p.name+(p.reason ? ' — '+p.reason : '')))].join('; '))] : []),
     );
     if (phone.matches) collapseSelection(options);
