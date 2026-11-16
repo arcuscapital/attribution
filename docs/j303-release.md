@@ -71,6 +71,63 @@ The real scheduled handler published the 13 November close at 2026-11-16T13:00:3
 
 From approximately 12:51 to 13:08 UTC, the sampled Attribution tail contained 101 successful events and no exceptions, including the publication (10 ms CPU) and subsequent idle scheduled run (1 ms CPU). This is a bounded observation, not a guarantee about future vendor availability or CPU use. Brave's Arcus Cloudflare dashboard showed the deployed version Ready at 100%, 11.42k invocations in its last-24-hours panel, and zero reported Worker errors after testing. The Attribution account was unavailable in that browser login, so its deployment and health were verified through the separately authenticated Wrangler CLI and live tail. No credentials, private reports or raw request logs are committed.
 
+## Holdings audit and final follow-up deployment
+
+This section supersedes the initial model/results above. The earlier deployment record remains as evidence of the first release; current private model revision is `j303-20261116-v2`.
+
+Both repositories remain on branch `codex/j303-20261116`:
+
+| Repository URL / Worker | Account | Full deployed application commit | Worker version | Deployment ID | Deployment UTC |
+| --- | --- | --- | --- | --- | --- |
+| https://github.com/arcuscapital/attribution.git / arcus-attribution | 5695cae2becf35e049eb5df3e2849ae2 | b32baa1fccb8ea2196fd0905e791664f149d5d2f | 09e6bd92-73d3-4720-8373-626fc7167350 | 4da7aacd-73c6-452b-9c56-4900695ab02f | 2026-11-16T13:37:47.671645Z |
+| https://github.com/arcuscapital/arcus-watchlists.git / arcus-watchlists | 42dd726446271f45425eab740741b864 | c2d3cc642d4c1d885247a2543ffba692936f8dc6 | 5f7a7c1a-66f0-4436-88c7-ba82db9e39b2 | 1615705c-7b28-4418-aa6a-6dedebd3772c | 2026-11-16T12:50:57.20428Z |
+
+Arcus application code is unchanged in this follow-up. Subsequent commits update this record only. Authentication, existing bindings, other collectors and their schedules remain unchanged. The compatible rollback below still applies, including removal of the Attribution cron before restoring its previous application. Preserve both starting checkouts and the Treasury-original/graphs-only rollback points listed above.
+
+### Membership and allocation verification
+
+The direct holdings audit found that the optimised Satrix fund seed omitted index members. The revised model adds Premier and Karooooo throughout supported history, ASP Isotopes from 22 December 2025, and historical SRI/PHP/RCL until their removals. SRI and Montauk Renewables leave on 23 March 2026; PHP and RCL leave on 21 September 2026. Previously sourced Optasia (23 March) and Canal+/Greencoat Renewables/Stadio/Brait (21 September) additions remain.
+
+Membership evidence:
+
+- Premier: https://www4.sharenet.co.za/v3/sens_display.php?scode=PMR&seq=2&tdate=20251016070500
+- Karooooo: https://www.sharenet.co.za/v3/sens_display.php?seq=42&tdate=20210602174000
+- ASP Isotopes: https://www.sharenet.co.za/v3/sens_display.php?seq=67&tdate=20251203173000
+- March review: https://www.sharenet.co.za/v3/sens_display.php?seq=50&tdate=20260306161500
+- September review: https://www.sharedata.co.za/v2/scripts/SENS.aspx?id=559116
+
+Six small omitted constituents use the saved November 2026 SWIX allocation reverse-drifted as weight proxies. Their membership dates are independently sourced; the comparison is partially dependent for these names. Premier/Karooooo/ASP Isotopes are the three still active, together 0.176532% of current J303. Major J303 weights retain the public-fund calibration. Neither weights nor returns were fitted to force equality with SWIX.
+
+At the 13 November 2026 close: 120 SWIX and 121 J303 holdings, 116 common, weighted overlap 95.362096%, active share 4.637904%, shared names covering 99.923117% of SWIX and 99.581097% of J303. Nine of the top ten and nineteen of the top twenty names are shared. Top-ten concentrations are 47.758221% and 47.920149%. The largest allocation difference is Glencore, 0.679112 percentage points. Daily overlap ranges from 95.273607% to 96.831104% over supported history. This is a close reconstructed comparison, not proof of exact official index replication.
+
+Arcus's SWIX is a saved portfolio allocation, not an official 2026 SWIX feed. The JSE terminated the official SWIX series after 31 December 2025: https://clientportal.jse.co.za/Content/ICANoticeItems/FTSE-JSE-Africa/20251104%20REMINDER%20Termination%20of%20SWIX%20Indices%20-%20Informative%20Notice.pdf . The saved allocation contains four subsequently removed names and lacks five newer additions. Those small membership differences are preserved according to the separate source data.
+
+### Follow-up fixes and validation
+
+Verified Sharenet history extends SRI's truncated vendor packet; overlapping closes agree before the older prefix is retained. On-demand and scheduled updates now preserve a verified older prefix only for matching symbol/currency/basis and at least three agreeing overlapping prices. Consistent vendor split restatements rescale the retained prefix.
+
+Historical admission of new constituents now uses reference-date prices, matching the scheduled rebalance plan. A regression with a 30% price change during the review week failed before the fix and passes afterwards. Custom ranges ending on a weekend accept the preceding JSE close after strict latest-price validation; missing trading-day prices remain rejected. Tests cover the truncated-packet weekend case exposed by the live run.
+
+The final scheduled publisher requests only a short overlap with its retained price history, handles one listing per invocation, and publishes in a separate invocation. The cron is now `*/2 * * * *`; full-day processing takes approximately four hours plus retries for 121 constituents. This reduces peak CPU and avoids redownloading the full history each day.
+
+Final Attribution Node verification passed 198/198 tests. The earlier unchanged Python 21/21 and Arcus 1178/1178 suites and Arcus manifest check were not rerun for these Attribution-only follow-up changes. No Android/physical-device testing is claimed.
+
+Live Brave verification covered 15 supported periods: latest day; WTD; MTD; QTD; YTD; last completed week, month and three months; custom full year; custom March, June and September rebalance windows; custom July; weekend boundaries; and the first supported day. Every displayed holding weight in every period (121–126 union rows) matched the locally calculated expected table within its two-decimal display rounding, with zero missing prices or weight discrepancies. Contribution totals and return-series endpoints reconcile to floating-point precision. Multi-day charts were checked; single-day checks cover cards and holdings. The previous-calendar-year preset correctly reports history starting 14 November 2025 and hides stale results. The custom 19 September–4 October range ends its trading series on 2 October.
+
+| Current completed period (ZAR price returns) | SWIX | J303 | SWIX minus J303 |
+| --- | ---: | ---: | ---: |
+| 13 November 2026 | -0.421586% | -0.451478% | +0.029892 pp |
+| 1 January–13 November 2026 | -2.897346% | -3.182539% | +0.285194 pp |
+| 14 November 2025–13 November 2026 | -0.876445% | -1.104614% | +0.228169 pp |
+| 9–27 March 2026 | -4.211423% | -4.440579% | +0.229156 pp |
+| 8–26 June 2026 | -0.856611% | -0.600347% | -0.256264 pp |
+| 7–25 September 2026 | -5.066244% | -5.053293% | -0.012951 pp |
+| 19 September–4 October 2026 | -4.046389% | -4.137340% | +0.090952 pp |
+
+The final real scheduler test staged the new J303-only state at 12 November with 120 already validated quotes and one pending listing. At `2026-11-16T13:40:37.198Z` it fetched the final quote in 5 ms CPU; at `2026-11-16T13:42:42.356Z` it published separately in 4 ms CPU. Later 13:44 and 13:46 invocations used 2 ms CPU and left the completed day unchanged. The live state is restored to 13 November with 121 positions, weight sum 0.9999999999999992, and level 98.89538605069238; maximum weight difference and level difference from full historical replay are both exactly zero. The final all-constituent multi-batch run and future quarterly boundary are tested automatically rather than observed for four hours live.
+
+The captured follow-up Attribution sample contains 124 successful events and zero Worker exceptions. An earlier combined invocation completed in 18 ms CPU, prompting the smaller batches; the final fetch/publication observations are above. The tail connection intermittently reconnected, so this is a bounded sample, not continuous coverage or a future guarantee. Brave's Arcus dashboard showed the existing version Ready at 100%, 12.07k invocations in its 24-hour panel, and zero Worker errors. Attribution used authenticated Wrangler because its account was unavailable in the browser login. No browser console errors were captured. Raw logs, private allocations, price archives, model revisions and snapshots remain outside Git/static assets.
+
 ## Exact compatible rollback
 
 Run the Arcus step first from the Arcus checkout:
