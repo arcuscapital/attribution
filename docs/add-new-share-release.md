@@ -57,4 +57,11 @@ Roll back Attribution before Arcus; deploy Arcus before Attribution.
   New field (held). EasyAI vs QQQ: ASML.AS 1.5% and SAP.DE 1% added, total 102.50, theme table Unclassified
   1.04 → 3.54. Trade reached the Arcus Trade screen with "Sized at live prices" and the Submit figures in the Arcus
   record. Rise: the button explains Rise has no Arcus trade portfolio (unit-tested).
-- **Not tested:** phones or the Android emulator (desktop Brave only).
+- Independent test agent (owner's Brave, after deploy): PASS. EasyAI vs QQQ: 7203.T 1.5 → total 101.50, SBK.JO 2 →
+  103.50, AMD 2 (benchmark only, own New field) → 105.50, NVDA 1 (held, replaces 3.53) → 102.97, nonsense rejected,
+  7203.T edited to 3 → 104.47, SBK.JO removed → 102.47, theme Total 102.47 (Unclassified 1.04 → 4.04). Best vs QQQ:
+  ABG.JO 2, BHP.AX 1.5, SHP.JO (held) 2, MSFT (QQQ) 1 → 102.48; GICS Financials +2.00, IT +1.00, Unknown +1.50.
+  Trade At Market / VWAP reached Arcus with every trade at its typed weight on Submit. Rise: explains no trade
+  portfolio. The hidden Rise vs Swix copy of the buttons shares the same entries (invisible; harmless).
+- **Not tested:** phones or the Android emulator (desktop Brave only); EasyBF in Portfolio Analysis by the agent
+  (done by me, above).
