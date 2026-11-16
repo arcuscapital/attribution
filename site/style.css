@@ -772,6 +772,11 @@ table.trade-add-shares[hidden]{display:none}
 .trade-add-shares td:nth-child(3){text-align:right;width:6em}
 .trade-add-shares td:last-child{width:40px;text-align:right}
 .trade-add-panel button.trade-add-remove{min-height:32px;width:32px;padding:0;font-size:18px;line-height:1}
+/* The panel sits inside #results: keep the results table's heading colour, widths and padding off its small list. */
+#results .trade-add-panel .trade-add-shares :is(th,td){position:static;width:auto;min-width:0;max-width:none;height:auto;padding:4px 6px;background:transparent;border-bottom:0;box-shadow:none;font-size:14px;line-height:1.3}
+#results .trade-add-panel .trade-add-shares th{width:6.5em}
+#results .trade-add-panel .trade-add-shares td:nth-child(3){width:6em}
+#results .trade-add-panel .trade-add-shares td:last-child{width:40px}
 html:not(.light) .trade-add-panel{border-radius:0;border-color:var(--bbg-line);background:var(--bbg-black);font-family:var(--bbg-font)}
 html:not(.light) .trade-add-shares :is(th,td){border-color:var(--bbg-line)}
 html:not(.light) .trade-add-shares th{color:var(--bbg-amber);font-weight:400}
