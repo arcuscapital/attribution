@@ -24,7 +24,7 @@ Branch bases (documentation-only children): Attribution `cd5a61bcb07098e6a44cc71
 
 ## Validation before release
 
-Attribution: 207 Node tests and 21 Python tests. Arcus: 1,181 Node tests and mirrored asset fingerprint check. Relevant tests distinguish raw/adjusted observations, reinvest dividends once, preserve price-driven weights, bound historical exceptions, retain split-adjusted prefixes, reject missing dividend-day prices, and cover auth and existing queue budgets. Real public histories were checked for all 126 J303 constituents, with 392 cash events and a complete one-year holdings return path. Eight listings required independently confirmed 100x repairs. Bloomberg corroboration remains pending at the owner's request; it is additional verification, not a claimed test result.
+Attribution: 209 Node tests and 21 Python tests. Arcus: 1,181 Node tests and mirrored asset fingerprint check. Relevant tests distinguish raw/adjusted observations, reinvest dividends once, preserve price-driven weights, bound historical exceptions, retain split-adjusted prefixes, reject missing dividend-day prices, and cover auth and existing queue budgets. Real public histories were checked for all 126 J303 constituents, with 392 cash events and a complete one-year holdings return path. Eight listings required independently confirmed 100x repairs. Bloomberg corroboration remains pending at the owner's request; it is additional verification, not a claimed test result.
 
 ## Deployment and rollback
 
@@ -52,3 +52,26 @@ npx --yes wrangler@4.128.0 rollback 09e6bd92-73d3-4720-8373-626fc7167350 --confi
 Cached market packets retain their original price fields for compatibility. Rebuilding old derived history values, if desired, requires the existing refresh process after code rollback; no destructive database rollback is needed.
 
 Application commits, final deployment IDs and live verification are recorded below after deployment in a documentation-only follow-up commit.
+
+
+## Final deployed release and live verification
+
+The application commits below are deployed at 100% traffic. This receipt is committed afterwards as documentation only and is not itself a new Worker deployment. Both repositories retain branch `codex/sa-total-returns-20261116`.
+
+Attribution account: `5695cae2becf35e049eb5df3e2849ae2`. All Arcus components: `42dd726446271f45425eab740741b864`.
+
+| Component | Full application commit | Worker version | Deployment ID | Deployment UTC |
+| --- | --- | --- | --- | --- |
+| Attribution | 80751adf8f0b8b0fe747bcb7d53562a4e91c70d0 | 086cc39c-a0e9-428d-957d-b9a3faf00b21 | 3c30571f-f27d-4d75-9ce0-1a6fead9e133 | 2026-11-16T17:46:03.193646Z |
+| Arcus Watchlists | eb89e12d0edfcb5424e4b794bb2e6e32c82b13fc | a765d8c0-68f7-48e2-8caa-dd4b74e8d647 | 1a9ef008-d077-499e-b2ca-427e39737c7b | 2026-11-16T17:42:18.153244Z |
+| Arcus maintenance | d36ecd6ec0e304123771bc68f15802ede3176b10 | 129d29fd-44e8-4334-87b4-abc0d98f8bba | bcb74031-0b83-4223-b963-53e770d572af | 2026-11-16T17:27:12.991834Z |
+| Arcus notifications | d36ecd6ec0e304123771bc68f15802ede3176b10 | 531cf9da-8093-44b5-8165-62e57c4d5953 | 385973d4-29c5-42b4-8a4b-5f274c4a88e0 | 2026-11-16T17:27:45.833988Z |
+| Arcus holdings | d36ecd6ec0e304123771bc68f15802ede3176b10 | a5fdf21a-f997-46f8-a3a2-3b9e19b21252 | ef8c8b4a-68fa-4d49-8e20-5b5bea4462a0 | 2026-11-16T17:28:29.291169Z |
+
+Live verification used Brave and the authenticated production Portfolio Analysis page. It covered the latest completed session, YTD, a full custom year, one dividend ex-date, two sessions spanning that ex-date, and a Friday-to-Sunday range. Index/comparator holdings were checked as well as returns. Out-of-range historical requests were refused explicitly. SA portfolio/index, Rise/SWIX and USD ETF/portfolio comparisons exercised both price and total-return paths. Charts and contributions reconciled; cash and private positions retained their labelled assumptions. No private allocations or account returns are stored in this release receipt.
+
+The live SA portfolio/index check exposed an existing mixed-method problem: a saved allocation's cash prevented the daily index path from completing. The final engine evaluates each side using its established method, preserves the daily index calculation and its strict missing-price checks, and combines the comparable results. Two regression tests verify reconciliation, chart endpoints, orientation, cash coverage and refusal to hide missing index prices. Final Attribution Node suite: 209 passed. Python: 21 passed. Arcus: 1,181 passed, plus 8 focused asset checks after the final label edit. All production bundles deployed successfully; mirrored assets and fingerprints passed. Browser console checks for the analysis page were clear. Anonymous requests to protected data/modules were denied with HTTP 403; the authentication unit suite also passed.
+
+Cloudflare's Brave dashboard showed zero Worker errors, zero CPU/memory-limit events and a 1.25 ms median CPU time for the final Watchlists deployment at the observation point. This is a bounded observation, not a future availability guarantee. CLI tail captured 786 Arcus events (783 ok, 3 cancelled) and 198 Attribution events (all ok), with zero exceptions and zero error-level logs. Attribution HTTP responses in the sample were successful. The broader Arcus sample included two handled HTTP 500 responses for NY1.JO earnings and peers, plus six missing-logo 404s; those ancillary endpoints were not changed by this work. They are not being claimed as resolved.
+
+Known limits: Bloomberg corroboration is pending. The public-data audit and live checks do not establish official index equivalence or complete corporate-action coverage. J303 and SWIX retain their documented historical reconstruction assumptions. Existing stock/watchlist and portfolio caches migrate through their existing refresh jobs, not an atomic full-site backfill; the 27 saved SA watchlist rows still had their earlier cache format when inspected. Portfolio Analysis used the new histories during verification, with 126 J303 market packets warmed. Existing supplied NAV remains a separate reference and no new NAV history was fabricated. No new scheduled collectors, bindings, secrets or queues were introduced. The rollback commands above remain valid.
