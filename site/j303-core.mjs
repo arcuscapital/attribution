@@ -66,7 +66,7 @@ export function buildIndexPath(model,packets,end,{fund=J303,capped=true,calibrat
   function reset(day,reference,calibration){
     let effective=iso(Date.parse(day)+DAY);while(!tradingDay(effective))effective=iso(Date.parse(effective)+DAY);
     const members=holdings.filter(p=>active(p,effective));
-    for(const p of members)if(!base.has(p.symbol))base.set(p.symbol,p.weight/value(p,day));
+    for(const p of members)if(!base.has(p.symbol))base.set(p.symbol,p.weight/value(p,reference));
     if(calibration){
       const at=calibration.asOf,anchors=calibration.weights||{},known=members.filter(p=>anchors[p.symbol]!=null);
       const anchorTotal=known.reduce((s,p)=>s+anchors[p.symbol],0);

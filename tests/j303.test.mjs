@@ -42,6 +42,15 @@ test('reference-day plan includes new members on the effective date, not early',
  }
  assert.equal(state.positions.length,10);close(state.value,100);
 });
+test('a new constituent drifting during rebalance week matches scheduled reference-price treatment',()=>{
+ const m=model();m.holdings[9].from='2026-12-21';
+ const p=packets(m,'2026-12-22',(i,d)=>i===9&&d>='2026-12-14'?130:100);
+ let state=buildIndexPath(m,p,m.anchor).state;
+ for(const date of sessions(nextSession(m.anchor),'2026-12-22'))state=advanceDay(state,m,Object.fromEntries(p.map(s=>[s.symbol,{date,value:new Map(s.points).get(date)}])),date);
+ const expected=buildIndexPath(m,p,'2026-12-22');
+ for(const p of state.positions)close(p.weight,expected.snapshots.at(-1).positions.find(x=>x.symbol===p.symbol).weight);
+ close(state.value,expected.state.value);
+});
 test('retrospective calibration applies only at its designated review close',()=>{
  const m=model(),p=packets(m,'2026-12-22');m.calibrations=[{effective:'2026-12-21',asOf:'2026-12-22',weights:{'S0.JO':.05}}];
  const r=buildIndexPath(m,p,'2026-12-22');close(r.snapshots.find(s=>s.asOf==='2026-12-17').positions[0].weight,.2);
