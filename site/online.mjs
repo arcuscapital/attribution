@@ -1,6 +1,5 @@
 import {normalizeArcusPacket,resolveArchiveListings,resolveKnownListings,isNonListed} from './arcus-source.mjs?v=cash-20261113';
 import {completedPrices,valuationPrices} from './price-data.mjs?v=missing-recovery-20261028';
-import {loadJ303} from './j303-source.mjs?v=j303-20261116';
 // A failed price request is not evidence that a company is private.
 export function missingReturnReason(position) {
   const asset=String(position.asset || '').trim();
@@ -89,10 +88,13 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       return (await price('SPY',start,end)).points.map(p=>p[0]);
     },
     async load(manifest,ids,start,end,currency) {
-      if(ids.includes('PORTFOLIO:J303')||ids.includes('PORTFOLIO:SWIX'))return loadJ303({manifest,ids,start,end,currency,onProgress,loadOther:others=>this.load(manifest,others,start,end,currency),get:async path=>{
+      if(ids.includes('PORTFOLIO:J303')||(ids.includes('PORTFOLIO:SWIX')&&manifest.funds?.some(f=>f.id==='PORTFOLIO:J303'))){
+        const {loadJ303}=await import('./j303-source.mjs?v=j303-20261116');
+        return loadJ303({manifest,ids,start,end,currency,onProgress,loadOther:others=>this.load(manifest,others,start,end,currency),get:async path=>{
         const saved=j303Cache.get(path);if(saved&&Date.now()-saved.at<900000)return saved.data;
         const data=await get(path);j303Cache.set(path,{at:Date.now(),data});return data;
-      }});
+        }});
+      }
       const run=generation, baseline=new Date(Date.parse(start)-14*86400000).toISOString().slice(0,10);
       if(!start || !end || start>end || Date.parse(end)-Date.parse(start)>1096*86400000)throw Error('Choose a period of at most three years.');
       const sourceNotes=[],arcusReturns={},arcusPackets=new Map();
