@@ -73,7 +73,10 @@ export async function scheduledJ303(env,now=Date.now(),fetcher=fetch){
   for(const symbol of symbols.slice(job.cursor,job.cursor+1)){
     try{
       const saved=await kv.get(priceKey(symbol),'json');
-      const packet=preserveHistory(saved,await fetchJseHistory(symbol,{fetcher,now}));const value=new Map(packet.points).get(date);
+      // Refresh a short overlap, retaining the verified archive. Re-downloading
+      // the full historical series for every daily tick wastes the CPU budget.
+      const start=previous(previous(previous(state.asOf)));
+      const packet=preserveHistory(saved,await fetchJseHistory(symbol,{fetcher,now,start}));const value=new Map(packet.points).get(date);
       if(!(value>0))throw Error('Completed close absent');
       const priorValue=new Map(packet.points).get(state.asOf);if(state.units[symbol]&&!(priorValue>0))throw Error('Prior completed close absent');
       await kv.put(priceKey(symbol),JSON.stringify(packet));job.quotes[symbol]={date,value,priorValue,...(anchors?{anchorValue:packet.points.filter(([d])=>d<=anchors.asOf).at(-1)?.[1]}:{})};
