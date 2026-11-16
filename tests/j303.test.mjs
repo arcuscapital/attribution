@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {reviewDates,capWeights,sessions,buildIndexPath} from '../site/j303-core.mjs';
 import {advanceDay,nextSession,scheduledJ303,MODEL_KEY,STATE_KEY,JOB_KEY} from '../cloudflare/j303-scheduled.mjs';
 import {parsePublicAnchors} from '../cloudflare/j303-public.mjs';
-import {fetchJseHistory} from '../cloudflare/j303-market.mjs';
+import {fetchJseHistory,preserveHistory} from '../cloudflare/j303-market.mjs';
 import {compare,returnSeries} from '../site/engine.mjs';
 const close=(a,b,t=1e-10)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
 const model=(anchor='2026-12-10')=>({schemaVersion:1,version:'fixture',anchor,holdings:Array.from({length:10},(_,i)=>({symbol:'S'+i+'.JO',name:'Company '+i,weight:i===0?.2:.8/9,sector:'Test'})),calibrations:[]});
@@ -79,4 +79,11 @@ test('a newly reported split restates units without creating a capital loss',()=
  const m=model('2026-11-12'),initial=buildIndexPath(m,packets(m,m.anchor),m.anchor).state,date='2026-11-13';
  const quotes=Object.fromEntries(m.holdings.map((p,i)=>[p.symbol,{date,value:i===0?21:100,priorValue:i===0?20:100}]));
  const next=advanceDay(initial,m,quotes,date);close(next.value,101);close(next.units['S0.JO'],initial.units['S0.JO']*5);close(next.base['S0.JO'],initial.base['S0.JO']*5);
+});
+test('a shortened vendor response retains verified earlier history and adjusts it for splits',()=>{
+ const old={symbol:'SRI.JO',currency:'ZAR',basis:'price-return',source:'Verified backup',points:[['2025-11-13',10],['2026-01-08',20],['2026-01-09',22],['2026-01-12',24]]};
+ const next={...old,source:'Current vendor',points:[['2026-01-08',4],['2026-01-09',4.4],['2026-01-12',4.8],['2026-01-13',5]]};
+ const merged=preserveHistory(old,next);assert.deepEqual(merged.points[0],['2025-11-13',2]);assert.equal(merged.points.length,5);assert.equal(merged.historyPrefix.source,'Verified backup');
+ assert.equal(preserveHistory({...old,symbol:'OTHER.JO'},next),next);
+ assert.equal(preserveHistory(old,{...next,points:[['2026-01-08',4],['2026-01-09',5],['2026-01-12',4.8]]}).points.length,3);
 });

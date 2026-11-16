@@ -1,7 +1,7 @@
 // Authenticated, on-demand research data. No cron, queue, Arcus DB or private public assets.
 import {issuerNav,navQuery} from './issuer-nav.mjs';
 import {historicalNav} from './nav-history.mjs';
-import {fetchJseHistory} from './j303-market.mjs';
+import {fetchJseHistory,preserveHistory} from './j303-market.mjs';
 import {MODEL_KEY,STATE_KEY,priceKey} from './j303-scheduled.mjs';
 const DAY = 86400000;
 const SYMBOL = /^[A-Za-z0-9^][A-Za-z0-9.^=\-]{0,29}$/;
@@ -23,7 +23,7 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
       if(!/^[A-Z0-9-]+\.JO$/.test(symbol))return reply({error:'Invalid JSE listing'},400);
       const saved=await env.HOLDINGS_ARCHIVE?.get(priceKey(symbol),'json');
       if(saved&&Date.now()-Date.parse(saved.checkedAt)<24*3600000)return reply(saved);
-      try{const packet=await fetchJseHistory(symbol);const write=env.HOLDINGS_ARCHIVE.put(priceKey(symbol),JSON.stringify(packet));if(ctx.waitUntil)ctx.waitUntil(write);else await write;return reply(packet);}
+      try{const packet=preserveHistory(saved,await fetchJseHistory(symbol));const write=env.HOLDINGS_ARCHIVE.put(priceKey(symbol),JSON.stringify(packet));if(ctx.waitUntil)ctx.waitUntil(write);else await write;return reply(packet);}
       catch{return saved?reply(saved):reply({error:'J303 closing prices unavailable'},503);}
     }
     const model=await env.HOLDINGS_ARCHIVE?.get(MODEL_KEY,'json'),state=await env.HOLDINGS_ARCHIVE?.get(STATE_KEY,'json');

@@ -22,7 +22,7 @@ Effective units float with closing prices. Quarterly capping uses the second Fri
 
 Yahoo split-adjusted raw closes exclude ordinary dividends. Same-day independent Sharenet prices confirm historical 100x ZAR/ZAc repairs; adjusted-close dividend returns are not used. New splits restate stored units and the pending cap plan. Known membership removals redistribute weight without a spurious capital loss; this does not claim comprehensive official corporate-action treatment.
 
-SWIX remains an independent comparator: its saved November 2026 allocation is reverse/forward drifted using the same closing-price basis. It is not fitted to J303. Its reported source period and the existing Rise/Swix report view remain unchanged. New daily comparisons compound daily contributions, rather than multiplying an average weight by a whole-period security return; charts use the same daily path.
+SWIX's saved November 2026 allocation is reverse/forward drifted using the same closing-price basis, without fitting its returns to J303. The follow-up membership audit uses six small SWIX allocation weights as proxies for constituents omitted by the optimised Satrix fund; membership is independently verified from JSE notices. The comparison is therefore partially dependent for those small names, while the major J303 allocations retain their public-fund calibrations. Its reported source period and the existing Rise/Swix report view remain unchanged. New daily comparisons compound daily contributions, rather than multiplying an average weight by a whole-period security return; charts use the same daily path.
 
 ## Automatic operation and limits
 

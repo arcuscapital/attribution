@@ -1,6 +1,6 @@
 import {capWeights,reviewDates} from '../site/j303-core.mjs';
 import {tradingDay,previous,iso} from '../site/rise-swix-core.mjs';
-import {fetchJseHistory} from './j303-market.mjs';
+import {fetchJseHistory,preserveHistory} from './j303-market.mjs';
 import {refreshPublicAnchors} from './j303-public.mjs';
 import {advanceUnits} from '../site/holdings-drift.mjs';
 export const MODEL_KEY='j303:model:v1',STATE_KEY='j303:state:v1',JOB_KEY='j303:job:v1';
@@ -71,7 +71,8 @@ export async function scheduledJ303(env,now=Date.now(),fetcher=fetch){
   if(job.cursor>=symbols.length&&job.failures.length){job.cursor=0;job.failures=[];}
   for(const symbol of symbols.slice(job.cursor,job.cursor+2)){
     try{
-      const packet=await fetchJseHistory(symbol,{fetcher,now});const value=new Map(packet.points).get(date);
+      const saved=await kv.get(priceKey(symbol),'json');
+      const packet=preserveHistory(saved,await fetchJseHistory(symbol,{fetcher,now}));const value=new Map(packet.points).get(date);
       if(!(value>0))throw Error('Completed close absent');
       const priorValue=new Map(packet.points).get(state.asOf);if(state.units[symbol]&&!(priorValue>0))throw Error('Prior completed close absent');
       await kv.put(priceKey(symbol),JSON.stringify(packet));job.quotes[symbol]={date,value,priorValue,...(anchors?{anchorValue:packet.points.filter(([d])=>d<=anchors.asOf).at(-1)?.[1]}:{})};

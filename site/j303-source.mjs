@@ -11,8 +11,8 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
   const path=buildIndexPath(model,packets,end),paths=new Map([[J303,path]]),price=priceLookup(packets);
   for(const p of path.snapshots.at(-1).positions)if(price(p.symbol,path.last)?.date!==path.last)throw Error(p.symbol+': latest completed closing price is unavailable. J303 has retained its last complete valuation.');
   if(report){
-    // The saved SWIX report is a separate comparator. Its own allocation is
-    // reverse-drifted; it is never fitted to J303 or used as J303's seed.
+    // Reverse-drift the saved comparator without fitting it to J303. Any small
+    // J303 weight proxies taken from this report are recorded in model provenance.
     const anchor=report.period.at(-1),rows=swixRows.map(p=>{
       const at=price(p.symbol,anchor);if(!at)throw Error(p.symbol+': SWIX anchor price missing');
       let first=packets.find(x=>x.symbol===p.symbol).points[0]?.[0];
@@ -47,6 +47,7 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
   return {...data,dailyHoldings:true,valuationDates:dates,priceCheckedAt:new Date().toISOString(),arcusSource:true,
     priceNotes:[...(data.priceNotes||[]),'J303: daily price returns, floating weights and automatic quarterly 12% capping. Weights shown are average opening weights; contributions compound daily. Ordinary dividends are excluded.',
       'J303 history reconstructs public fund disclosures and dated membership changes. Historical calibrations use later published information; future reviews carry the latest inferred float units until new source data is available.',
+      ...(model.provenanceNotes||[]),
       ...(report?['SWIX uses its separately saved allocation dated '+report.period.at(-1)+', reverse/forward drifted with the same price-return basis.']:[]),
       ...(path.carried.length?['Last observed closes used on '+path.carried.length+' constituent/session valuations.']:[])],j303Events:path.events};
 }

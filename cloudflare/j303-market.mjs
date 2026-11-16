@@ -1,4 +1,16 @@
 import {previous,iso} from '../site/rise-swix-core.mjs';
+// Some vendors truncate a listing's earlier history on refresh. Preserve an
+// already verified prefix only when overlapping closes establish a consistent
+// scale; this also restates the prefix after a newly reported split.
+export function preserveHistory(previousPacket,next){
+  if(previousPacket?.symbol!==next.symbol||previousPacket.currency!==next.currency||previousPacket.basis!==next.basis||!next.points?.length)return next;
+  const first=next.points[0][0],prefix=(previousPacket.points||[]).filter(([d,v])=>d<first&&v>0);
+  if(!prefix.length)return next;
+  const old=new Map(previousPacket.points),ratios=next.points.filter(([d])=>old.has(d)).slice(0,5).map(([d,v])=>v/old.get(d));
+  const factor=ratios[0];
+  if(ratios.length<3||!(factor>0)||ratios.some(r=>!Number.isFinite(r)||Math.abs(r/factor-1)>1e-4))return next;
+  return {...next,points:[...prefix.map(([d,v])=>[d,v*factor]),...next.points],historyPrefix:{through:prefix.at(-1)[0],source:previousPacket.historyPrefix?.source||previousPacket.source,scale:factor}};
+}
 async function sharenet(symbol,fetcher,start,end){
   const code=symbol.slice(0,-3),r=await fetcher('https://www.sharenet.co.za/v3/frontend/quickshare_ajax.php?sharecode='+code+'&range=chart10y&compare=none',{signal:AbortSignal.timeout(15000)});
   if(!r.ok)throw Error('Closing-price backup unavailable');
