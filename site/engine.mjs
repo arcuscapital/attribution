@@ -186,7 +186,7 @@ export function compare(input, options) {
       rows: [],
       missing: [],
     };
-  if (calendar.at(-1) < end)
+  if (calendar.at(-1) < end && !(data.dailyHoldings && data.calendarThrough >= end))
     issues.push(
       `Price history ends ${calendar.at(-1)}; requested end is ${end}. Choose the latest completed valuation date.`,
     );

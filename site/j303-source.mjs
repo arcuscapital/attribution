@@ -44,10 +44,11 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
     data.levels.push({id:'USDZAR=X',date,value:fx.get(date),currency:'ZAR',basis:'fx'});
     for(const symbol of involved){const q=price(symbol,date);if(q)data.levels.push({id:symbol,date,value:q.value/fx.get(date),currency:'USD',basis:'price-return'});}
   }
-  return {...data,dailyHoldings:true,valuationDates:dates,priceCheckedAt:new Date().toISOString(),arcusSource:true,
+  return {...data,dailyHoldings:true,valuationDates:dates,calendarThrough:end,priceCheckedAt:new Date().toISOString(),arcusSource:true,
     priceNotes:[...(data.priceNotes||[]),'J303: daily price returns, floating weights and automatic quarterly 12% capping. Weights shown are average opening weights; contributions compound daily. Ordinary dividends are excluded.',
       'J303 history reconstructs public fund disclosures and dated membership changes. Historical calibrations use later published information; future reviews carry the latest inferred float units until new source data is available.',
       ...(model.provenanceNotes||[]),
+      ...(path.last<end?['The requested end '+end+' is a non-trading date; the final JSE valuation is '+path.last+'.']:[]),
       ...(report?['SWIX uses its separately saved allocation dated '+report.period.at(-1)+', reverse/forward drifted with the same price-return basis.']:[]),
       ...(path.carried.length?['Last observed closes used on '+path.carried.length+' constituent/session valuations.']:[])],j303Events:path.events};
 }

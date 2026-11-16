@@ -65,6 +65,15 @@ test('daily-linked engine reconciles drift and chart; default zero assumption ca
  const r=compare(data,o);assert.equal(r.status,'complete');close(r.returnA,.06);close(r.rows.reduce((s,p)=>s+p.ctrA,0),r.returnA);close(returnSeries(data,r,o).a.at(-1),6);
  const broken={...data,levels:levels.filter(l=>!(l.id==='S0.JO'&&l.date==='2026-11-11'))};assert.equal(compare(broken,o).status,'incomplete');
 });
+test('a verified non-trading custom end is accepted without accepting a missing trading-day close',()=>{
+ const m=model('2026-11-11'),p=packets(m,'2026-11-13'),a=buildIndexPath(m,p,'2026-11-13'),b=buildIndexPath(m,p,'2026-11-13',{fund:'PORTFOLIO:SWIX'}),levels=[];
+ for(const s of p)for(const [date,value] of s.points)levels.push({id:s.symbol,date,value,currency:'USD',basis:'price-return'});
+ for(const [id,path] of [['PORTFOLIO:J303',a],['PORTFOLIO:SWIX',b]])for(const q of path.levels)levels.push({id,...q,currency:'USD',basis:'price-return'});
+ const data={manifest:{schemaVersion:1},snapshots:[...a.snapshots,...b.snapshots],levels,dailyHoldings:true,valuationDates:a.levels.map(p=>p.date),calendarThrough:'2026-11-15'},o={portfolio:'PORTFOLIO:J303',benchmark:'PORTFOLIO:SWIX',start:'2026-11-12',end:'2026-11-15',currency:'USD'};
+ const r=compare(data,o);assert.equal(r.status,'complete');assert.equal(r.days,2);assert.equal(r.end,'2026-11-13');
+ assert.equal(compare(data,{...o,end:'2026-11-16'}).status,'incomplete');
+ assert.equal(compare({...data,levels:levels.filter(p=>!(p.id==='S0.JO'&&p.date==='2026-11-13'))},o).status,'incomplete');
+});
 test('public disclosure parser rejects unknown members, partial tables and future dates',()=>{
  const m=model();const html='Top Holdings as at 30 Sep 2026</td></tr>'+m.holdings.map(p=>'<tr><td>'+p.symbol.slice(0,-3)+'</td><td>123</td><td>42</td><td>5.00%</td></tr>').join('')+'</table>';
  assert.equal(Object.keys(parsePublicAnchors(html,m,Date.parse('2026-11-16')).weights).length,10);
