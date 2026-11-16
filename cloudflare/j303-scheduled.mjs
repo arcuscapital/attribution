@@ -65,7 +65,7 @@ export async function scheduledJ303(env,now=Date.now(),fetcher=fetch){
     if(found?.asOf>last&&found.asOf<=date)anchors=found;
   }
   let job=await kv.get(JOB_KEY,'json');
-  if(job?.date!==date||job?.modelVersion!==model.version)job={date,modelVersion:model.version,cursor:0,quotes:{},failures:[]};
+  if(job?.date!==date||job?.modelVersion!==model.version||(job?.anchorAsOf??null)!==(anchors?.asOf??null))job={date,modelVersion:model.version,anchorAsOf:anchors?.asOf??null,cursor:0,quotes:{},failures:[]};
   const future=[3,6,9,12].includes(Number(date.slice(5,7)))&&date>=review.reference&&date<=review.implementation?review.effective:nextSession(date);
   const symbols=model.holdings.filter(p=>(!p.to||p.to>state.asOf)&&(!p.from||p.from<=future)).map(p=>p.symbol);
   if(job.cursor>=symbols.length&&job.failures.length){job.cursor=0;job.failures=[];}
