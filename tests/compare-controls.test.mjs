@@ -113,7 +113,7 @@ test('unchanged saved holdings reuse their cache, while a new version is loaded 
     if (url.pathname.endsWith('/catalog')) return Response.json({schemaVersion:1,version,funds:funds.slice(0,2)});
     if (url.pathname.endsWith('/holdings')) return Response.json({fund:url.searchParams.get('fund'),asOf:'2026-10-01',positions:[{id:'SHARE',symbol:'SHARE',weight:version==='v1'?.4:.7}]});
     const symbol = url.searchParams.get('symbol');
-    return Response.json({meta:{symbol,currency:'USD',exchangeTimezoneName:'UTC'},timestamp:['2026-10-07','2026-10-08'].map(day),indicators:{adjclose:[{adjclose:[100,105]}]}});
+    return Response.json({meta:{symbol,currency:'USD',exchangeTimezoneName:'UTC'},timestamp:['2026-10-07','2026-10-08'].map(day),indicators:{quote:[{close:[100,105]}],adjclose:[{adjclose:[100,105]}]}});
   }});
   let manifest = {schemaVersion:1,version:'v1',funds:funds.slice(0,2)};
   const run = () => source.load(manifest,['PORTFOLIO:TEST','ETF'],'2026-10-08','2026-10-08','USD');

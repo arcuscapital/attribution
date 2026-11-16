@@ -84,7 +84,7 @@ test('ordinary comparisons use the Rise vs Swix layout: Name, Ticker, then Port 
   assert.deepEqual(Array.from(ties.theme), ['subTheme', 'name'], 'sorting by Theme groups its sub-themes');
   assert.deepEqual(Array.from(ties.subTheme), ['theme', 'name']);
   const groups = vm.runInContext('columnGroups', ctx), labels = vm.runInContext('shortLabel', ctx);
-  assert.deepEqual(Array.from(groups.slice(0, 3), group => group[0]), ['Avg % weight', 'Total return (%)', 'CTR (pp)']);
+  assert.deepEqual(Array.from(groups.slice(0, 3), group => group[0]), ['Avg % weight', 'Return (%)', 'CTR (pp)']);
   assert.deepEqual([labels.weightA, labels.weightB, labels.returnA, labels.returnB, labels.ctrA, labels.ctrB], ['Port', 'Bmrk', 'Port', 'Bmrk', 'Port', 'Bmrk']);
   const security = {ticker:'NVDA', name:'NVIDIA Corp', weightA:.05, weightB:0, securityReturn:.1234, ctrA:.00617, ctrB:0};
   assert.equal(ctx.tableCellValue(security, 'name'), 'NVIDIA Corp');

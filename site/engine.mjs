@@ -23,13 +23,16 @@ export function validateDataset(data) {
 }
 function levelIndex(data) {
   const map = new Map();
-  for (const l of data.levels) map.set(`${l.id}|${l.date}|${l.basis}`, l);
+  for (const l of data.levels) {
+    if(data.returnBasis&&l.basis!=='fx'&&l.basis!==data.returnBasis)continue;
+    map.set(`${l.id}|${l.date}|${l.basis}`, l);
+  }
   return map;
 }
 function levelReturn(map, id, from, to, currency) {
   let ret = null,
     basis = null;
-  for (const b of ["price-return", "verified-total-return", "arcus-completed-session", "vendor-adjusted"]) {
+  for (const b of ["price-return", "total-return", "verified-total-return", "arcus-completed-session", "vendor-adjusted"]) {
     const a = map.get(`${id}|${from}|${b}`),
       z = map.get(`${id}|${to}|${b}`);
     if (a && z && a.currency === "USD" && z.currency === "USD") {
@@ -150,6 +153,7 @@ export function compare(input, options) {
     return chosen;
   }
   function withProxies(result) {
+    result.returnBasis=data.returnBasis||null;
     if (!data.dailyHoldings && [portfolio, benchmark].some(id => id.startsWith('PORTFOLIO:')))
       result = averageWeightReturns(result, portfolio, benchmark);
     if(data.dailyHoldings){
@@ -186,7 +190,7 @@ export function compare(input, options) {
       rows: [],
       missing: [],
     };
-  if (calendar.at(-1) < end && !(data.dailyHoldings && data.calendarThrough >= end))
+  if (calendar.at(-1) < end && !(data.dailyHoldings && data.calendarThrough >= end) && !(data.verifiedClosedThrough>=end))
     issues.push(
       `Price history ends ${calendar.at(-1)}; requested end is ${end}. Choose the latest completed valuation date.`,
     );

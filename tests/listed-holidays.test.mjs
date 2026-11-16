@@ -66,7 +66,7 @@ test('listed Japanese holdings flow through FX, security returns, products and h
  close(r.rows.find(r=>r.id==='4062.T').securityReturn,.99/1.2-1);
  close(r.rows.find(r=>r.id==='4004.T').securityReturn,.88/1.2-1);
  close(r.returnA,.99/1.2-1);close(r.returnB,-.01);close(r.coverage.portfolio,1);
- assert.equal(data.priceNotes.length,2);assert.match(data.priceNotes[0],/2026-10-12 uses 2026-10-09/);
+ assert.equal(data.priceNotes.length,3);assert.match(data.priceNotes[1],/2026-10-12 uses 2026-10-09/);
  // The holiday has zero LOCAL move but still changes value in USD with FX.
  close(compare(data,{...options,start:'2026-10-12',end:'2026-10-12'}).returnA,.2);
  close(compare(data,{...options,start:'2026-10-12'}).returnA,-.01);

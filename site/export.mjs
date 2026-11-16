@@ -97,7 +97,7 @@ export function comparisonXlsx(result, {portfolio, benchmark, rows = result.rows
   const basis = side => result['returnMethod' + side] === 'weighted-estimate'
     ? 'Weighted estimate (available returns)' : result['returnMethod' + side] === 'reference' || result.status === 'partial'
       ? 'Fund reference return' : 'Holdings estimate';
-  add(5,['Return basis',basis('A'),null,basis('B')]);
+  add(5,['Return basis',(result.returnBasis||'archive')+' · '+basis('A'),null,(result.returnBasis||'archive')+' · '+basis('B')]);
   if (result.coverage) sheetRows.push('<row r="6" ht="23" customHeight="1">' +
     cell('A6','Coverage',4) + cell('B6',result.coverage.portfolio,1) +
     cell('C6','Coverage',4) + cell('D6',result.coverage.benchmark,1) + '</row>');

@@ -58,7 +58,7 @@ test('retry refreshes only affected listings and their FX, not cash or other hol
   const q=new URL(path,'https://test').searchParams,symbol=q.get('symbol');
   if(q.has('fund'))return Response.json({fund:q.get('fund'),asOf:'2026-10-08',positions:[{id:'TW',symbol:'3037.TW',weight:.8},{id:'CASH',asset:'Cash',weight:.2}]});
   calls.push({symbol,refresh:q.get('refresh')});
-  return Response.json({meta:{symbol,currency:symbol==='3037.TW'?'TWD':'USD',exchangeTimezoneName:'UTC'},timestamp:['2026-10-08','2026-10-09'].map(d=>Date.parse(d+'T00:00:00Z')/1000),indicators:symbol.endsWith('=X')?{quote:[{close:[.03,.031]}]}:{adjclose:[{adjclose:[100,110]}]}});
+  return Response.json({meta:{symbol,currency:symbol==='3037.TW'?'TWD':'USD',exchangeTimezoneName:'UTC'},timestamp:['2026-10-08','2026-10-09'].map(d=>Date.parse(d+'T00:00:00Z')/1000),indicators:symbol.endsWith('=X')?{quote:[{close:[.03,.031]}]}:{quote:[{close:[100,110]}],adjclose:[{adjclose:[100,110]}]}});
  }});
  const args=[{version:'1790000000000'},['A','B'],'2026-10-09','2026-10-09','USD'];
  await source.load(...args);calls.length=0;

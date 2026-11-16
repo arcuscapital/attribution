@@ -1,3 +1,5 @@
+import {completedPrices} from './price-data.mjs?v=returns-20261116';
+import {periodBasis,basisLabel} from './price-data.mjs?v=returns-20261116';
 import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns,jseCloseReturn,checkCoverage,adjustedLevels,jseCloseLevels,riseSeries} from './rise-swix-core.mjs?v=trade-20261115';
 import {dateRange,drawReturnChart,renderSectorWeights,collapsible} from './ranges.mjs?v=trade-20261115';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
@@ -97,7 +99,7 @@ export function createRiseSwix({check,lock,trade=null}){
    th.append(button);return th;
   };
   for(const [text,key] of [['Name','name'],['Ticker','ticker']]){const th=el('th');th.rowSpan=2;th.scope='col';a.append(sortable(th,key,text,text));}
-  ['Avg % weight','Total return (%)','CTR (pp)'].forEach((text,g)=>{const th=el('th',text);th.colSpan=g===0&&trading()?3:2;th.scope='colgroup';a.append(th);['Port','Bmrk'].forEach((label,s)=>{const sub=el('th');sub.scope='col';b.append(sortable(sub,g*2+s,label,text+' '+label));});
+  ['Avg % weight',basisLabel(value.returnBasis)+' (%)','CTR (pp)'].forEach((text,g)=>{const th=el('th',text);th.colSpan=g===0&&trading()?3:2;th.scope='colgroup';a.append(th);['Port','Bmrk'].forEach((label,s)=>{const sub=el('th');sub.scope='col';b.append(sortable(sub,g*2+s,label,text+' '+label));});
    if(g===0&&trading()){const sub=el('th','New','trade-new-head');sub.scope='col';sub.title='New weight (%). Type in a holding’s row.';b.append(sub);}});
   {const th=el('th','GICS sector','rise-text');th.rowSpan=2;th.scope='col';a.append(th);}
   table.classList.toggle('trade-on',trading());
@@ -113,7 +115,7 @@ export function createRiseSwix({check,lock,trade=null}){
   drawWeights(value);
   note.textContent='Port = Rise · Bmrk = Swix · '+value.start+' to '+value.end+' · ZAR · '+value.basis;
   const reference=' Italic returns are for shares that side does not hold: the share’s own return, for reference, with no weight or contribution.';
-  foot.textContent=value.exact?'Source: Bloomberg report, 4–5 November 2026. Reported sector totals and source blanks retained, except share returns where one side does not hold the share.'+reference:'Holdings-based estimate. The 4–5 November 2026 report’s average weights are assumed across the selected period; trades and actual average holdings are not reconstructed. ZAR cash is held constant with 0% assumed income. '+(value.live?'Live uses price returns; intraday distributions are not included. Provider quotes may be delayed; Updated is the fetch time.'+(value.backup?.length?' Sharenet’s latest price (possibly delayed) is the backup for '+count(value.backup.length)+' without a usable Yahoo quote.':''):'Shares use vendor-adjusted returns. NEWSLV and SBCOP use Sharenet closing-price returns (price-only estimates).'+(value.backup?.length?' Where Yahoo had no adjusted price on a required date, '+count(value.backup.length)+' use Sharenet closing prices as the backup (price only; a dividend on those dates is not included).':''))+(value.zero?.length?' Shares with no price from Yahoo or Sharenet count as 0% return and are listed in red.':'')+reference+' All figures are in ZAR. Swipe horizontally for more columns.';
+  foot.textContent=value.exact?'Source: Bloomberg report, 4–5 November 2026. Reported sector totals and source blanks retained, except share returns where one side does not hold the share.'+reference:'Holdings-based estimate. The 4–5 November 2026 report’s average weights are assumed across the selected period; trades and actual average holdings are not reconstructed. ZAR cash is held constant with 0% assumed income. '+(value.live?'Live uses price returns; intraday distributions are not included. Provider quotes may be delayed; Updated is the fetch time.'+(value.backup?.length?' Sharenet’s latest price (possibly delayed) is the backup for '+count(value.backup.length)+' without a usable Yahoo quote.':''):basisLabel(value.returnBasis)+'. SA cash dividends are reinvested on the ex-date for multi-session periods. NEWSLV and SBCOP track non-distributing metal exposures using their closing prices.'+(value.backup?.length?' Where Yahoo had no adjusted price on a required date, '+count(value.backup.length)+' use Sharenet closing prices as the backup (price only; a dividend on those dates is not included).':''))+(value.zero?.length?' Shares with no price from Yahoo or Sharenet count as 0% return and are listed in red.':'')+reference+' All figures are in ZAR. Swipe horizontally for more columns.';
   panel.hidden=false;$('empty').hidden=true;$('results').hidden=true;
  }
  async function calculation(returns){return new Promise((resolve,reject)=>{worker=new Worker(new URL('./rise-swix-worker.mjs',import.meta.url),{type:'module'});rejectWorker=reject;worker.onmessage=({data})=>{worker.terminate();worker=null;rejectWorker=null;data.ok?resolve(data.result):reject(Error(data.error));};worker.onerror=()=>{worker?.terminate();worker=null;rejectWorker=null;reject(Error('Calculation unavailable'));};worker.postMessage({report,returns});});}
@@ -123,12 +125,12 @@ export function createRiseSwix({check,lock,trade=null}){
  const sharenet=(symbol,baseline,end)=>get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end,source:'sharenet'}));
  async function backupReturn(symbol,baseline,end){return jseCloseReturn(await sharenet(symbol,baseline,end),symbol,baseline,end);}
  // Each result keeps the day-by-day price levels for the chart under the table.
- async function loadHistory(symbol,baseline,end){
-  const key=[symbol,baseline,end].join('|');if(prices.has(key))return prices.get(key);
+ async function loadHistory(symbol,baseline,end,basis){
+  const key=[symbol,baseline,end,basis].join('|');if(prices.has(key))return prices.get(key);
   let value;
   if(ETN_PRICE_ONLY.has(symbol)){const raw=await sharenet(symbol,baseline,end);value={value:etnPriceReturn(raw,symbol,baseline,end),backup:false,levels:jseCloseLevels(raw,symbol)};}
-  else try{const raw=await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end}));value={value:historyReturn(raw,symbol,baseline,end),backup:false,levels:adjustedLevels(raw,symbol)};}
-  catch(e){if(fatal(e))throw e;const raw=await sharenet(symbol,baseline,end);value={value:jseCloseReturn(raw,symbol,baseline,end),backup:true,levels:jseCloseLevels(raw,symbol)};}
+  else try{const raw=await get('./data/prices?'+new URLSearchParams({symbol,start:baseline,end}));const data=completedPrices(raw,{symbol,start:baseline,end,basis}),map=new Map(data.points);if(!map.has(baseline)||!map.has(end))throw Error('Required return dates unavailable');value={value:(map.get(end)/map.get(baseline)-1)*100,backup:false,levels:map};}
+  catch(e){if(fatal(e)||basis==='total-return')throw e;const raw=await sharenet(symbol,baseline,end);value={value:jseCloseReturn(raw,symbol,baseline,end),backup:true,levels:jseCloseLevels(raw,symbol)};}
   prices.set(key,value);return value;
  }
  async function run(){
@@ -140,8 +142,8 @@ export function createRiseSwix({check,lock,trade=null}){
    const start=$('start').value,end=$('end').value;
    if(liveMode&&start!==sessionDate()){syncRange();cancel();void run();return;}
    let value;
-   if(!liveMode&&reported(report,start,end))value={groups:withShareReturns(report.groups),total:report.total,exact:true,basis:'Bloomberg reported'};
-   else{
+   const returnBasis=liveMode?'price-return':periodBasis(completedCalendar(),start,end);
+   {
     const positions=report.groups.flatMap(g=>g.children).filter(p=>!p.cash),symbols=[...new Set(positions.map(p=>p.symbol))],returns={},backup=[],levels={};let zero=[],series=null;
     if(liveMode){
      const cycle=crypto.randomUUID(),{patch}=await collectQuotes(symbols,async(batch,id)=>{ // tolerant: a failed batch falls to the backup
@@ -155,14 +157,15 @@ export function createRiseSwix({check,lock,trade=null}){
     }else{
      const dates=period(start,end);if(dates.end>completedCalendar().at(-1))throw Error('Choose a completed session, or select Live.');
      let next=0,done=0;
-     await Promise.all([0,1,2].map(async()=>{while(next<symbols.length){const s=symbols[next++];if(gen!==generation)return;try{const r=await loadHistory(s,dates.baseline,dates.end);returns[s]=r.value;levels[s]=r.levels;if(r.backup)backup.push(s);}catch(e){if(fatal(e))throw e;returns[s]=0;zero.push(s);}status.textContent='Checking prices '+(++done)+' / '+symbols.length;}}));
+     await Promise.all([0,1,2].map(async()=>{while(next<symbols.length){const s=symbols[next++];if(gen!==generation)return;try{const r=await loadHistory(s,dates.baseline,dates.end,returnBasis);returns[s]=r.value;levels[s]=r.levels;if(r.backup)backup.push(s);}catch(e){if(fatal(e))throw e;returns[s]=0;zero.push(s);}status.textContent='Checking prices '+(++done)+' / '+symbols.length;}}));
+     if(zero.length&&returnBasis==='total-return')throw Error('Total-return history unavailable for '+zero.join(', ')+'. Price returns have not been substituted.');
      checkCoverage(zero,symbols.length,false);
      const days=completedCalendar().filter(d=>d>=dates.baseline&&d<=dates.end);
      if(days.length>=3)series=riseSeries(report,levels,days,new Set(zero));
     }
     const result=await calculation(returns),zeroSet=new Set(zero);
     const groups=zeroSet.size?result.groups.map(g=>({...g,children:g.children.map(p=>zeroSet.has(p.symbol)?{...p,zeroed:true}:p)})):result.groups;
-    value={...result,groups:withShareReturns(groups),basis:liveMode?'Live price-return estimate':'Holdings-based estimate',live:liveMode,zero,backup,series};
+    value={...result,groups:withShareReturns(groups),returnBasis,basis:basisLabel(returnBasis)+' · holdings-based estimate',live:liveMode,zero,backup,series};
    }
    if(gen!==generation||!isActive()||!await check())return;
    const at=new Date().toISOString(),zeroCount=value.zero?.length||0,backupCount=value.backup?.length||0;render({...value,start,end,at});showMissing(value.zero||[],liveMode?'live':'history');
@@ -179,7 +182,7 @@ export function createRiseSwix({check,lock,trade=null}){
  refresh.addEventListener('click',()=>{if(busy||refresh.disabled||!isActive()||$('range').value!=='live')return;clearTimeout(timer);void run();});
  download.addEventListener('click',async()=>{
   const value=last,gen=generation;if(!value||!await check()||generation!==gen)return;
-  const rows=[['Name','Ticker','Avg % weight Port','Avg % weight Bmrk','Total return % Port','Total return % Bmrk','CTR pp Port','CTR pp Bmrk'],[value.basis+'; ZAR; '+value.start+' to '+value.end],...([value.total,...value.groups.flatMap(g=>[g,...g.children])].map(r=>[r.name,r.ticker||'',...r.values.map(v=>v??'')]))];
+  const rows=[['Name','Ticker','Avg % weight Port','Avg % weight Bmrk',basisLabel(value.returnBasis)+' % Port',basisLabel(value.returnBasis)+' % Bmrk','CTR pp Port','CTR pp Bmrk'],[value.basis+'; ZAR; '+value.start+' to '+value.end],...([value.total,...value.groups.flatMap(g=>[g,...g.children])].map(r=>[r.name,r.ticker||'',...r.values.map(v=>v??'')]))];
   const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/^[=+@-](?=\D)/,"'").replaceAll('"','""')+'"').join(',')).join('\r\n');const url=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));const a=el('a');a.href=url;a.download='rise-swix-zar-'+value.start+'-'+value.end+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  });
  return {isActive,syncRange,syncSelection,clear:()=>cancel(true)};

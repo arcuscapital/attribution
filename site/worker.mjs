@@ -1,4 +1,4 @@
-import { compare, returnSeries } from "./engine.mjs?v=j303-20261116";
+import { compare, returnSeries } from "./engine.mjs?v=returns-20261116";
 self.onmessage = ({ data }) => {
   try {
     const result = compare(data.dataset, data.options);

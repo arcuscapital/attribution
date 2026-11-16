@@ -30,7 +30,7 @@ test('private data requires login or fresh query-bound bridge signature',async()
  assert.equal(await bridgeAsset(new Request('https://test'+path.replace('ARKK','BAI'),{headers}),env),null);
  assert.equal(await bridgeAsset(new Request('https://test'+path,{headers:{...headers,'X-Arcus-Time':String(+seconds-60)}}),env),null);
 });
-test('phone source keeps exact USD adjusted dates and FX, leaves unknowns and missing dates blank, uses two requests maximum',async()=>{
+test('phone source keeps exact USD price dates for one session and FX, leaves unknowns and missing dates blank, uses two requests maximum',async()=>{
  let active=0,max=0,count=0;
  const snaps={A:{fund:'A',asOf:'2026-10-01',positions:[{id:'US',symbol:'US',weight:.5},{id:'JP',symbol:'JP',weight:.4},{id:'PRIVATE',weight:.1}]},B:{fund:'B',asOf:'2026-10-02',positions:[{id:'US',symbol:'US',weight:1}]}};
  const source=createOnlineSource({fetcher:async path=>{
@@ -43,7 +43,7 @@ test('phone source keeps exact USD adjusted dates and FX, leaves unknowns and mi
    else if(fund)body=snaps[fund];
    else {const fx=symbol==='JPYUSD=X';body={meta:{symbol,currency:symbol==='JP'?'JPY':'USD',exchangeTimezoneName:'UTC'},
  timestamp:(fx?['2026-10-08']:['2026-10-07','2026-10-08']).map(day),
- indicators:fx?{quote:[{close:[.01]}]}:{adjclose:[{adjclose:[100,110]}]}};}
+ indicators:fx?{quote:[{close:[.01]}]}:{quote:[{close:[100,110]}],adjclose:[{adjclose:[100,110]}]}};}
    active--;return Response.json(body);
  }});
  const m={schemaVersion:1,version:'1790000000000'};

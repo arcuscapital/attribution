@@ -1,5 +1,6 @@
 import {normalizeArcusPacket,resolveArchiveListings,resolveKnownListings,isNonListed} from './arcus-source.mjs?v=cash-20261113';
-import {completedPrices,valuationPrices} from './price-data.mjs?v=missing-recovery-20261028';
+import {completedPrices,valuationPrices} from './price-data.mjs?v=returns-20261116';
+import {periodBasis,basisLabel} from './price-data.mjs';
 // A failed price request is not evidence that a company is private.
 export function missingReturnReason(position) {
   const asset=String(position.asset || '').trim();
@@ -52,13 +53,13 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
     if(!response.ok)throw Error(data.error || 'Data unavailable');
     return data;
   }
-  async function price(symbol,start,end) {
+  async function price(symbol,start,end,basis='total-return') {
     const key=[symbol,start,end].join('|'),saved=prices.get(key);
     const refresh=refreshSymbols.delete(symbol);
-    if(!refresh && saved && Date.now()-saved.at<15*60000)return saved.promise;
-    const promise=get('prices?'+new URLSearchParams({symbol,start,end,...(refresh?{refresh:'1'}:{})})).then(raw=>completedPrices(raw,{symbol,start,end}));
+    if(!refresh && saved && Date.now()-saved.at<15*60000)return completedPrices(await saved.promise,{symbol,start,end,basis});
+    const promise=get('prices?'+new URLSearchParams({symbol,start,end,...(refresh?{refresh:'1'}:{})}));
     const entry={at:Date.now(),promise};prices.set(key,entry);
-    try{return await promise;}catch(e){if(prices.get(key)===entry)prices.delete(key);throw e;}
+    try{return completedPrices(await promise,{symbol,start,end,basis});}catch(e){if(prices.get(key)===entry)prices.delete(key);throw e;}
   }
   return {
     // 1D chart: one completed session's 5-minute prices for a listing (chart only, never the returns).
@@ -87,16 +88,17 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       const start=(now.getUTCFullYear()-1)+'-01-01';
       return (await price('SPY',start,end)).points.map(p=>p[0]);
     },
-    async load(manifest,ids,start,end,currency) {
+    async load(manifest,ids,start,end,currency,basisOverride=null) {
       if(ids.includes('PORTFOLIO:J303')||(ids.includes('PORTFOLIO:SWIX')&&manifest.funds?.some(f=>f.id==='PORTFOLIO:J303'))){
-        const {loadJ303}=await import('./j303-source.mjs?v=j303-20261116');
-        return loadJ303({manifest,ids,start,end,currency,onProgress,loadOther:others=>this.load(manifest,others,start,end,currency),get:async path=>{
+        const {loadJ303}=await import('./j303-source.mjs?v=returns-20261116');
+        return loadJ303({manifest,ids,start,end,currency,onProgress,loadOther:(others,basis)=>this.load(manifest,others,start,end,currency,basis),get:async path=>{
         const saved=j303Cache.get(path);if(saved&&Date.now()-saved.at<900000)return saved.data;
         const data=await get(path);j303Cache.set(path,{at:Date.now(),data});return data;
         }});
       }
       const run=generation, baseline=new Date(Date.parse(start)-14*86400000).toISOString().slice(0,10);
       if(!start || !end || start>end || Date.parse(end)-Date.parse(start)>1096*86400000)throw Error('Choose a period of at most three years.');
+      const returnBasis=basisOverride||(start===end?'price-return':periodBasis(manifest.valuationDates?.length?manifest.valuationDates:(await price('SPY',baseline,end)).points.map(p=>p[0]),start,end));
       const sourceNotes=[],arcusReturns={},arcusPackets=new Map();
       const arcus=manifest.holdingsSource==='arcus';
       async function archive(fund){
@@ -133,7 +135,8 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
         if(reusableArcusReturn(symbol))arcusReturns[symbol]={...(arcusReturns[symbol]||{}),...values};
       const calendar=arcus ? manifest.valuationDates||[] : [];
       const useCalendar=calendar.some(d=>d<start)&&calendar.some(d=>d>=start&&d<=end);
-      const reused=arcusReturnLevels(arcusReturns,calendar,start,end);
+      const reused=returnBasis==='price-return'?arcusReturnLevels(arcusReturns,calendar,start,end):{levels:[],used:new Set()};
+      reused.levels.forEach(l=>l.basis='price-return');
       const symbols=new Set([...(useCalendar?[]:['SPY']),...ids.filter(id=>!id.startsWith('PORTFOLIO:'))]);
       for(const snapshot of snapshots)for(const p of snapshot.positions)if(p.symbol&&!isNonListed(p))symbols.add(p.symbol);
       for(const symbol of reused.used)symbols.delete(symbol);
@@ -145,7 +148,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
           while(next<list.length) {
             if(run!==generation)throw Error('Data request cancelled');
             const symbol=list[next++];
-            try{downloaded.set(symbol,await price(symbol,baseline,end));}
+            try{downloaded.set(symbol,await price(symbol,baseline,end,returnBasis));}
             catch(e){if(run!==generation)throw e;failures.push(symbol+': '+e.message);}
             onProgress(++done,list.length);
           }
@@ -159,17 +162,17 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       await batch([...fxCurrencies].filter(c=>supported.has(c)).map(c=>c+'USD=X'));
       const levels=[...reused.levels],priceNotes=[...sourceNotes];
       const valuationDates=useCalendar ? calendar : downloaded.get('SPY').points.map(([date])=>date);
-      if(arcus)priceNotes.push('Arcus completed-session USD returns reused for '+reused.used.size+' securities/funds. Other requested listings use adjusted-price history only where the selected period is unavailable in Arcus. No intraday quotes are used.');
+      priceNotes.push(basisLabel(returnBasis)+' for both portfolio and benchmark. '+(returnBasis==='price-return'?'One completed trading session; dividends excluded.':'Yahoo dividend-adjusted history; SA cash dividends are reinvested at the ex-date close before withholding tax. Saved daily price returns are not compounded for total-return comparisons.'));
       for(const [id,data] of downloaded) {
         const aligned=valuationPrices(data,valuationDates);
         if(aligned.carried.length)priceNotes.push(id+': local adjusted close carried across verified '+(data.timeZone==='Asia/Taipei'?'Taiwan':'Tokyo')+' market closures ('+aligned.carried.map(p=>p.date+' uses '+p.priceDate).join('; ')+'); FX still uses each valuation date.');
         if(data.currency==='USD' || id==='USDZAR=X') {
-          for(const [date,value] of data.points)levels.push({id,date,value,currency:data.currency,basis:id.endsWith('=X')?'fx':'vendor-adjusted'});
+          for(const [date,value] of data.points)levels.push({id,date,value,currency:data.currency,basis:id.endsWith('=X')?'fx':returnBasis});
         } else if(!id.endsWith('=X')) {
           const unit=minorUnit(data.currency),fx=downloaded.get(unit.currency+'USD=X');
           if(fx?.currency!=='USD')continue;
           const map=new Map(fx.points);
-          for(const [date,value] of aligned.points)if(map.has(date))levels.push({id,date,value:value*unit.scale*map.get(date),currency:'USD',basis:'vendor-adjusted'});
+          for(const [date,value] of aligned.points)if(map.has(date))levels.push({id,date,value:value*unit.scale*map.get(date),currency:'USD',basis:returnBasis});
         }
       }
       if(run!==generation)throw Error('Data request cancelled');
@@ -188,7 +191,9 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       lastSnapshots=snapshots;lastDownloaded=downloaded;lastCurrency=currency;
       const returnReasons=Object.fromEntries(snapshots.flatMap(s=>s.positions.map(p=>[s.fund+'|'+p.id,missingReturnReason(p)])));
       const nonListedIds=[...new Set(snapshots.flatMap(s=>s.positions.filter(isNonListed).map(p=>p.id)))];
-      return {manifest,snapshots,levels,valuationDates,nonListedIds,returnReasons,priceNotes,priceFailures:failures,sourceWarnings:sourceNotes,arcusSource:arcus,arcusReturnCount:reused.used.size,issuerNav,priceCheckedAt:new Date().toISOString()};
+      const last=valuationDates.filter(d=>d<=end).at(-1),weekend=[0,6].includes(new Date(end+'T00:00:00Z').getUTCDay());
+      const verifiedClosedThrough=weekend&&last&&new Date(last+'T00:00:00Z').getUTCDay()===5&&Date.parse(end)-Date.parse(last)<=2*86400000?end:null;
+      return {manifest,snapshots,levels,valuationDates,verifiedClosedThrough,returnBasis,nonListedIds,returnReasons,priceNotes,priceFailures:failures,sourceWarnings:sourceNotes,arcusSource:arcus,arcusReturnCount:reused.used.size,issuerNav,priceCheckedAt:new Date().toISOString()};
     }
   };
 }

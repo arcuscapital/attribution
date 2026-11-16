@@ -1,0 +1,23 @@
+{
+  "COH.JO": {
+    "coverage": {"from":"2025-03-01","through":"2026-01-06","terminal":true},
+    "sources": [
+      "https://www.curro.co.za/media/qdthonep/curro-sens-announcement-results-for-the-period-ended-31-december-2024.pdf",
+      "https://www.sharenet.co.za/v3/sens_display.php?scode=COH&seq=1&tdate=20251223070500"
+    ],
+    "dividends": [{"date":"2025-04-09","amount":0.166}]
+  },
+  "SRI.JO": {
+    "coverage": {"from":"2025-11-13","through":"2026-01-07","terminal":false},
+    "sources": [
+      "https://senspdf.jse.co.za/documents/SENS_20251002_S511267.pdf",
+      "https://senspdf.jse.co.za/documents/SENS_20260108_S515516.pdf"
+    ],
+    "dividends": [
+      {"date":"2026-01-28","amount":0.3357347,"source":"https://senspdf.jse.co.za/documents/SENS_20260126_S516155.pdf"},
+      {"date":"2026-05-06","amount":0.3453075,"source":"https://senspdf.jse.co.za/documents/SENS_20260504_S520671.pdf"},
+      {"date":"2026-07-22","amount":0.3413616,"source":"https://www4.sharenet.co.za/v3/sens_display.php?scode=SRI&seq=24&tdate=20260720100000"},
+      {"date":"2026-10-28","amount":0.3468449,"source":"https://www.sharedata.co.za/v2/scripts/SENS.aspx?id=564322"}
+    ]
+  }
+}

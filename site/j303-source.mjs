@@ -1,5 +1,6 @@
 import {J303,SWIX,buildIndexPath,priceLookup} from './j303-core.mjs';
 import {tradingDay,iso} from './rise-swix-core.mjs';
+import {periodBasis,basisLabel,holdingsReturnLevels} from './price-data.mjs';
 export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=()=>{},loadOther}){
   const packet=await get('j303'),model=packet.model;
   if(start<model.availableFrom)throw Error('J303 history starts '+model.availableFrom+'.');
@@ -23,8 +24,10 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
     const sum=rows.reduce((s,p)=>s+p.weight,0);rows.forEach(p=>p.weight/=sum);
     paths.set(SWIX,buildIndexPath({...model,holdings:rows,calibrations:[]},packets,end,{fund:SWIX,capped:false,calibrate:false}));
   }
-  const others=ids.filter(id=>!paths.has(id)),data=others.length?await loadOther(others):{manifest,snapshots:[],levels:[],priceNotes:[],priceFailures:[]};
   const baseline=path.levels.map(p=>p.date).filter(d=>d<start).at(-1),dates=path.levels.map(p=>p.date).filter(d=>d>=baseline);
+  const returnBasis=periodBasis(dates,start,end),total=returnBasis==='total-return';
+  const returns=total?priceLookup(packets.map(p=>({...p,points:p.totalReturnPoints||[]}))):price;
+  const others=ids.filter(id=>!paths.has(id)),data=others.length?await loadOther(others,returnBasis):{manifest,snapshots:[],levels:[],priceNotes:[],priceFailures:[]};
   let fx=new Map();
   // Engine has a common USD internal numeraire. Use one FX series and its
   // inverse consistently, so a ZAR comparison cancels FX exactly.
@@ -36,19 +39,20 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
   for(const [fund,p] of paths){
     data.snapshots.push(...p.snapshots.filter(s=>s.asOf>=baseline));
     for(const s of p.snapshots)for(const row of s.positions)involved.add(row.symbol);
-    for(const q of p.levels)if(q.date>=baseline&&fx.has(q.date))data.levels.push({id:fund,date:q.date,value:q.value/fx.get(q.date),currency:'USD',basis:'price-return'});
+    const reference=total?holdingsReturnLevels(p.snapshots,dates,returns):p.levels;
+    for(const q of reference)if(q.date>=baseline&&fx.has(q.date))data.levels.push({id:fund,date:q.date,value:q.value/fx.get(q.date),currency:'USD',basis:returnBasis});
   }
   const replaced=new Set([...involved,'USDZAR=X']);data.levels=data.levels.filter(l=>!replaced.has(l.id));
   for(const date of dates){
     if(!fx.has(date))throw Error('USD/ZAR closing rate missing on '+date);
     data.levels.push({id:'USDZAR=X',date,value:fx.get(date),currency:'ZAR',basis:'fx'});
-    for(const symbol of involved){const q=price(symbol,date);if(q)data.levels.push({id:symbol,date,value:q.value/fx.get(date),currency:'USD',basis:'price-return'});}
+    for(const symbol of involved){const q=returns(symbol,date);if(q)data.levels.push({id:symbol,date,value:q.value/fx.get(date),currency:'USD',basis:returnBasis});}
   }
-  return {...data,dailyHoldings:true,valuationDates:dates,calendarThrough:end,priceCheckedAt:new Date().toISOString(),arcusSource:true,
-    priceNotes:[...(data.priceNotes||[]),'J303: daily price returns, floating weights and automatic quarterly 12% capping. Weights shown are average opening weights; contributions compound daily. Ordinary dividends are excluded.',
+  return {...data,returnBasis,dailyHoldings:true,valuationDates:dates,calendarThrough:end,priceCheckedAt:new Date().toISOString(),arcusSource:true,
+    priceNotes:[...(data.priceNotes||[]),basisLabel(returnBasis)+' for both portfolio and benchmark. J303 weights drift with prices and rebalance automatically each quarter with 12% capping. Weights shown are average opening weights; contributions compound daily. '+(total?'SA gross cash dividends are reinvested at the ex-date close.':'Ordinary dividends are excluded for this single session.'),
       'J303 history reconstructs public fund disclosures and dated membership changes. Historical calibrations use later published information; future reviews carry the latest inferred float units until new source data is available.',
       ...(model.provenanceNotes||[]),
       ...(path.last<end?['The requested end '+end+' is a non-trading date; the final JSE valuation is '+path.last+'.']:[]),
-      ...(report?['SWIX uses its separately saved allocation dated '+report.period.at(-1)+', reverse/forward drifted with the same price-return basis.']:[]),
+      ...(report?['SWIX uses its separately saved allocation dated '+report.period.at(-1)+', reverse/forward drifted with prices and compared on the same return basis.']:[]),
       ...(path.carried.length?['Last observed closes used on '+path.carried.length+' constituent/session valuations.']:[])],j303Events:path.events};
 }

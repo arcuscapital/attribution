@@ -22,8 +22,8 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
     if(symbol){
       if(!/^[A-Z0-9-]+\.JO$/.test(symbol))return reply({error:'Invalid JSE listing'},400);
       const saved=await env.HOLDINGS_ARCHIVE?.get(priceKey(symbol),'json');
-      if(saved&&Date.now()-Date.parse(saved.checkedAt)<24*3600000)return reply(saved);
-      try{const packet=preserveHistory(saved,await fetchJseHistory(symbol));const write=env.HOLDINGS_ARCHIVE.put(priceKey(symbol),JSON.stringify(packet));if(ctx.waitUntil)ctx.waitUntil(write);else await write;return reply(packet);}
+      if(saved?.returnVersion===1&&saved.totalReturnFrom<=saved.points[0][0]&&Date.now()-Date.parse(saved.checkedAt)<24*3600000)return reply(saved);
+      try{const packet=preserveHistory(saved,await fetchJseHistory(symbol,{fetcher}));const write=env.HOLDINGS_ARCHIVE.put(priceKey(symbol),JSON.stringify(packet));if(ctx.waitUntil)ctx.waitUntil(write);else await write;return reply(packet);}
       catch{return saved?reply(saved):reply({error:'J303 closing prices unavailable'},503);}
     }
     const model=await env.HOLDINGS_ARCHIVE?.get(MODEL_KEY,'json'),state=await env.HOLDINGS_ARCHIVE?.get(STATE_KEY,'json');
@@ -93,11 +93,21 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
     }catch(e){return reply({error:e.message||'Intraday prices unavailable',symbol:query.symbol},502);}
   }
   // Cache only public market data, behind authentication. One symbol per invocation.
-  const key=new Request('https://analysis-market-cache.invalid/v1/'+encodeURIComponent(query.symbol)+'?start='+query.start+'&end='+query.end);
+  const key=new Request('https://analysis-market-cache.invalid/returns-v2/'+encodeURIComponent(query.symbol)+'?start='+query.start+'&end='+query.end);
   const cached=url.searchParams.get('refresh')==='1' ? null : await cache?.match(key);
   if(cached)return reply(await cached.json());
   const period1=Math.floor(Date.parse(query.start)/1000),period2=Math.min(Math.floor(Date.now()/1000),Math.floor(Date.parse(query.end)/1000)+2*86400);
   try {
+    if(/\.JO$/i.test(query.symbol)){
+      const packet=await fetchJseHistory(query.symbol,{fetcher,start:query.start,end:query.end});
+      const total=new Map(packet.totalReturnPoints||[]);
+      const result={meta:{symbol:query.symbol,currency:'ZAR',exchangeTimezoneName:'Africa/Johannesburg',returnVersion:packet.returnVersion||0},
+        timestamp:packet.points.map(([d])=>Date.parse(d+'T12:00:00Z')/1000),
+        indicators:{quote:[{close:packet.points.map(p=>p[1])}],adjclose:[{adjclose:packet.points.map(([d])=>total.get(d)??null)}]},
+        dividends:packet.dividends||[],unitCorrections:packet.unitCorrections||0};
+      if(cache&&packet.returnVersion===1){const write=cache.put(key,Response.json(result,{headers:{'Cache-Control':'public, max-age=900'}}));if(ctx.waitUntil)ctx.waitUntil(write);else await write;}
+      return reply(result);
+    }
     const response=await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(query.symbol)+'?period1='+period1+'&period2='+period2+'&interval=1d&events=div%2Csplits&includeAdjustedClose=true',{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(15000)});
     if(!response.ok)throw Error('Price source is temporarily unavailable');
     const data=await response.json();
@@ -107,7 +117,7 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
     const values=fx ? raw.indicators?.quote?.[0]?.close : raw.indicators?.adjclose?.[0]?.adjclose;
     if(!values?.length || !raw.timestamp?.length)throw Error('Adjusted closing prices are not available');
     const result={meta:{symbol:raw.meta.symbol,currency:raw.meta.currency,exchangeTimezoneName:raw.meta.exchangeTimezoneName},
-      timestamp:raw.timestamp,indicators:fx?{quote:[{close:values}]}:{adjclose:[{adjclose:values}]}};
+      timestamp:raw.timestamp,events:raw.events||{},indicators:fx?{quote:[{close:values}]}:{quote:[{close:raw.indicators?.quote?.[0]?.close||[]}],adjclose:[{adjclose:values}]}};
 
     if(cache) {
       const write=cache.put(key,Response.json(result,{headers:{'Cache-Control':'public, max-age=900'}}));

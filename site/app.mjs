@@ -1,3 +1,4 @@
+import {basisLabel} from './price-data.mjs?v=returns-20261116';
 import { dateRange, drawReturnChart, intradaySeries, createGroupedTable, renderSectorWeights, collapsible } from './ranges.mjs?v=trade-20261115';
 import { groupByGics, UNKNOWN_GICS, gicsWeights, gicsSector, GICS_SECTORS, completedCalendar } from './rise-swix-core.mjs?v=trade-20261115';
 import { createSessionGuard } from './session.mjs';
@@ -489,7 +490,7 @@ $("controls").addEventListener("submit", async (e) => {
     const data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.mjs?v=j303-20261116", import.meta.url), {
+      const worker = new Worker(new URL("./worker.mjs?v=returns-20261116", import.meta.url), {
         type: "module",
       });
       activeWorker = worker;
@@ -575,7 +576,7 @@ $("controls").addEventListener("submit", async (e) => {
         const body = text("div", "", "metric-text");
         body.append(
           text("span", label === "Difference" ? label : fundLabel(label)),
-          text("small", options.currency + (method === 'weighted-estimate' ? ' · weighted return estimate' : method === 'reference' ? ' · reference return' : method === 'comparison' ? ' · return difference' : result.status === "partial" ? " · reference return" : " · holdings estimate")),
+          text("small", options.currency + (result.returnBasis ? ' · '+basisLabel(result.returnBasis) : '') + (method === 'weighted-estimate' ? ' · weighted return estimate' : method === 'reference' ? ' · reference return' : method === 'comparison' ? ' · return difference' : result.status === "partial" ? " · reference return" : " · holdings estimate")),
         );
         const figure = text("strong", fmt(value), value === null || value === undefined ? "muted" : value >= 0 ? "positive" : "negative");
         if (label === "Difference") card.append(body, figure);
@@ -587,14 +588,14 @@ $("controls").addEventListener("submit", async (e) => {
     renderRows();
     // Cumulative return chart under the table (periods of two or more valuation days).
     drawReturnChart($('return-chart'), result.series ? {...result.series, labelA: fundLabel(options.portfolio), labelB: fundLabel(options.benchmark),
-      note: options.currency + ' · each side follows its headline return method' + (!data.dailyHoldings&&options.assumeMissingZero ? ' · missing returns at 0%' : '')} : null);
+      note: options.currency + ' · '+(result.returnBasis?basisLabel(result.returnBasis):'archive return basis') + (!data.dailyHoldings&&options.assumeMissingZero ? ' · missing returns at 0%' : '')} : null);
     // 1D: one session has no daily path, so the chart follows the session's 5-minute prices instead.
     if (!result.series && onlineMode && online?.intraday && result.end && (options.start === options.end || $('range').value === 'day')) drawIntradayChart(result, options);
     renderMethod();
-    if(onlineMode) $('price-status').textContent = (data.dailyHoldings?'Daily floating holdings · automatic quarterly rebalance · price returns · ':data.arcusSource ? 'Arcus completed returns first · '+data.arcusReturnCount+' securities/funds reused · ' : 'Adjusted daily returns · ')+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
+    if(onlineMode) $('price-status').textContent = basisLabel(data.returnBasis)+' · '+(data.dailyHoldings?'Daily floating holdings · automatic quarterly rebalance · ':data.arcusSource ? 'Arcus completed returns first · '+data.arcusReturnCount+' securities/funds reused · ' : 'Adjusted daily returns · ')+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
     $('research-note').replaceChildren(
       text('strong','Research estimate — use for ideas, not exact accounting.'),
-      text('p',data.dailyHoldings ? 'J303 holdings drift with daily closing prices and rebalance automatically each quarter. Ordinary dividends are excluded. Historical weights reconstruct public disclosures; source dates and assumptions are recorded in Method. SWIX uses its independently saved allocation. Both sides use daily compounded contributions, and missing latest prices stop the comparison.' : data.arcusSource ? 'Current holdings and completed USD daily returns come from Arcus. ETF weights come from its issuer sources, retaining cash and private holdings. Where Arcus does not hold the requested dated return history, adjusted-price history and same-date FX fill the gap. Current allocations are applied to the selected period; historical trades are not reconstructed. Any archive allocation fallback is disclosed below.' : onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Shares use adjusted closing prices and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
+      text('p',data.dailyHoldings ? 'J303 holdings drift with daily closing prices and rebalance automatically each quarter. Dividends are excluded for one session and reinvested in multi-session total returns. Historical weights reconstruct public disclosures; source dates and assumptions are recorded in Method. SWIX uses its independently saved allocation. Both sides use daily compounded contributions, and missing latest prices stop the comparison.' : data.arcusSource ? 'Current holdings come from Arcus. One-session comparisons can reuse completed Arcus price returns; multi-session comparisons use dividend-inclusive histories. ETF weights come from its issuer sources, retaining cash and private holdings. Where Arcus does not hold the requested dated return history, adjusted-price history and same-date FX fill the gap. Current allocations are applied to the selected period; historical trades are not reconstructed. Any archive allocation fallback is disclosed below.' : onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Both sides use the displayed return basis and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
       ...(result.holdingsWarnings || []).map(n => text('p',n)),
       ...(data.sourceWarnings || []).map(n=>text('p',n)),
       ...(result.assumedReturns?.length ? [text('p','Private holdings, cash, money-market funds, derivatives and corporate-action positions are shown at the bottom with an assumed 0% return. They are excluded from measured coverage. Missing listed-share returns remain blank unless you select the additional 0% assumption.')] : []),
@@ -637,7 +638,7 @@ function reconciliationSide(comparison, options, side) {
   const account = fund.startsWith('PORTFOLIO:');
   const method = comparison['returnMethod' + side];
   const referenceBasis = comparison['fundReturnBasis' + side];
-  const marketReference = !account && ['vendor-adjusted', 'arcus-completed-session'].includes(referenceBasis);
+  const marketReference = !account && ['vendor-adjusted', 'arcus-completed-session','price-return','total-return'].includes(referenceBasis);
   const showNav = !account && Boolean(options.start) && options.start === options.end;
   const nav = showNav ? comparison.issuerNav?.[fund] : null;
   const navReturn = nav?.status === 'ok' && nav.date === options.end && nav.currency === options.currency && Number.isFinite(nav.return) ? nav.return : null;
@@ -747,8 +748,8 @@ const columns = [
   ["ticker", "Ticker"],
   ["weightA", "Avg % weight · Portfolio"],
   ["weightB", "Avg % weight · Benchmark"],
-  ["returnA", "Total return (%) · Portfolio"],
-  ["returnB", "Total return (%) · Benchmark"],
+  ["returnA", "Return (%) · Portfolio"],
+  ["returnB", "Return (%) · Benchmark"],
   ["ctrA", "CTR (pp) · Portfolio"],
   ["ctrB", "CTR (pp) · Benchmark"],
   ["activeWeight", "Difference · Avg % weight"],
@@ -756,7 +757,7 @@ const columns = [
   ["theme", "Theme"],
   ["subTheme", "Sub-theme"],
 ];
-const columnGroups = [["Avg % weight", ["weightA", "weightB"]], ["Total return (%)", ["returnA", "returnB"]],
+const columnGroups = [["Avg % weight", ["weightA", "weightB"]], ["Return (%)", ["returnA", "returnB"]],
   ["CTR (pp)", ["ctrA", "ctrB"]], ["Difference", ["activeWeight", "activeCtr"]]];
 const shortLabel = {weightA: "Port", weightB: "Bmrk", newWeight: "New", returnA: "Port", returnB: "Bmrk", ctrA: "Port", ctrB: "Bmrk", activeWeight: "Wgt", activeCtr: "CTR"};
 const textColumn = key => key === 'name' || key === 'ticker' || key === 'theme' || key === 'subTheme' || key === 'gics' || key === 'reg28';
@@ -768,7 +769,7 @@ function tableColumns() {
   const extra = classColumns();
   return columns.flatMap(c => c[0] === 'weightB' && trade?.on ? [c, ['newWeight', 'Avg % weight · New']] : c[0] === 'ctrB' ? [c, ...extra] : [c]);
 }
-const tableGroups = () => columnGroups.map(([name, keys]) => keys[0] === 'weightA' && trade?.on ? [name, [...keys, 'newWeight']] : [name, keys]);
+const tableGroups = () => columnGroups.map(([label, keys]) => [keys[0]==='returnA'&&result?.returnBasis?basisLabel(result.returnBasis)+' (%)':label,keys]).map(([name, keys]) => keys[0] === 'weightA' && trade?.on ? [name, [...keys, 'newWeight']] : [name, keys]);
 // GICS sectors: the Bloomberg list for the Arcus shares, plus each JSE share's sector from the Rise vs Swix report.
 function sectorList() {
   const base = manifest?.gics?.sectors || {};
@@ -1329,7 +1330,7 @@ $("download").addEventListener("click", async () => {
     const current = result, generation = accessGeneration;
     const selection = {portfolio:fundLabel(lastOptions.portfolio), benchmark:fundLabel(lastOptions.benchmark),
       rows:displayedRows(), view:$('group').value === 'security' ? 'Holdings' : 'Sector'};
-    const {comparisonXlsx} = await import('./export.mjs?v=listed-focus-types-20261028');
+    const {comparisonXlsx} = await import('./export.mjs?v=returns-20261116');
     if (!await session.check() || generation !== accessGeneration || current !== result) return;
     const blob = new Blob([comparisonXlsx(current, selection)],
       {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -1346,7 +1347,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=j303-20261116');
+  const {createOnlineSource}=await import('./online.mjs?v=returns-20261116');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;
@@ -1384,7 +1385,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=trade-20261115');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock(),trade});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=returns-20261116');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock(),trade});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';

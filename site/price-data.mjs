@@ -1,10 +1,57 @@
+// A return basis is selected once for the whole comparison, including its benchmark.
+export const RETURN_VERSION = 1;
+export function periodBasis(calendar, start, end) {
+  return calendar.filter(d => d >= start && d <= end).length > 1 ? 'total-return' : 'price-return';
+}
+export const basisLabel = basis => basis === 'price-return' ? 'Price return' : 'Total return';
+
+// Gross cash dividends are reinvested at the ex-date close. Prices and dividends
+// must already have the same currency and split basis. Do not add to Adj Close.
+export function cashDividendLevels(points, dividends = []) {
+  const events = new Map();
+  for (const d of dividends) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date) || !Number.isFinite(d.amount) || d.amount < 0) throw Error('Invalid cash dividend');
+    events.set(d.date, (events.get(d.date) || 0) + d.amount);
+  }
+  const dates=new Set(points.map(p=>p[0]));
+  for(const date of events.keys())if(date>points[0]?.[0]&&date<=points.at(-1)?.[0]&&!dates.has(date))throw Error('Closing price unavailable on dividend ex-date '+date);
+  let value = 100;
+  return points.map(([date, close], i) => {
+    if (!(close > 0) || !Number.isFinite(close)) throw Error('Invalid closing price');
+    if (i) value *= (close + (events.get(date) || 0)) / points[i - 1][1];
+    return [date, value];
+  });
+}
+
+// Convert a dated holdings path to a return reference without changing its
+// price-driven holdings, quarterly reviews, or effective units.
+export function holdingsReturnLevels(snapshots, dates, lookup) {
+  const byDate = new Map(snapshots.map(s => [s.asOf, s]));
+  let value = 100;
+  return dates.map((date, i) => {
+    if (i) {
+      const previous = dates[i - 1], snapshot = byDate.get(previous);
+      if (!snapshot) throw Error('Opening holdings unavailable on ' + previous);
+      let daily = 0;
+      for (const p of snapshot.positions) {
+        if (!p.weight) continue;
+        const a = lookup(p.symbol || p.id, previous), b = lookup(p.symbol || p.id, date);
+        if (!a || !b) throw Error((p.symbol || p.id) + ': total-return history unavailable');
+        daily += p.weight * (b.value / a.value - 1);
+      }
+      value *= 1 + daily;
+    }
+    return {date, value};
+  });
+}
+
 // Validate and date prices in the browser, avoiding date-format CPU work on Workers Free.
-export function completedPrices(result, {symbol,start,end}, now=Date.now()) {
+export function completedPrices(result, {symbol,start,end,basis='total-return'}, now=Date.now()) {
   const meta=result?.meta || {}, stamps=result?.timestamp || [];
   if (meta.symbol?.toUpperCase() !== symbol.toUpperCase()) throw Error('Price identity mismatch');
   const fx=symbol.endsWith('=X');
-  const values=fx ? result?.indicators?.quote?.[0]?.close : result?.indicators?.adjclose?.[0]?.adjclose;
-  if (!values?.length) throw Error('Adjusted closing prices are not available');
+  const values=fx||basis==='price-return' ? result?.indicators?.quote?.[0]?.close : result?.indicators?.adjclose?.[0]?.adjclose;
+  if (!values?.length) throw Error(basis==='price-return'?'Closing prices are not available':'Adjusted closing prices are not available');
   const formatter=new Intl.DateTimeFormat('en-CA',{timeZone:meta.exchangeTimezoneName || 'UTC',year:'numeric',month:'2-digit',day:'2-digit'});
   const iso=ms=>{const p=Object.fromEntries(formatter.formatToParts(new Date(ms)).map(x=>[x.type,x.value]));return [p.year,p.month,p.day].join('-');};
   const today=iso(now), byDate=new Map();
@@ -13,7 +60,8 @@ export function completedPrices(result, {symbol,start,end}, now=Date.now()) {
     // Never substitute a quote, raw equity close, or still-forming daily bar.
     if(date>=start && date<=end && date<today && typeof value==='number' && Number.isFinite(value) && value>0) byDate.set(date,value);
   }
-  return {symbol,currency:meta.currency,timeZone:meta.exchangeTimezoneName,points:[...byDate].sort(([a],[b])=>a.localeCompare(b)),checkedAt:new Date(now).toISOString(),basis:fx?'fx':'vendor-adjusted'};
+  if(!byDate.size)throw Error(basis==='price-return'?'No completed closing prices':'No completed total-return history');
+  return {symbol,currency:meta.currency,timeZone:meta.exchangeTimezoneName,points:[...byDate].sort(([a],[b])=>a.localeCompare(b)),checkedAt:new Date(now).toISOString(),basis:fx?'fx':basis,dividends:result.dividends||Object.values(result.events?.dividends||{})};
 }
 
 // Cash-equity closures, not the separate derivatives holiday-trading calendar.
