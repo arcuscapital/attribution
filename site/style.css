@@ -777,9 +777,17 @@ table.trade-add-shares[hidden]{display:none}
 #results .trade-add-panel .trade-add-shares th{width:6.5em}
 #results .trade-add-panel .trade-add-shares td:nth-child(3){width:6em}
 #results .trade-add-panel .trade-add-shares td:last-child{width:40px}
-html:not(.light) .trade-add-panel{border-radius:0;border-color:var(--bbg-line);background:var(--bbg-black);font-family:var(--bbg-font)}
-html:not(.light) .trade-add-shares :is(th,td){border-color:var(--bbg-line)}
-html:not(.light) .trade-add-shares th{color:var(--bbg-amber);font-weight:400}
+/* Dark theme: the Terminal look of the tables on this page (black, #505050 rules, grey headings, amber tickers,
+   white names, regular weight throughout). */
+html:not(.light) button.trade-add-button{font-weight:400}
+html:not(.light) .trade-add-panel{border-radius:0;border-color:var(--bbg-line);background:var(--bbg-black);color:var(--bbg-text);font-family:var(--bbg-font);font-weight:400;box-shadow:0 10px 28px rgba(0,0,0,.6)}
+html:not(.light) .trade-add-head{background:var(--bbg-head);margin:-12px -14px 8px;padding:6px 8px 6px 14px;color:var(--bbg-grey)}
+html:not(.light) .trade-add-head strong{font-weight:400}
+html:not(.light) :is(.trade-add-help,.trade-add-foot,.trade-add-name small){color:var(--bbg-dim)}
+html:not(.light) .trade-add-status{color:var(--bbg-grey)}
+html:not(.light) #results .trade-add-panel .trade-add-shares :is(th,td){border-top-color:var(--bbg-line);color:var(--bbg-text);font-weight:400}
+html:not(.light) #results .trade-add-panel .trade-add-shares th{color:var(--bbg-amber)}
+html:not(.light) #results .trade-add-panel .trade-add-shares tr:nth-child(even) :is(th,td){background:var(--bbg-row)}
 @media(max-width:600px){.trade-actions .trade-add-button{flex:1 1 100%}.trade-add-panel{position:static;flex:1 1 100%;width:auto;margin-top:0;box-shadow:none}.trade-add-form{flex-wrap:wrap}.trade-add-form .trade-add-ticker{flex:1 1 100%}.trade-add-form .trade-add-weight{flex:1 1 auto}}
 /* New weight field. */
 td.trade-new{text-align:right}
