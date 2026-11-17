@@ -69,6 +69,7 @@ function submitHarness({latest, refreshError, onlineMode = true} = {}) {
     applyRange:()=>{$('start').value=$('end').value=manifest.valuationDates.at(-1);calls.push(['range']);},
     refreshArcusReturns:async()=>calls.push(['returns']), lastOptions:null, securityLinks:new Map(), buildSecurityLinks:()=>new Map(),
     renderArchiveInfo(){}, activeWorker:null, cancelCalculation:null,
+    clearTimeout(){}, liveTimer:0, liveRefreshing:false, scheduleLive(){}, completedDates:()=>manifest.valuationDates, syncDateFields(){},
     Worker:class {terminate(){} postMessage(value){posted=value;calls.push(['calculate']);queueMicrotask(()=>this.onmessage({data:{ok:true,result:{status:'unavailable',issues:[],missing:[],notes:[]}}}));}},
     URL, Promise, document:{createElement:()=>new Control()}, text:()=>new Control(), message:value=>calls.push(['error',value]), scrollTo(){},
   });

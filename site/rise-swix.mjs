@@ -31,7 +31,8 @@ export function createRiseSwix({check,lock,trade=null}){
  $('grouping')?.addEventListener('change',()=>{if(isActive()&&last)render(last);});
  // Slider on or off redraws the table; typing only updates the sums (their own cells) and the sector weights.
  trade?.subscribe(why=>{if(!isActive()||!last||panel.hidden)return;if(why==='value')drawWeights(last);else if(why!=='order')render(last);});
- const live=el('option','Live');live.value='live';live.hidden=true;live.disabled=true;$('range').options[0].after(live);
+ // Live is offered for every pair (owner, 2026-11-17); index.html carries the option. Rise vs Swix keeps its own live model.
+ const live=[...$('range').options].find(o=>o.value==='live')||el('option','Live');if(!live.parentNode){live.value='live';$('range').options[0].after(live);}
  const isActive=()=>isRisePair($('portfolio').value,$('benchmark').value);
  function cancel(clear=false){generation++;controller.abort();controller=new AbortController();clearTimeout(timer);clearTimeout(cooldown);refresh.disabled=false;worker?.terminate();worker=null;rejectWorker?.(Error('Selection changed'));rejectWorker=null;busy=false;$('run').disabled=false;if(clear){report=null;prices.clear();last=null;table.replaceChildren();drawReturnChart(chart,null);panel.hidden=true;opened.clear();showMissing();}}
  async function get(path){const r=await fetch(path,{credentials:'same-origin',cache:'no-store',signal:controller.signal});if(r.status===401){lock();throw Error('Sign in again.');}if(!r.ok)throw Error('Data unavailable. Please retry.');return r.json();}
@@ -54,9 +55,9 @@ export function createRiseSwix({check,lock,trade=null}){
   else if(target==='benchmark'&&b.value===SWIX)choose(p,RISE);
   else if(p.value!==RISE&&b.value===SWIX)choose(b,ordinary(b,p.value));
   else if(b.value!==SWIX&&p.value===RISE)choose(p,ordinary(p,b.value));
-  const active=isActive();live.hidden=live.disabled=!active;$('range').options[0].textContent=active?'1D':'One Day';
+  const active=isActive();$('range').options[0].textContent=active?'1D':'One Day';
   if(active){if(!entered){priorCurrency=$('currency').value;priorGrouping=$('grouping')?.value||'none';if($('grouping'))$('grouping').value='gics';entered=true;$('range').value='day';opened.clear();current=null;sort=null;}syncRange();}
-  else{panel.hidden=true;if(entered){entered=false;if($('grouping'))$('grouping').value=priorGrouping;$('currency').disabled=false;$('currency').value=$('benchmark').value===SWIX?'ZAR':'USD';if($('range').value==='live')$('range').value='day';$('range').dispatchEvent(new Event('change'));}}
+  else{panel.hidden=true;if(entered){entered=false;if($('grouping'))$('grouping').value=priorGrouping;$('currency').disabled=false;$('currency').value=$('benchmark').value===SWIX?'ZAR':'USD';$('range').dispatchEvent(new Event('change'));}}
   $('assume-zero').closest('label').hidden=active;
   syncing=false;
  }

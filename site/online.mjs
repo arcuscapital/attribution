@@ -39,13 +39,68 @@ export const minorUnit=currency=>currency==='GBp'?{currency:'GBP',scale:.01}:cur
 // JSE listings (EasyBF, Best) are always priced here from adjusted closes and same-date rand FX: Arcus's
 // completed returns for them are not reused as US dollar returns.
 export const reusableArcusReturn=symbol=>!/\.JO$/i.test(symbol);
+// Live comparisons (owner, 2026-11-17: "live should be working for all portfolio and benchmark combinations").
+// The last completed session's holdings and closing levels are extended by one valuation for today, from the live
+// quotes Arcus serves (/api/live-prices/shard): each listing's move today against its previous close (US pre-market
+// before the open), times its currency's move against the dollar. A listing that has not traded yet today is
+// unchanged (0%); one without a quote has no return and is reported as missing. The existing engine then
+// attributes the session exactly as for One Day. Daily-holdings indices (J303 and its SWIX) move with their
+// closing weights; a constituent without a quote is held unchanged.
+const SUFFIX_CURRENCY={JO:'ZAR',L:'GBP',TW:'TWD',TWO:'TWD',T:'JPY',KS:'KRW',KQ:'KRW',HK:'HKD',AS:'EUR',PA:'EUR',DE:'EUR',F:'EUR',MI:'EUR',MC:'EUR',BR:'EUR',
+  HE:'EUR',LS:'EUR',VI:'EUR',IR:'EUR',SW:'CHF',TO:'CAD',V:'CAD',AX:'AUD',SS:'CNY',SZ:'CNY',ST:'SEK',OL:'NOK',CO:'DKK',TA:'ILS',NS:'INR',BO:'INR',SI:'SGD',NZ:'NZD',SA:'BRL',MX:'MXN'};
+export function listingCurrency(symbol,known){
+  if(known)return minorUnit(known).currency;
+  const suffix=String(symbol||'').match(/\.([A-Z]{1,3})$/)?.[1];
+  return suffix?SUFFIX_CURRENCY[suffix]||null:'USD';
+}
+export function liveMove(q,liveDate){
+  if(!q||!(q.p>0))return null;
+  if(Number.isFinite(q.l)&&(q.lb==='regular'||q.lb==='pre')&&q.ld===liveDate)return {ratio:1+q.l/100,unchanged:false};
+  if(/^\d{4}-\d{2}-\d{2}$/.test(q.qd||'')&&q.qd<liveDate)return {ratio:1,unchanged:true};
+  return null;
+}
+export function liveDataset(base,quotes,{currencyOf=()=>null,at=Date.now()}={}){
+  const prev=(base.valuationDates||[]).at(-1);
+  if(!prev)throw Error('No completed session is available to start Live from.');
+  const counts=new Map();for(const q of Object.values(quotes||{}))if(/^\d{4}-\d{2}-\d{2}$/.test(q?.ld||''))counts.set(q.ld,(counts.get(q.ld)||0)+1);
+  const liveDate=[...counts].sort((a,b)=>b[1]-a[1]||b[0].localeCompare(a[0]))[0]?.[0];
+  if(!liveDate)throw Error('Live quotes are unavailable right now. Try again shortly, or choose One Day.');
+  if(liveDate<=prev)throw Error('No session has opened since the last completed close ('+prev+'). Live starts with the next session; One Day shows '+prev+'.');
+  const basis=base.returnBasis||'price-return',daily=new Set(base.dailyHoldingsFunds||[]);
+  const fx=base.levels.find(l=>l.id==='USDZAR=X'&&l.date===prev&&l.basis==='fx');
+  // A rand-only J303 comparison uses USD/ZAR = 1 throughout (FX cancels): keep it that way today.
+  const numeraire=!!fx&&base.levels.filter(l=>l.id==='USDZAR=X').every(l=>l.value===1);
+  const usdzar=liveMove(quotes['USDZAR=X'],liveDate)?.ratio??null;
+  const fxToUsd=c=>!c?null:c==='USD'?1:c==='ZAR'?(numeraire?1:usdzar?1/usdzar:liveMove(quotes['ZARUSD=X'],liveDate)?.ratio??null):liveMove(quotes[c+'USD=X'],liveDate)?.ratio??null;
+  const today=[],ratios=new Map(),missing=[];let live=0,unchanged=0;
+  for(const l of base.levels){
+    if(l.date!==prev||l.basis==='fx'||l.basis!==basis||daily.has(l.id))continue;
+    const m=liveMove(quotes[l.id],liveDate),f=fxToUsd(currencyOf(l.id));
+    if(!m||f==null){missing.push(l.id);continue;}
+    if(m.unchanged)unchanged++;else live++;
+    ratios.set(l.id,m.ratio*f);today.push({...l,date:liveDate,value:l.value*m.ratio*f});
+  }
+  for(const fund of daily){
+    const level=base.levels.find(l=>l.id===fund&&l.date===prev&&l.basis===basis),snap=base.snapshots.find(s=>s.fund===fund&&s.asOf===prev);
+    if(!level||!snap)continue;
+    let move=0;for(const p of snap.positions)move+=p.weight*((ratios.get(p.id)??ratios.get(p.symbol)??1)-1);
+    today.push({...level,date:liveDate,value:level.value*(1+move)});
+  }
+  if(fx&&(numeraire||usdzar))today.push({...fx,date:liveDate,value:numeraire?1:fx.value*usdzar});
+  const quotedAt=Math.max(0,...Object.values(quotes||{}).map(q=>Number(q?.at)||0))||at;
+  return {...base,levels:[...base.levels,...today.filter(l=>l.value>0)],valuationDates:[...base.valuationDates.filter(d=>d<=prev),liveDate],
+    calendarThrough:base.dailyHoldings?liveDate:base.calendarThrough,verifiedClosedThrough:null,issuerNav:{},returnBasis:basis,
+    live:{date:liveDate,prev,live,unchanged,missing,quotedAt},
+    priceNotes:[...(base.priceNotes||[]).filter(n=>!n.startsWith(basisLabel(basis))),
+      'Live: today’s moves from live quotes (via Arcus, provider prices may be delayed) against the '+prev+' close, applied to the holdings used for '+prev+'. Listings not traded yet today count as 0%; US listings use pre-market moves before the US open. Non-US listings include today’s move in their currency against the dollar.']};
+}
 // Phone-independent data adapter; prices only for the two selected holdings lists.
 export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgress=()=>{}}={}) {
   let controller=new AbortController(), generation=0;
   const prices=new Map(), holdings=new Map();
   const j303Cache=new Map();
   const refreshSymbols=new Set();
-  let lastSnapshots=[],lastDownloaded=new Map(),lastCurrency='USD';
+  let lastSnapshots=[],lastDownloaded=new Map(),lastCurrency='USD',liveBase=null;
   async function get(path) {
     const response=await fetcher('./data/'+path,{credentials:'same-origin',cache:'no-store',signal:controller.signal});
     if(response.status===401){onUnauthorized();throw Error('Sign in to Arcus again.');}
@@ -64,7 +119,33 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
   return {
     // 1D chart: one completed session's 5-minute prices for a listing (chart only, never the returns).
     intraday(symbol,date){return get('prices?'+new URLSearchParams({symbol,start:date,end:date,interval:'5m'}));},
-    clear(){generation++;controller.abort();controller=new AbortController();prices.clear();holdings.clear();j303Cache.clear();refreshSymbols.clear();lastSnapshots=[];lastDownloaded.clear();},
+    clear(){generation++;controller.abort();controller=new AbortController();prices.clear();holdings.clear();j303Cache.clear();refreshSymbols.clear();lastSnapshots=[];lastDownloaded.clear();liveBase=null;},
+    // Live: the last completed session (cached for ten minutes per selection), then fresh quotes on every call.
+    async live(manifest,ids,prev,currency){
+      const key=JSON.stringify([manifest.version,ids,prev,currency]);
+      if(!liveBase||liveBase.key!==key||Date.now()-liveBase.at>600000)liveBase={key,at:Date.now(),data:await this.load(manifest,ids,prev,prev,currency)};
+      const base=liveBase.data,daily=new Set(base.dailyHoldingsFunds||[]),known=new Map();
+      for(const s of base.snapshots||[])for(const p of s.positions||[])if(p.symbol&&p.currency&&!known.has(p.symbol))known.set(p.symbol,p.currency);
+      for(const [symbol,data] of lastDownloaded)if(data?.currency)known.set(symbol,data.currency);
+      const currencyOf=symbol=>listingCurrency(symbol,known.get(symbol));
+      const symbols=new Set();
+      for(const l of base.levels)if(l.date===prev&&l.basis!=='fx'&&!daily.has(l.id))symbols.add(l.id);
+      for(const c of new Set([...symbols].map(currencyOf)))if(c&&c!=='USD'&&c!=='ZAR')symbols.add(c+'USD=X');
+      symbols.add('USDZAR=X');
+      const list=[...symbols],batches=[],quotes={},cycle='pa-live-'+Date.now();
+      for(let i=0;i<list.length;i+=32)batches.push(list.slice(i,i+32));
+      let next=0;
+      await Promise.all([0,1,2].map(async()=>{while(next<batches.length){
+        const batch=batches[next++];
+        const r=await fetcher('/api/live-prices/shard',{method:'POST',credentials:'same-origin',cache:'no-store',signal:controller.signal,
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({symbols:batch,cycleId:cycle})});
+        if(r.status===401){onUnauthorized();throw Error('Sign in to Arcus again.');}
+        if(r.status===404)throw Error('Live prices are available when Portfolio Analysis is opened from Arcus.');
+        const data=r.ok?await r.json().catch(()=>null):null;
+        if(data?.ok&&data.patch)for(const [symbol,q] of Object.entries(data.patch))quotes[symbol]={...q,at:data.collectedAt};
+      }}));
+      return liveDataset(base,quotes,{currencyOf});
+    },
     retryMissing(missing=[]) {
       const keys=new Set(missing.map(p=>p.fund+'|'+p.id));
       for(const snap of lastSnapshots)for(const p of snap.positions)if(p.symbol && keys.has(snap.fund+'|'+p.id)) {

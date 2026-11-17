@@ -20,6 +20,11 @@ let arcusReturns = new Map();
 let securityLinks = new Map();
 let activeWorker = null, cancelCalculation = null, accessGeneration = 0;
 let exportUrl=null;
+// Live (owner, 2026-11-17): every pair refreshes from live quotes every 35 seconds while the page is open.
+let liveTimer=0,liveRefreshing=false;
+const completedDates=()=>j303Selected()?completedCalendar().filter(d=>d>='2025-11-13'):manifest?.valuationDates||[];
+function scheduleLive(){clearTimeout(liveTimer);liveTimer=setTimeout(()=>{if(!onlineMode||$('range').value!=='live'||riseSwix?.isActive()||document.hidden||$('run').disabled||$('results').hidden)return;liveRefreshing=true;$('controls').requestSubmit();},35000);}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)clearTimeout(liveTimer);else if(onlineMode&&$('range').value==='live'&&!$('results').hidden)scheduleLive();});
 function clearExport(){
   if(exportUrl)URL.revokeObjectURL(exportUrl);
   exportUrl=null;$('download-ready').hidden=true;$('download-ready').removeAttribute('href');
@@ -357,7 +362,14 @@ for (const id of ['portfolio', 'benchmark']) $(id).addEventListener('change', ()
 });
 function applyRange() {
   if(riseSwix?.isActive()){riseSwix.syncRange();return;}
-  const dates = j303Selected()?completedCalendar().filter(d=>d>='2025-11-13'):manifest?.valuationDates || [];
+  clearTimeout(liveTimer);
+  const dates = completedDates();
+  if($('range').value==='live'){
+    if(!onlineMode){$('range').value='day';return applyRange();}
+    const today=new Date().toISOString().slice(0,10);$('start').value=$('end').value=today;
+    $('range-note').textContent='Live: today’s moves from live quotes against the last completed close'+(dates.length?' ('+dates.at(-1)+')':'')+', on the holdings used for that close. Refreshes every 35 seconds while this page is open.';
+    syncDateFields();return;
+  }
   const range = dateRange($('range').value, dates);
   if (range) { $('start').value = range.start; $('end').value = range.end; }
   $('range-note').textContent = dates.length
@@ -368,6 +380,7 @@ function applyRange() {
 }
 $('range').addEventListener('change', applyRange);
 for (const id of ['start', 'end']) $(id).addEventListener('change', () => { $('range').value = 'custom'; syncDateFields(); });
+for (const id of ['portfolio', 'benchmark', 'currency', 'range', 'start', 'end']) $(id).addEventListener('change', () => clearTimeout(liveTimer));
 $("folder").addEventListener("click", async () => {
   try {
     if (!window.showDirectoryPicker) {
@@ -413,8 +426,8 @@ $("import").addEventListener("change", async (event) => {
   }
 });
 // Listing, currency and asset of every position, the portfolio's own facts first (Reg 28 class, Trade button).
-async function loadRange(start, end) {
-  const data = await loadRangeData(start, end);
+async function loadRange(start, end, live = false) {
+  const data = live ? await online.live(manifest,[$('portfolio').value,$('benchmark').value],start,$('currency').value) : await loadRangeData(start, end);
   positionMeta = new Map();
   for (const snapshot of data?.snapshots || []) for (const p of snapshot.positions || []) if (!positionMeta.has(p.id)) positionMeta.set(p.id, {symbol: p.symbol || null, ticker: p.ticker, name: p.name, currency: p.currency || null, asset: p.asset || ''});
   trade?.setScope($('portfolio').value);
@@ -451,20 +464,22 @@ async function loadRangeData(start, end) {
 }
 $("controls").addEventListener("submit", async (e) => {
   e.preventDefault();
+  clearTimeout(liveTimer);
+  // A 35-second Live refresh keeps the shown result in place until the new one is ready.
+  const refreshing = liveRefreshing && !$('results').hidden; liveRefreshing = false;
+  const live = onlineMode && $('range').value === 'live';
   clearExport();
   $("run").disabled = true;
-  $("run").textContent = "Calculating…";
-  $("results").hidden = true;
-  result = null;
+  $("run").textContent = refreshing ? "Refreshing live prices…" : live ? "Checking live prices…" : "Calculating…";
+  if (!refreshing) { $("results").hidden = true; result = null; $('price-status').textContent=''; }
   $('missing-actions').hidden=true;
   $('assume-zero').disabled=true;
-  $('price-status').textContent='';
-  const controls=[...$('controls').elements,$('connect-saved'),$('folder'),$('import')];
+  const controls=refreshing?[]:[...$('controls').elements,$('connect-saved'),$('folder'),$('import')];
   const disabledBefore=controls.map(el=>el.disabled);controls.forEach(el=>el.disabled=true);
   try {
     if (!await session.check()) return;
     const generation = accessGeneration;
-    if(onlineMode) {
+    if(onlineMode && !refreshing) {
       $('run').textContent='Checking latest saved holdings…';
       const latest=await online.refreshManifest(manifest);
       if(generation!==accessGeneration)return;
@@ -487,7 +502,14 @@ $("controls").addEventListener("submit", async (e) => {
     options.assumeMissingZero=$('assume-zero').checked;
     lastOptions = options;
     saveSelection();
-    const data = await loadRange(options.start, options.end);
+    let data;
+    if (live) {
+      const prev = completedDates().at(-1);
+      if (!prev) throw Error('No completed session is available to start Live from.');
+      data = await loadRange(prev, prev, true);
+      options.start = options.end = data.live.date;
+      if ($('range').value === 'live') { $('start').value = $('end').value = data.live.date; syncDateFields(); }
+    } else data = await loadRange(options.start, options.end);
     if (generation !== accessGeneration || !await session.check()) return;
     const response = await new Promise((resolve, reject) => {
       const worker = new Worker(new URL("./worker.mjs?v=returns-20261116c", import.meta.url), {
@@ -590,9 +612,10 @@ $("controls").addEventListener("submit", async (e) => {
     drawReturnChart($('return-chart'), result.series ? {...result.series, labelA: fundLabel(options.portfolio), labelB: fundLabel(options.benchmark),
       note: options.currency + ' · '+(result.returnBasis?basisLabel(result.returnBasis):'archive return basis') + (!data.dailyHoldings&&options.assumeMissingZero ? ' · missing returns at 0%' : '')} : null);
     // 1D: one session has no daily path, so the chart follows the session's 5-minute prices instead.
-    if (!result.series && onlineMode && online?.intraday && result.end && (options.start === options.end || $('range').value === 'day')) drawIntradayChart(result, options);
+    if (!live && !result.series && onlineMode && online?.intraday && result.end && (options.start === options.end || $('range').value === 'day')) drawIntradayChart(result, options);
     renderMethod();
-    if(onlineMode) $('price-status').textContent = basisLabel(data.returnBasis)+' · '+(data.dailyHoldings?'Daily floating holdings · automatic quarterly rebalance · ':data.returnBasis==='total-return'?'Dividend-adjusted security histories · ':data.arcusSource ? 'Arcus completed price returns first · '+data.arcusReturnCount+' securities/funds reused · ' : 'Completed closing prices · ')+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
+    if(live) $('price-status').textContent = basisLabel(data.returnBasis)+' · Live quotes at '+new Date(data.live.quotedAt).toLocaleTimeString()+' against the '+data.live.prev+' close · '+data.live.live+' moving today, '+data.live.unchanged+' not traded yet (0%)'+(data.live.missing.length?', '+data.live.missing.length+' without a quote':'')+' · '+options.currency+' · refreshes every 35 s.';
+    else if(onlineMode) $('price-status').textContent = basisLabel(data.returnBasis)+' · '+(data.dailyHoldings?'Daily floating holdings · automatic quarterly rebalance · ':data.returnBasis==='total-return'?'Dividend-adjusted security histories · ':data.arcusSource ? 'Arcus completed price returns first · '+data.arcusReturnCount+' securities/funds reused · ' : 'Completed closing prices · ')+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
     $('research-note').replaceChildren(
       text('strong','Research estimate — use for ideas, not exact accounting.'),
       text('p',data.dailyHoldings ? 'J303 holdings drift with daily closing prices and rebalance automatically each quarter. Dividends are excluded for one session and reinvested in multi-session total returns. Historical weights reconstruct public disclosures; source dates and assumptions are recorded in Method. SWIX uses its independently saved allocation. J303 and SWIX use daily compounded contributions; other saved portfolios retain their period-weight calculation and labelled cash assumptions. Missing index prices stop the comparison.' : data.arcusSource ? 'Current holdings come from Arcus. One-session comparisons can reuse completed Arcus price returns; multi-session comparisons use dividend-inclusive histories. ETF weights come from its issuer sources, retaining cash and private holdings. Where Arcus does not hold the requested dated return history, adjusted-price history and same-date FX fill the gap. Current allocations are applied to the selected period; historical trades are not reconstructed. Any archive allocation fallback is disclosed below.' : onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Both sides use the displayed return basis and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
@@ -602,12 +625,12 @@ $("controls").addEventListener("submit", async (e) => {
       ...(result.status === 'partial' ? [text('p',`Known holdings contributions: ${fmt(result.knownContributionA)} / ${fmt(result.knownContributionB)}. ${result.contributionMethod === 'average-weight-period' ? 'Your portfolio headline is the sum of available average weight × security return contributions. ETF headlines use observed fund returns; the contribution subtotal may differ.' : 'Missing returns stay blank; available headline figures are fund reference returns, not these subtotals.'} ${result.contributionMethod === 'mixed-holdings' ? 'Index contributions compound daily; the saved allocation uses average weight × period return.' : result.contributionMethod === 'arithmetic-daily' ? 'Both contribution columns use arithmetic daily sums because a complete reference series is unavailable.' : ''}`)] : []),
       ...(result.missing?.length ? [text('p','Missing returns: '+[...new Set(result.missing.map(p=>p.name+(p.reason ? ' — '+p.reason : '')))].join('; '))] : []),
     );
-    if (phone.matches) collapseSelection(options);
-    scrollTo($('message').childElementCount ? 'message' : 'results');
+    if (!refreshing) { if (phone.matches) collapseSelection(options); scrollTo($('message').childElementCount ? 'message' : 'results'); }
     void loadClassData(result);
+    if (live) scheduleLive();
   } catch (error) {
     message(error.message);
-    scrollTo('message');
+    if (refreshing) scheduleLive(); else scrollTo('message');
   } finally {
     controls.forEach((el,i)=>el.disabled = !manifest || disabledBefore[i]);
     $("run").disabled = !manifest;
@@ -1347,7 +1370,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=returns-20261116c');
+  const {createOnlineSource}=await import('./online.mjs?v=live-20261117');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;
@@ -1385,7 +1408,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=returns-20261116c');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock(),trade});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=live-20261117');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock(),trade});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';
@@ -1396,7 +1419,7 @@ async function connectSaved() {
     if(generation!==accessGeneration || !onlineMode)return;
     manifest.valuationDates=calendar;
     $('range').value=riseSwix?.isActive()?'day':preferredRange();applyRange();
-    $('range-note').textContent='Completed daily returns through '+calendar.at(-1)+'. Today’s intraday session is excluded. '+(m.holdingsSource==='arcus'?'Holdings dates are checked against Arcus when you compare.':'Saved allocations may be older.');
+    if($('range').value!=='live')$('range-note').textContent='Completed daily returns through '+calendar.at(-1)+'. Today’s intraday session is excluded. '+(m.holdingsSource==='arcus'?'Holdings dates are checked against Arcus when you compare.':'Saved allocations may be older.');
     riseSwix?.syncSelection();
     message('');
   } catch(error){if(generation===accessGeneration)message(error.message+' You can refresh saved holdings or use an archive file.');}
