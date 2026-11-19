@@ -107,24 +107,25 @@ export async function pollSatrix(kv,now,fetcher=fetch){
   if(!r.ok)throw Error('Satrix returned HTTP '+r.status);
   const snapshot=await makeSatrixSnapshot(await r.text(),{now,prices:(symbol,start,end)=>fetchJseHistory(symbol,{start,end,now,fetcher})});
   const saved=await archiveSatrix(kv,snapshot);
-  await kv.put(SOURCE_HEALTH,JSON.stringify({status:'ok',asOf:saved.asOf,publishedOn:saved.publishedOn,digest:saved.digest,positions:saved.rows.length,checkedAt:new Date(now).toISOString()}));
+  await kv.put(SOURCE_HEALTH,JSON.stringify({status:'ok',pollDay:iso(now+7200000),asOf:saved.asOf,publishedOn:saved.publishedOn,digest:saved.digest,positions:saved.rows.length,checkedAt:new Date(now).toISOString()}));
   return saved;
 }
 
-// Check the issuer every two hours on trading days, every six on other days.
-// The same trigger warms two constituents per tick, including Friday's close
-// on Saturday. Retry only missing prices.
+// Import once per JSE trading day at 08:00 Johannesburg. A later half-hour
+// tick catches a missed trigger. Retry a failed source check after two hours.
+// Warming prices continues on weekends so Friday's close is available.
 export async function scheduledSatrix(env,now=Date.now(),fetcher=fetch){
   const kv=env.HOLDINGS_ARCHIVE,local=iso(now+7200000),clock=new Date(now);
-  const cadence=tradingDay(local)?2:6;
-  const regularPoll=clock.getUTCMinutes()===0&&clock.getUTCHours()%cadence===0;
-  if(regularPoll||!await kv.get(SOURCE_HEALTH)){
-    try{await pollSatrix(kv,now,fetcher);}
-    catch(error){
-      const last=await kv.get(SOURCE_HEALTH,'json');
-      await kv.put(SOURCE_HEALTH,JSON.stringify({...last,status:'retained-last-basket',reason:error.message,checkedAt:new Date(now).toISOString()}));
+  const localHour=new Date(now+7200000).getUTCHours();
+  if(tradingDay(local)&&localHour>=8&&clock.getUTCMinutes()%30===0){
+    const last=await kv.get(SOURCE_HEALTH,'json');
+    if(last?.pollDay!==local||(last.status!=='ok'&&now-Date.parse(last.checkedAt)>=2*3600000)){
+      try{await pollSatrix(kv,now,fetcher);}
+      catch(error){
+        await kv.put(SOURCE_HEALTH,JSON.stringify({...last,pollDay:local,status:'retained-last-basket',reason:error.message,checkedAt:new Date(now).toISOString()}));
+      }
+      return;
     }
-    return;
   }
   const date=previous(local),jobKey='j303:stxcap:price-job';
   let job=await kv.get(jobKey,'json');

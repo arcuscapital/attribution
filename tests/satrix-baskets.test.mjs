@@ -37,9 +37,26 @@ test('a correction replaces its close, earlier and later anchors survive, failed
   assert.deepEqual(all.map(x=>x.digest),['correction','later']);near(all[0].rows.reduce((s,x)=>s+x.weight,0),1);
   await scheduledSatrix({HOLDINGS_ARCHIVE:kv},now,async()=>new Response('',{status:503}));
   assert.equal((await kv.get(SOURCE_HEALTH,'json')).status,'retained-last-basket');assert.equal((await basketHistory(kv,'2026-11-20','2026-11-20'))[0].digest,'later');
-  let onWeekend=0;
-  await scheduledSatrix({HOLDINGS_ARCHIVE:kv},Date.parse('2026-11-21T06:00:00Z'),async()=>{onWeekend++;return new Response('',{status:503});});
-  assert.equal(onWeekend,1);
+});
+test('one successful scheduled import per trading day, retry after a source error, and no weekend issuer request',async()=>{
+  const kv=memory(),env={HOLDINGS_ARCHIVE:kv};
+  const priceJob=date=>kv.put('j303:stxcap:price-job',JSON.stringify({date,pending:[],retry:[],retryAt:0}));
+  await priceJob('2026-11-18');
+  let issuerCalls=0;
+  const unavailable=async()=>{issuerCalls++;return new Response('',{status:503});};
+  const run=(t,fetcher=unavailable)=>scheduledSatrix(env,Date.parse(t),fetcher);
+  await run('2026-11-19T05:30:00Z');assert.equal(issuerCalls,0);
+  await run('2026-11-19T06:00:00Z');assert.equal(issuerCalls,1);
+  await run('2026-11-19T06:30:00Z');assert.equal(issuerCalls,1);
+  const recovered=async url=>{
+    if(url.includes('satrix.co.za')){issuerCalls++;return new Response(page);}
+    const symbol=url.match(/chart\/([A-Z0-9]+\.JO)/)[1],p=await prices(symbol);
+    return Response.json({chart:{result:[{meta:{symbol,currency:'ZAR'},timestamp:p.points.map(([d])=>Date.parse(d)/1000),
+      indicators:{quote:[{close:p.points.map(([,v])=>v)}]}}]}});
+  };
+  await run('2026-11-19T08:00:00Z',recovered);assert.equal(issuerCalls,2);assert.equal((await kv.get(SOURCE_HEALTH,'json')).status,'ok');
+  await run('2026-11-19T14:30:00Z');assert.equal(issuerCalls,2);
+  await priceJob('2026-11-20');await run('2026-11-21T06:00:00Z');assert.equal(issuerCalls,2);
 });
 test('legacy closes and levels survive the cutover; a later disclosure changes closing membership, subsequent drift and no prior return',()=>{
   const days=sessions('2026-12-14','2026-12-22'),symbols=Array.from({length:10},(_,i)=>'S'+i+'.JO');
@@ -68,6 +85,30 @@ test('Live displays floated ending weights and leaves opening attribution intact
   const d=liveDataset(base,{'A.JO':{p:110,l:10,lb:'regular',ld:date,qd:date}},{currencyOf:()=>'ZAR',at:now});
   near(d.snapshots[0].positions[0].weight,.6);near(d.snapshots.at(-1).positions[0].weight,.66/1.06);assert.deepEqual(d.snapshots.at(-1).carried,['B.JO']);
   near(d.levels.find(l=>l.id===J303&&l.date===date).value,106);
+});
+test('a late issuer basket and its subsequent revision replace projections only between their valuation close and the next disclosure',async()=>{
+  const kv=memory(),days=['2026-11-17','2026-11-18','2026-11-19','2026-11-20'];
+  const model={holdings:[]},packets=[
+    {symbol:'A.JO',points:days.map((d,i)=>[d,[100,110,121,121][i]])},
+    {symbol:'B.JO',points:days.map(d=>[d,100])}
+  ];
+  const file=(asOf,a,observedAt)=>({asOf,observedAt,publishedOn:observedAt.slice(0,10),digest:asOf+'-'+a,totalPct:100,
+    rows:[{symbol:'A.JO',weightPct:a},{symbol:'B.JO',weightPct:100-a}]});
+  const replay=async()=>buildSatrixPath(model,packets,days[3],await basketHistory(kv,days[0],days[3]),days[0]);
+  await archiveSatrix(kv,file(days[0],50,'2026-11-18T10:00:00Z'));
+  await archiveSatrix(kv,file(days[3],10,'2026-11-21T08:00:00Z'));
+  const forecast=await replay();
+  near(forecast.snapshots[1].positions[0].weight,55/105);
+  await archiveSatrix(kv,file(days[1],25,'2026-11-21T10:00:00Z'));
+  const actual=await replay();near(actual.snapshots[1].positions[0].weight,.25);
+  near(actual.snapshots[2].positions[0].weight,.275/1.025);
+  await archiveSatrix(kv,file(days[1],30,'2026-11-22T10:00:00Z'));
+  const revised=await replay();near(revised.snapshots[1].positions[0].weight,.30);
+  near(revised.snapshots[2].positions[0].weight,.33/1.03);near(revised.levels[2].value,105*1.03);
+  for(const applied of [actual,revised]){
+    assert.deepEqual(applied.snapshots[0],forecast.snapshots[0]);assert.deepEqual(applied.levels.slice(0,2),forecast.levels.slice(0,2));
+    assert.deepEqual(applied.snapshots[3],forecast.snapshots[3]);
+  }
 });
 test('missing Yahoo close is filled only with dated corroboration and retains ex-date dividend',async()=>{
   const days=['2026-11-16','2026-11-17','2026-11-18'];
