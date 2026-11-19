@@ -1,4 +1,4 @@
-import {previous,iso} from '../site/rise-swix-core.mjs';
+import {previous,iso,tradingDay} from '../site/rise-swix-core.mjs';
 import {cashDividendLevels,RETURN_VERSION} from '../site/price-data.mjs';
 import corrections from './sa-income-corrections.json' with {type:'json'};
 // Some vendors truncate a listing's earlier history on refresh. Preserve an
@@ -28,6 +28,26 @@ async function sharenet(symbol,fetcher,start,end){
   const points=[...raw.chart.matchAll(/\[(\d{10,13}),\s*([\d.]+)\]/g)].map(([,t,p])=>[iso(Number(t)*(t.length===10?1000:1)+7200000),Number(p)/100]).filter(([d,v])=>d>=start&&d<=end&&v>0);
   if(!points.length)throw Error('No completed closes');return [...new Map(points)];
 }
+
+// Price requests and the scheduled warmer share this archive. A failed
+// refresh must not shorten a saved series or discard its dividend coverage.
+export async function refreshArchivePrice(kv,symbol,through,{fetcher=fetch,now=Date.now()}={}){
+  const key='j303:price:v1:'+symbol,saved=await kv.get(key,'json');
+  const completed=previous(iso(now+7200000)),end=through<completed?completed:through;
+  const has=(p,d)=>p?.points?.some(([day])=>day===d);
+  if(has(saved,through)&&saved.returnVersion===RETURN_VERSION&&(through<previous(completed)||now-Date.parse(saved.checkedAt)<86400000))return saved;
+  try{
+    const last=saved?.points?.at(-1)?.[0];
+    const start=last&&last<end&&saved.returnVersion===RETURN_VERSION?previous(previous(previous(last))):'2025-03-01';
+    let packet=preserveHistory(saved,await fetchJseHistory(symbol,{fetcher,now,start,end}));
+    if(saved&&(packet.points[0][0]>saved.points[0][0]||packet.points.at(-1)[0]<last||(saved.returnVersion===RETURN_VERSION&&packet.returnVersion!==RETURN_VERSION))){
+      packet=preserveHistory(saved,await fetchJseHistory(symbol,{fetcher,now,end}));
+      if(packet.points[0][0]>saved.points[0][0]||packet.points.at(-1)[0]<last||(saved.returnVersion===RETURN_VERSION&&packet.returnVersion!==RETURN_VERSION))return saved;
+    }
+    if(!has(packet,through)&&has(saved,through))return saved;
+    await kv.put(key,JSON.stringify(packet));return packet;
+  }catch(error){if(saved)return saved;throw error;}
+}
 export async function fetchJseHistory(symbol,{fetcher=fetch,now=Date.now(),start='2025-03-01',end=previous(iso(now+7200000))}={}){
   if(!/^[A-Z0-9-]+\.JO$/.test(symbol))throw Error('Invalid JSE symbol');
   try{
@@ -46,14 +66,33 @@ export async function fetchJseHistory(symbol,{fetcher=fetch,now=Date.now(),start
     let unitCorrections=0;
     // Yahoo has historical ZAR/ZAc switches on several JSE listings. A 100x
     // change is corrected ONLY when independent same-day closes confirm it.
-    if(correction||dividends.length||points.some((p,i)=>i&&(p[1]/points[i-1][1]>50||p[1]/points[i-1][1]<.02))){
+    const missing = new Set((raw.timestamp||[]).map((t,i)=>[iso(t*1000+7200000),closes[i]]).filter(([d,v])=>d>=start&&d<=end&&!(v>0)).map(([d])=>d));
+    const lastYahoo=points.at(-1)[0], needsTail=lastYahoo<end&&tradingDay(end);
+    const filled=[];
+    if(correction||dividends.length||missing.size||needsTail||points.some((p,i)=>i&&(p[1]/points[i-1][1]>50||p[1]/points[i-1][1]<.02))){
       const other=new Map(await sharenet(symbol,fetcher,start,end));
       for(const p of points){const ratio=other.get(p[0])/p[1];if(ratio>99&&ratio<101){p[1]*=100;unitCorrections++;}else if(ratio>.0099&&ratio<.0101){p[1]/=100;unitCorrections++;}}
       if(points.some((p,i)=>i&&(p[1]/points[i-1][1]>50||p[1]/points[i-1][1]<.02)))throw Error('Unresolved currency discontinuity');
+      // Quickshare closes are in cents. Verify the same ZAR basis against
+      // adjacent observed Yahoo closes before filling a dated gap or tail.
+      if(missing.size||needsTail){
+        const observed=new Map(points);
+        for(const [d,v] of other){
+          if(observed.has(d)||(!missing.has(d)&&d<=lastYahoo)||!tradingDay(d))continue;
+          const overlap=points.filter(([day])=>day<d&&other.has(day)).slice(-3);
+          // Yahoo regularMarketPrice, when supplied for this exact session,
+          // independently identifies the close even after a split.
+          const quoteOnDate=raw.meta.regularMarketTime&&iso(raw.meta.regularMarketTime*1000+7200000)===d&&raw.meta.regularMarketPrice>0;
+          const matches=(a,b)=>Math.abs(a-b)<=Math.max(.011,a*.00015);
+          if(quoteOnDate?!matches(v,raw.meta.regularMarketPrice*scale):overlap.length<2||overlap.some(([day,a])=>!matches(a,other.get(day))))continue;
+          observed.set(d,v);filled.push(d);
+        }
+        points=[...observed].sort(([a],[b])=>a.localeCompare(b));
+      }
       const coverage=correction?.coverage,first=points[0][0];
       if(coverage&&!coverage.terminal&&first<=iso(Date.parse(coverage.through)+86400000))points=[...[...other].filter(([d])=>d>=coverage.from&&d<first&&d<=coverage.through),...points];
     }
-    return {symbol,currency:'ZAR',basis:'price-return',source:'Yahoo closing prices; cash dividends reinvested on ex-date for total returns',unitCorrections,points,dividends,returnVersion:RETURN_VERSION,totalReturnFrom:points[0][0],totalReturnPoints:cashDividendLevels(points,dividends),checkedAt:new Date(now).toISOString()};
+    return {symbol,currency:'ZAR',basis:'price-return',source:'Yahoo closing prices; cash dividends reinvested on ex-date for total returns',unitCorrections,...(filled.length?{sharenetCloses:filled}:{}),points,dividends,returnVersion:RETURN_VERSION,totalReturnFrom:points[0][0],totalReturnPoints:cashDividendLevels(points,dividends),checkedAt:new Date(now).toISOString()};
   }catch(error){
     if(error.message==='Unresolved currency discontinuity')throw error;
     const points=await sharenet(symbol,fetcher,start,end),correction=corrections[symbol];

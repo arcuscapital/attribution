@@ -1,8 +1,10 @@
 // Authenticated, on-demand research data. No cron, queue, Arcus DB or private public assets.
 import {issuerNav,navQuery} from './issuer-nav.mjs';
 import {historicalNav} from './nav-history.mjs';
-import {fetchJseHistory,preserveHistory} from './j303-market.mjs';
-import {MODEL_KEY,STATE_KEY,priceKey} from './j303-scheduled.mjs';
+import {fetchJseHistory,refreshArchivePrice} from './j303-market.mjs';
+import {MODEL_KEY,STATE_KEY} from './j303-scheduled.mjs';
+import {basketHistory,FIRST_CLOSE} from './satrix-baskets.mjs';
+import {previous,iso} from '../site/rise-swix-core.mjs';
 const DAY = 86400000;
 const SYMBOL = /^[A-Za-z0-9^][A-Za-z0-9.^=\-]{0,29}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -21,13 +23,19 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
     const symbol=url.searchParams.get('symbol');
     if(symbol){
       if(!/^[A-Z0-9-]+\.JO$/.test(symbol))return reply({error:'Invalid JSE listing'},400);
-      const saved=await env.HOLDINGS_ARCHIVE?.get(priceKey(symbol),'json');
-      if(saved?.returnVersion===1&&saved.totalReturnFrom<=saved.points[0][0]&&Date.now()-Date.parse(saved.checkedAt)<24*3600000)return reply(saved);
-      try{const packet=preserveHistory(saved,await fetchJseHistory(symbol,{fetcher}));const write=env.HOLDINGS_ARCHIVE.put(priceKey(symbol),JSON.stringify(packet));if(ctx.waitUntil)ctx.waitUntil(write);else await write;return reply(packet);}
-      catch{return saved?reply(saved):reply({error:'J303 closing prices unavailable'},503);}
+      const completed=previous(iso(Date.now()+7200000)),through=url.searchParams.get('through')||completed;
+      if(!DATE.test(through)||!Number.isFinite(Date.parse(through))||through>completed)return reply({error:'Invalid completed date'},400);
+      try{return reply(await refreshArchivePrice(env.HOLDINGS_ARCHIVE,symbol,through,{fetcher}));}
+      catch{return reply({error:'J303 closing prices unavailable'},503);}
     }
     const model=await env.HOLDINGS_ARCHIVE?.get(MODEL_KEY,'json'),state=await env.HOLDINGS_ARCHIVE?.get(STATE_KEY,'json');
-    return model?reply({model,asOf:state?.asOf,lastRebalance:state?.lastRebalance}):reply({error:'J303 unavailable'},503);
+    if(!model)return reply({error:'J303 unavailable'},503);
+    const start=url.searchParams.get('start'),end=url.searchParams.get('end');
+    if(!start&&!end)return reply({model,asOf:state?.asOf,lastRebalance:state?.lastRebalance});
+    if(!DATE.test(start)||!DATE.test(end)||!Number.isFinite(Date.parse(start))||!Number.isFinite(Date.parse(end))||start>end||Date.parse(end)-Date.parse(start)>1096*DAY)return reply({error:'Invalid J303 period'},400);
+    const baskets=end<FIRST_CLOSE?[]:await basketHistory(env.HOLDINGS_ARCHIVE,previous(start),end);
+    if(end>=FIRST_CLOSE&&!baskets.length)return reply({error:'The STXCAP holdings archive is refreshing. Please compare again.'},503);
+    return reply({model,baskets,asOf:baskets.at(-1)?.asOf||state?.asOf,lastRebalance:state?.lastRebalance});
   }
   if(route==='nav') {
     let query;try{query=navQuery(url.searchParams);}catch(e){return reply({error:e.message},400);}

@@ -185,7 +185,7 @@ test('the page has the switch under Compare funds (off, hidden until its module 
   assert.ok(app.includes("if ($('back-arcus')?.tagName !== 'SPAN') try {"), 'never for the Marlow-only login');
   for (const file of ['app.mjs', 'ranges.mjs', 'rise-swix.mjs', 'trade.mjs']) {
     const text = fs.readFileSync('site/' + file, 'utf8');
-    for (const [, name, version] of text.matchAll(/'\.\/(rise-swix-core|ranges|rise-swix|trade|online)\.mjs\?v=([a-z0-9-]+)'/g)) assert.equal(version, ['online','rise-swix'].includes(name)?'live-20261117':'trade-20261115', file + ' imports ' + name);
+    for (const [, name, version] of text.matchAll(/'\.\/(rise-swix-core|ranges|rise-swix|trade|online)\.mjs\?v=([a-z0-9-]+)'/g)) assert.equal(version, name==='online'?'satrix-20261119':name==='rise-swix'?'live-20261117':'trade-20261115', file + ' imports ' + name);
   }
 });
 

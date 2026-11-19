@@ -37,7 +37,8 @@ const session = createSessionGuard({onLock() {
   activeWorker?.terminate(); activeWorker = null;
   cancelCalculation?.(); cancelCalculation = null;
   folder = dataset = manifest = result = null; onlineMode = false;
-  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','cash-row','gics-weights','theme-weights','reg28-weights','sa-equity-weights','message','price-status','return-chart']) $(id).replaceChildren();
+  for (const id of ['metrics','rows','columns','method','research-note','archive-info','contribution-chart','cash-row','gics-weights','theme-weights','reg28-weights','sa-equity-weights','message','price-status','return-chart','j303-holdings-rows','j303-holdings-source','j303-holdings-title']) $(id).replaceChildren();
+  $('j303-holdings').hidden=true;
   $('return-chart').hidden = true;
   $('theme-weights').hidden = $('reg28-weights').hidden = $('sa-equity-weights').hidden = true;
   trade?.clear(); positionMeta.clear();
@@ -134,6 +135,25 @@ const hasOption = (id, value) => [...$(id).options].some(o => o.value === value)
 const RAND_FUNDS = new Set(['PORTFOLIO:EASYBF', 'PORTFOLIO:EASYSA','PORTFOLIO:J303','PORTFOLIO:SWIX']);
 const defaultCurrency = () => RAND_FUNDS.has($('benchmark').value) || RAND_FUNDS.has($('portfolio').value) ? 'ZAR' : 'USD';
 const j303Selected=()=>[$('portfolio').value,$('benchmark').value].includes('PORTFOLIO:J303');
+function showJ303Holdings(data){
+  const panel=$('j303-holdings'),rows=$('j303-holdings-rows');
+  const snap=j303Selected()?data.snapshots.filter(s=>s.fund==='PORTFOLIO:J303').at(-1):null;
+  panel.hidden=!snap;
+  rows.replaceChildren();
+  if(!snap)return;
+  const kind=snap.live?'live':snap.basketDate===snap.asOf?'Satrix close':'close';
+  $('j303-holdings-title').textContent='J303 holdings · '+snap.asOf+' '+kind+' · '+snap.positions.length+' shares';
+  $('j303-holdings-source').textContent=snap.basketDate
+    ? 'STXCAP basket at the '+snap.basketDate+' close, published '+snap.publishedOn+'. '+(snap.basketDate===snap.asOf?'Disclosed weights scaled to 100%.':'Weights floated with share prices through this valuation.')+(snap.carried?.length?' Last close used for '+snap.carried.length+' shares without a live quote.':'')
+    : 'Historical J303 reconstruction at the selected close.';
+  const fragment=document.createDocumentFragment();
+  for(const p of [...snap.positions].sort((a,b)=>b.weight-a.weight)){
+    const tr=document.createElement('tr');
+    tr.append(text('td',p.name),text('td',p.ticker||p.symbol),text('td',(100*p.weight).toFixed(3)+'%'));
+    fragment.append(tr);
+  }
+  rows.append(fragment);
+}
 const portfolioOrder=id=>({'PORTFOLIO:MARLOW':'PORTFOLIO:M0','PORTFOLIO:J303':'PORTFOLIO:M1','PORTFOLIO:SWIX':'PORTFOLIO:M2'}[id]||id);
 function restoreSelection(m) {
   const saved = savedSelection();
@@ -340,7 +360,7 @@ function renderArchiveInfo() {
         text("strong", f.id.startsWith('PORTFOLIO:') ? f.name : f.id),
         text(
           "p",
-          f.dailyIndex ? 'Daily floating weights · automatic quarterly rebalance · ZAR' : f.dailyIndexComparator&&j303Selected() ? 'Saved SWIX allocation · daily floating weights · ZAR' : f.reportOnly ? 'Bloomberg report · 4–5 Nov 2026 · ZAR' : manifest.holdingsSource==='arcus' && !f.currentSource ? 'Current Arcus allocation checked when you compare.' : `${f.positions} positions · holdings ${f.latest || "not collected"} · ${f.currentSource || (onlineMode ? 'saved allocation' : f.dates.length+' saved dates')}`,
+          f.dailyIndex ? 'Satrix STXCAP holdings · daily floating weights · ZAR' : f.dailyIndexComparator&&j303Selected() ? 'Saved SWIX allocation · daily floating weights · ZAR' : f.reportOnly ? 'Bloomberg report · 4–5 Nov 2026 · ZAR' : manifest.holdingsSource==='arcus' && !f.currentSource ? 'Current Arcus allocation checked when you compare.' : `${f.positions} positions · holdings ${f.latest || "not collected"} · ${f.currentSource || (onlineMode ? 'saved allocation' : f.dates.length+' saved dates')}`,
         ),
       );
       if(f.allocationNote)card.append(text('p',f.allocationNote));
@@ -588,6 +608,7 @@ $("controls").addEventListener("submit", async (e) => {
     if(zeroNames.length)$("message").append(text("p","No price, counted as 0% return: "+zeroNames.join(", "),"missing-zero"));
     $("empty").hidden = true;
     $("results").hidden = false;
+    showJ303Holdings(data);
     $("metrics").replaceChildren(
       ...[
         [options.portfolio, result.returnA, result.returnMethodA],
@@ -614,11 +635,12 @@ $("controls").addEventListener("submit", async (e) => {
     // 1D: one session has no daily path, so the chart follows the session's 5-minute prices instead.
     if (!live && !result.series && onlineMode && online?.intraday && result.end && (options.start === options.end || $('range').value === 'day')) drawIntradayChart(result, options);
     renderMethod();
-    if(live) $('price-status').textContent = basisLabel(data.returnBasis)+' · Live quotes at '+new Date(data.live.quotedAt).toLocaleTimeString()+' against the '+data.live.prev+' close · '+data.live.live+' moving today, '+data.live.unchanged+' not traded yet (0%)'+(data.live.missing.length?', '+data.live.missing.length+' without a quote':'')+' · '+options.currency+' · refreshes every 35 s.';
-    else if(onlineMode) $('price-status').textContent = basisLabel(data.returnBasis)+' · '+(data.dailyHoldings?'Daily floating holdings · automatic quarterly rebalance · ':data.returnBasis==='total-return'?'Dividend-adjusted security histories · ':data.arcusSource ? 'Arcus completed price returns first · '+data.arcusReturnCount+' securities/funds reused · ' : 'Completed closing prices · ')+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
+    if(live&&data.live.closing) $('price-status').textContent='Showing the '+data.live.date+' closing holdings and one-session price return. Waiting for newer JSE quotes · refreshes every 35 s.';
+    else if(live) $('price-status').textContent = basisLabel(data.returnBasis)+' · Live quotes at '+new Date(data.live.quotedAt).toLocaleTimeString()+' against the '+data.live.prev+' close · '+data.live.live+' moving today, '+data.live.unchanged+' not traded yet (0%)'+(data.live.missing.length?', '+data.live.missing.length+' without a quote':'')+' · '+options.currency+' · refreshes every 35 s.';
+    else if(onlineMode) $('price-status').textContent = basisLabel(data.returnBasis)+' · '+(data.dailyHoldings?'Daily floating holdings · ':data.returnBasis==='total-return'?'Dividend-adjusted security histories · ':data.arcusSource ? 'Arcus completed price returns first · '+data.arcusReturnCount+' securities/funds reused · ' : 'Completed closing prices · ')+options.start+' to '+options.end+' · '+options.currency+'. Checked '+new Date(data.priceCheckedAt).toLocaleTimeString()+'. No intraday quotes.';
     $('research-note').replaceChildren(
       text('strong','Research estimate — use for ideas, not exact accounting.'),
-      text('p',data.dailyHoldings ? 'J303 holdings drift with daily closing prices and rebalance automatically each quarter. Dividends are excluded for one session and reinvested in multi-session total returns. Historical weights reconstruct public disclosures; source dates and assumptions are recorded in Method. SWIX uses its independently saved allocation. J303 and SWIX use daily compounded contributions; other saved portfolios retain their period-weight calculation and labelled cash assumptions. Missing index prices stop the comparison.' : data.arcusSource ? 'Current holdings come from Arcus. One-session comparisons can reuse completed Arcus price returns; multi-session comparisons use dividend-inclusive histories. ETF weights come from its issuer sources, retaining cash and private holdings. Where Arcus does not hold the requested dated return history, adjusted-price history and same-date FX fill the gap. Current allocations are applied to the selected period; historical trades are not reconstructed. Any archive allocation fallback is disclosed below.' : onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Both sides use the displayed return basis and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
+      text('p',data.dailyHoldings ? 'J303 follows independently dated STXCAP disclosures from 17 November 2026. Between disclosures its weights drift with share prices. Earlier holdings use the quarterly reconstruction. SWIX uses its own saved allocation. The contribution table uses opening weights, with dividends reinvested for multi-session comparisons. The J303 holdings table shows the selected ending valuation.' : data.arcusSource ? 'Current holdings come from Arcus. One-session comparisons can reuse completed Arcus price returns; multi-session comparisons use dividend-inclusive histories. ETF weights come from its issuer sources, retaining cash and private holdings. Where Arcus does not hold the requested dated return history, adjusted-price history and same-date FX fill the gap. Current allocations are applied to the selected period; historical trades are not reconstructed. Any archive allocation fallback is disclosed below.' : onlineMode ? 'Saved allocation weights are applied across this period as a research estimate, not actual historical trades. Both sides use the displayed return basis and same-date FX. Across verified Tokyo and Taiwan market holidays, the last local adjusted close is carried to the valuation date before applying that date’s FX. Missing open-session prices, cash income and unresolved positions remain blank unless you explicitly choose the labelled 0% assumption. No intraday quotes are used; vendor corrections can differ from Bloomberg.' : 'Where opening holdings are missing, the latest earlier snapshot is carried forward; for a new archive, a later snapshot within seven calendar days may be used. Dates are listed below. Later holdings introduce hindsight. Prices, FX cut-offs, trading and cash income may differ from Bloomberg.'),
       ...(result.holdingsWarnings || []).map(n => text('p',n)),
       ...(data.sourceWarnings || []).map(n=>text('p',n)),
       ...(result.assumedReturns?.length ? [text('p','Private holdings, cash, money-market funds, derivatives and corporate-action positions are shown at the bottom with an assumed 0% return. They are excluded from measured coverage. Missing listed-share returns remain blank unless you select the additional 0% assumption.')] : []),
@@ -1370,7 +1392,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=live-20261117');
+  const {createOnlineSource}=await import('./online.mjs?v=satrix-20261119');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;

@@ -1,6 +1,6 @@
 // Shared by the scheduled publisher and the browser. All values are PRICE returns.
 import {tradingDay,previous,iso} from './rise-swix-core.mjs';
-import {advanceUnits} from './holdings-drift.mjs';
+import {advanceUnits,driftHoldings} from './holdings-drift.mjs';
 export const J303='PORTFOLIO:J303', SWIX='PORTFOLIO:SWIX';
 const DAY=86400000;
 export function reviewDates(year,month){
@@ -54,6 +54,39 @@ export function priceLookup(packets){
     for(let n=0;n<10;n++,d=previous(d)){const value=map?.get(d);if(value>0){const v={value,date:d,carried:d!==date};cache.set(key,v);return v;}}
     return null;
   };
+}
+
+// A disclosure sets the closing weights. Its new members first earn a return
+// in the following session. Replacement never changes that day's index level.
+export function buildSatrixPath(model,packets,end,baskets,baseline){
+  if(!baskets.length)return buildIndexPath(model,packets,end);
+  const first=baskets[0].asOf,byDate=new Map(baskets.map(b=>[b.asOf,b]));
+  const names=new Map(model.holdings.map(p=>[p.symbol,p]));
+  const prices=new Map(packets.map(p=>[p.symbol,new Map(p.points)]));
+  const legacy=first>baseline?buildIndexPath(model,packets,first):null;
+  const snapshots=legacy?.snapshots.slice(0,-1)||[],levels=legacy?.levels.slice(0,-1)||[];
+  const events=legacy?.events.filter(e=>e.implementation<first)||[],carried=legacy?.carried||[];
+  let wealth=legacy?.levels.at(-1).value??100,positions=[],prior=null,anchor=null;
+  for(const day of sessions(first,end)){
+    if(prior){
+      const changes=new Map();
+      for(const p of positions){
+        const series=prices.get(p.symbol),before=series?.get(prior),after=series?.get(day);
+        if(!(before>0&&after>0))throw Error(p.symbol+' closing price unavailable for STXCAP drift from '+prior+' to '+day+'.');
+        changes.set(p.id,after/before-1);
+      }
+      const moved=driftHoldings(positions,changes);
+      wealth*=1+moved.return;positions=moved.positions;
+    }
+    if(byDate.has(day)){
+      anchor=byDate.get(day);
+      positions=anchor.rows.map(p=>({id:p.symbol,symbol:p.symbol,ticker:p.symbol.slice(0,-3),name:names.get(p.symbol)?.name||p.name,sector:names.get(p.symbol)?.sector||p.industry,weight:p.weight,asset:'Equity',currency:'ZAR'}));
+      events.push({kind:'STXCAP disclosure',implementation:day,publishedOn:anchor.publishedOn,members:positions.length});
+    }
+    snapshots.push({fund:J303,asOf:day,basketDate:anchor.asOf,publishedOn:anchor.publishedOn,source:day===anchor.asOf?'Satrix STXCAP closing holdings':'Satrix STXCAP holdings floated to close',positions});
+    levels.push({date:day,value:wealth});prior=day;
+  }
+  return {snapshots,levels,events,carried,last:prior};
 }
 export function buildIndexPath(model,packets,end,{fund=J303,capped=true,calibrate=true}={}){
   validateModel(model);

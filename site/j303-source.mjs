@@ -1,16 +1,24 @@
-import {J303,SWIX,buildIndexPath,priceLookup} from './j303-core.mjs';
-import {tradingDay,iso} from './rise-swix-core.mjs';
+import {J303,SWIX,buildIndexPath,buildSatrixPath,priceLookup} from './j303-core.mjs';
+import {tradingDay,iso,previous} from './rise-swix-core.mjs';
 import {periodBasis,basisLabel,holdingsReturnLevels} from './price-data.mjs';
 export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=()=>{},loadOther}){
-  const packet=await get('j303'),model=packet.model;
+  const packet=await get(ids.includes(J303)?'j303?'+new URLSearchParams({start,end}):'j303'),model=packet.model;
   if(start<model.availableFrom)throw Error('J303 history starts '+model.availableFrom+'.');
   const report=ids.includes(SWIX)?await get('rise-swix'):null;
   const swixRows=report?.groups.flatMap(g=>g.children.filter(p=>p.values[1]>0&&!p.cash).map(p=>({symbol:p.symbol,name:p.name,sector:g.name,weight:p.values[1]/100})))||[];
-  const symbols=[...new Set([...model.holdings.map(p=>p.symbol),...swixRows.map(p=>p.symbol)])],packets=[];
+  const baseline=previous(start),baskets=packet.baskets||[],useJ303=ids.includes(J303);
+  const legacyNeeded=useJ303&&(!baskets.length||baskets[0].asOf>baseline);
+  const symbols=[...new Set([...(legacyNeeded?model.holdings.map(p=>p.symbol):[]),...(useJ303?baskets.flatMap(b=>b.rows.map(p=>p.symbol)):[]),...swixRows.map(p=>p.symbol)])],packets=[];
+  const final=tradingDay(end)?end:previous(end);
+  const through=report&&report.period.at(-1)>final?report.period.at(-1):final;
   let cursor=0,done=0;
-  await Promise.all([0,1,2,3].map(async()=>{while(cursor<symbols.length){const symbol=symbols[cursor++];packets.push(await get('j303?symbol='+encodeURIComponent(symbol)));onProgress(++done,symbols.length);}}));
-  const path=buildIndexPath(model,packets,end),paths=new Map([[J303,path]]),price=priceLookup(packets);
-  for(const p of path.snapshots.at(-1).positions)if(price(p.symbol,path.last)?.date!==path.last)throw Error(p.symbol+': latest completed closing price is unavailable. J303 has retained its last complete valuation.');
+  await Promise.all([0,1,2,3].map(async()=>{while(cursor<symbols.length){const symbol=symbols[cursor++];packets.push(await get('j303?'+new URLSearchParams({symbol,through})));onProgress(++done,symbols.length);}}));
+  const paths=new Map(),price=priceLookup(packets);
+  if(useJ303){
+    const j303=buildSatrixPath(model,packets,end,baskets,baseline);
+    for(const p of j303.snapshots.at(-1).positions)if(price(p.symbol,j303.last)?.date!==j303.last)throw Error(p.symbol+': latest completed closing price is unavailable. J303 has retained its last complete valuation.');
+    paths.set(J303,j303);
+  }
   if(report){
     // Reverse-drift the saved comparator without fitting it to J303. Any small
     // J303 weight proxies taken from this report are recorded in model provenance.
@@ -24,7 +32,7 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
     const sum=rows.reduce((s,p)=>s+p.weight,0);rows.forEach(p=>p.weight/=sum);
     paths.set(SWIX,buildIndexPath({...model,holdings:rows,calibrations:[]},packets,end,{fund:SWIX,capped:false,calibrate:false}));
   }
-  const baseline=path.levels.map(p=>p.date).filter(d=>d<start).at(-1),dates=path.levels.map(p=>p.date).filter(d=>d>=baseline);
+  const path=paths.get(J303)||paths.get(SWIX),dates=path.levels.map(p=>p.date).filter(d=>d>=baseline);
   const returnBasis=periodBasis(dates,start,end),total=returnBasis==='total-return';
   const returns=total?priceLookup(packets.map(p=>({...p,points:p.totalReturnPoints||[]}))):price;
   const others=ids.filter(id=>!paths.has(id)),data=others.length?await loadOther(others,returnBasis):{manifest,snapshots:[],levels:[],priceNotes:[],priceFailures:[]};
@@ -38,7 +46,7 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
   const involved=new Set();
   for(const [fund,p] of paths){
     data.snapshots.push(...p.snapshots.filter(s=>s.asOf>=baseline));
-    for(const s of p.snapshots)for(const row of s.positions)involved.add(row.symbol);
+    for(const s of p.snapshots)if(s.asOf>=baseline)for(const row of s.positions)involved.add(row.symbol);
     const reference=total?holdingsReturnLevels(p.snapshots,dates,returns):p.levels;
     for(const q of reference)if(q.date>=baseline&&fx.has(q.date))data.levels.push({id:fund,date:q.date,value:q.value/fx.get(q.date),currency:'USD',basis:returnBasis});
   }
@@ -49,9 +57,9 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
     for(const symbol of involved){const q=returns(symbol,date);if(q)data.levels.push({id:symbol,date,value:q.value/fx.get(date),currency:'USD',basis:returnBasis});}
   }
   return {...data,returnBasis,dailyHoldings:true,dailyHoldingsFunds:[...paths.keys()],valuationDates:dates,calendarThrough:end,priceCheckedAt:new Date().toISOString(),arcusSource:true,
-    priceNotes:[...(data.priceNotes||[]),basisLabel(returnBasis)+' for both portfolio and benchmark. J303 weights drift with prices and rebalance automatically each quarter with 12% capping. Weights shown are average opening weights; contributions compound daily. '+(total?'SA gross cash dividends are reinvested at the ex-date close.':'Ordinary dividends are excluded for this single session.'),
-      'J303 history reconstructs public fund disclosures and dated membership changes. Historical calibrations use later published information; future reviews carry the latest inferred float units until new source data is available.',
-      ...(model.provenanceNotes||[]),
+    priceNotes:[...(data.priceNotes||[]),basisLabel(returnBasis)+' for both portfolio and benchmark. The contribution table uses average opening weights. '+(total?'SA gross cash dividends are reinvested at the ex-date close.':'Ordinary dividends are excluded for this single session.'),
+      ...(useJ303&&baskets.length?['J303 uses the Satrix Capped All Share ETF as its holdings proxy. Each verified basket replaces the weights at its valuation close. Between disclosures the holdings float with share prices. Latest basket in this period: '+baskets.at(-1).asOf+' (Satrix publication '+baskets.at(-1).publishedOn+').']:[]),
+      ...(legacyNeeded?['Earlier J303 holdings reconstruct public disclosures, dated membership and quarterly capping. Historical calibrations used later published information.',...(model.provenanceNotes||[])]:[]),
       ...(path.last<end?['The requested end '+end+' is a non-trading date; the final JSE valuation is '+path.last+'.']:[]),
       ...(report?['SWIX uses its separately saved allocation dated '+report.period.at(-1)+', reverse/forward drifted with prices and compared on the same return basis.']:[]),
       ...(path.carried.length?['Last observed closes used on '+path.carried.length+' constituent/session valuations.']:[])],j303Events:path.events};

@@ -830,6 +830,10 @@ html:not(.light) #results .scroll thead th.class-head{white-space:nowrap;min-wid
 :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) td.breach{color:#F2606A;font-weight:700}
 .light :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) td.breach{color:#A3262D}
 html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody td.breach{color:var(--bbg-down)}
+#j303-holdings .table-wrap{max-height:24rem;overflow:auto}
+#j303-holdings table{width:100%;min-width:0}
+#j303-holdings th:first-child,#j303-holdings td:first-child{text-align:left;white-space:normal}
+#j303-holdings th:last-child,#j303-holdings td:last-child{text-align:right;font-variant-numeric:tabular-nums}
 html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody td.lim{color:var(--bbg-dim)}
 html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody td.n{color:var(--bbg-text)}
 :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weights,#rise-swix .sector-weights) tbody tr.sub td:first-child{padding-left:30px}

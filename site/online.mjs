@@ -1,6 +1,8 @@
 import {normalizeArcusPacket,resolveArchiveListings,resolveKnownListings,isNonListed} from './arcus-source.mjs?v=cash-20261113';
 import {completedPrices,valuationPrices} from './price-data.mjs?v=returns-20261116';
 import {periodBasis,basisLabel} from './price-data.mjs';
+import {driftHoldings} from './holdings-drift.mjs';
+import {previous,tradingDay} from './rise-swix-core.mjs';
 // A failed price request is not evidence that a company is private.
 export function missingReturnReason(position) {
   const asset=String(position.asset || '').trim();
@@ -64,19 +66,32 @@ export function liveDataset(base,quotes,{currencyOf=()=>null,at=Date.now()}={}){
   if(!prev)throw Error('No completed session is available to start Live from.');
   const counts=new Map();for(const q of Object.values(quotes||{}))if(/^\d{4}-\d{2}-\d{2}$/.test(q?.ld||''))counts.set(q.ld,(counts.get(q.ld)||0)+1);
   const liveDate=[...counts].sort((a,b)=>b[1]-a[1]||b[0].localeCompare(a[0]))[0]?.[0];
+  const closingJ303=base.snapshots.find(s=>s.fund==='PORTFOLIO:J303'&&s.asOf===prev&&s.basketDate);
+  if(closingJ303&&(!liveDate||liveDate<=prev||!tradingDay(liveDate))){
+    return {...base,live:{date:prev,prev,closing:true,live:0,unchanged:0,missing:[],quotedAt:at},
+      priceNotes:[...(base.priceNotes||[]),'Live has no newer JSE session quotes. Holdings and returns are from the completed '+prev+' session.']};
+  }
   if(!liveDate)throw Error('Live quotes are unavailable right now. Try again shortly, or choose One Day.');
   if(liveDate<=prev)throw Error('No session has opened since the last completed close ('+prev+'). Live starts with the next session; One Day shows '+prev+'.');
+  if(closingJ303&&previous(liveDate)!==prev)throw Error('J303 needs the completed '+previous(liveDate)+' close before valuing live holdings.');
   const basis=base.returnBasis||'price-return',daily=new Set(base.dailyHoldingsFunds||[]);
   const fx=base.levels.find(l=>l.id==='USDZAR=X'&&l.date===prev&&l.basis==='fx');
   // A rand-only J303 comparison uses USD/ZAR = 1 throughout (FX cancels): keep it that way today.
   const numeraire=!!fx&&base.levels.filter(l=>l.id==='USDZAR=X').every(l=>l.value===1);
   const usdzar=liveMove(quotes['USDZAR=X'],liveDate)?.ratio??null;
   const fxToUsd=c=>!c?null:c==='USD'?1:c==='ZAR'?(numeraire?1:usdzar?1/usdzar:liveMove(quotes['ZARUSD=X'],liveDate)?.ratio??null):liveMove(quotes[c+'USD=X'],liveDate)?.ratio??null;
-  const today=[],ratios=new Map(),missing=[];let live=0,unchanged=0;
+  const issuerPairMembers=new Set(closingJ303?base.snapshots.filter(s=>daily.has(s.fund)&&s.asOf===prev).flatMap(s=>s.positions.map(p=>p.id)):[]);
+  const today=[],ratios=new Map(),missing=[],carried=[],liveSnapshots=[];let live=0,unchanged=0;
   for(const l of base.levels){
     if(l.date!==prev||l.basis==='fx'||l.basis!==basis||daily.has(l.id))continue;
     const m=liveMove(quotes[l.id],liveDate),f=fxToUsd(currencyOf(l.id));
-    if(!m||f==null){missing.push(l.id);continue;}
+    if(!m||f==null){
+      missing.push(l.id);
+      if(!m&&f!=null&&issuerPairMembers.has(l.id)){
+        ratios.set(l.id,f);today.push({...l,date:liveDate,value:l.value*f});carried.push(l.id);
+      }
+      continue;
+    }
     if(m.unchanged)unchanged++;else live++;
     ratios.set(l.id,m.ratio*f);today.push({...l,date:liveDate,value:l.value*m.ratio*f});
   }
@@ -85,12 +100,18 @@ export function liveDataset(base,quotes,{currencyOf=()=>null,at=Date.now()}={}){
     if(!level||!snap)continue;
     let move=0;for(const p of snap.positions)move+=p.weight*((ratios.get(p.id)??ratios.get(p.symbol)??1)-1);
     today.push({...level,date:liveDate,value:level.value*(1+move)});
+    if(snap.basketDate){
+      if(snap.positions.some(p=>!ratios.has(p.id)))throw Error('Live currency or constituent level missing for J303.');
+      const changes=new Map(snap.positions.map(p=>[p.id,ratios.get(p.id)-1]));
+      liveSnapshots.push({...snap,asOf:liveDate,source:'Satrix STXCAP holdings floated to live prices',live:true,
+        carried:carried.filter(id=>snap.positions.some(p=>p.id===id)),positions:driftHoldings(snap.positions,changes).positions});
+    }
   }
   if(fx&&(numeraire||usdzar))today.push({...fx,date:liveDate,value:numeraire?1:fx.value*usdzar});
   const quotedAt=Math.max(0,...Object.values(quotes||{}).map(q=>Number(q?.at)||0))||at;
-  return {...base,levels:[...base.levels,...today.filter(l=>l.value>0)],valuationDates:[...base.valuationDates.filter(d=>d<=prev),liveDate],
+  return {...base,snapshots:[...base.snapshots,...liveSnapshots],levels:[...base.levels,...today.filter(l=>l.value>0)],valuationDates:[...base.valuationDates.filter(d=>d<=prev),liveDate],
     calendarThrough:base.dailyHoldings?liveDate:base.calendarThrough,verifiedClosedThrough:null,issuerNav:{},returnBasis:basis,
-    live:{date:liveDate,prev,live,unchanged,missing,quotedAt},
+    live:{date:liveDate,prev,live,unchanged,missing,carried,quotedAt},
     priceNotes:[...(base.priceNotes||[]).filter(n=>!n.startsWith(basisLabel(basis))),
       'Live: today’s moves from live quotes (via Arcus, provider prices may be delayed) against the '+prev+' close, applied to the holdings used for '+prev+'. Listings not traded yet today count as 0%; US listings use pre-market moves before the US open. Non-US listings include today’s move in their currency against the dollar.']};
 }
@@ -123,7 +144,8 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
     // Live: the last completed session (cached for ten minutes per selection), then fresh quotes on every call.
     async live(manifest,ids,prev,currency){
       const key=JSON.stringify([manifest.version,ids,prev,currency]);
-      if(!liveBase||liveBase.key!==key||Date.now()-liveBase.at>600000)liveBase={key,at:Date.now(),data:await this.load(manifest,ids,prev,prev,currency)};
+      const lifetime=ids.includes('PORTFOLIO:J303')?60000:600000;
+      if(!liveBase||liveBase.key!==key||Date.now()-liveBase.at>lifetime)liveBase={key,at:Date.now(),data:await this.load(manifest,ids,prev,prev,currency)};
       const base=liveBase.data,daily=new Set(base.dailyHoldingsFunds||[]),known=new Map();
       for(const s of base.snapshots||[])for(const p of s.positions||[])if(p.symbol&&p.currency&&!known.has(p.symbol))known.set(p.symbol,p.currency);
       for(const [symbol,data] of lastDownloaded)if(data?.currency)known.set(symbol,data.currency);
@@ -171,8 +193,9 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
     },
     async load(manifest,ids,start,end,currency,basisOverride=null) {
       if(ids.includes('PORTFOLIO:J303')||(ids.includes('PORTFOLIO:SWIX')&&manifest.funds?.some(f=>f.id==='PORTFOLIO:J303'))){
-        const {loadJ303}=await import('./j303-source.mjs?v=returns-20261116c');
+        const {loadJ303}=await import('./j303-source.mjs?v=satrix-20261119');
         return loadJ303({manifest,ids,start,end,currency,onProgress,loadOther:(others,basis)=>this.load(manifest,others,start,end,currency,basis),get:async path=>{
+        if(path.startsWith('j303?start='))return get(path);
         const saved=j303Cache.get(path);if(saved&&Date.now()-saved.at<900000)return saved.data;
         const data=await get(path);j303Cache.set(path,{at:Date.now(),data});return data;
         }});

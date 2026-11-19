@@ -96,6 +96,11 @@
       <p id="price-status" class="muted" aria-live="polite"></p>
       <section id="results" hidden>
         <div class="metrics" id="metrics"></div>
+        <details id="j303-holdings" class="panel" hidden>
+          <summary id="j303-holdings-title">J303 holdings</summary>
+          <p id="j303-holdings-source" class="muted"></p>
+          <div class="table-wrap"><table aria-label="J303 weights at the end of the selected period"><thead><tr><th>Share</th><th>Ticker</th><th>Weight</th></tr></thead><tbody id="j303-holdings-rows"></tbody></table></div>
+        </details>
         <section id="contribution-chart" class="panel" aria-label="Largest differences in contribution"></section>
         <section id="cash-row" class="cash-row" aria-label="Average cash weight"></section>
         <div class="panel">
@@ -177,6 +182,6 @@
         source dates and investigate unexplained differences.
       </footer>
     </main>
-    <script type="module" src="app.mjs?v=live-20261117"></script>
+    <script type="module" src="app.mjs?v=satrix-20261119"></script>
   </body>
 </html>

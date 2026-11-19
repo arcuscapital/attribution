@@ -1,7 +1,7 @@
 // Authentication is server-side. No passwords, verifier or session keys are shipped as assets.
 import { dataResponse } from './data.mjs';
 import { bridgeAsset } from './bridge.mjs';
-import {scheduledJ303} from './j303-scheduled.mjs';
+import {scheduledSatrix} from './satrix-baskets.mjs';
 const COOKIE = '__Host-arcus-attribution';
 const TTL = 86400;
 const enc = new TextEncoder();
@@ -32,7 +32,7 @@ async function authenticated(request,env) {
   return !extra.length && /^\d+$/.test(expiry) && /^[a-f0-9]{32}$/.test(nonce||'') && Number(expiry)>seconds && Number(expiry)<=seconds+TTL && await verify(env.SESSION_KEY, 'session:'+expiry+'.'+nonce, signature);
 }
 export default {
-  async scheduled(controller,env,ctx){ctx.waitUntil(scheduledJ303(env,controller.scheduledTime).catch(async()=>{await env.HOLDINGS_ARCHIVE?.put('j303:health:v1',JSON.stringify({status:'update-failed-last-good-retained',checkedAt:new Date().toISOString()}));}));},
+  async scheduled(controller,env,ctx){ctx.waitUntil(scheduledSatrix(env,controller.scheduledTime));},
   async fetch(request,env,ctx) {
     if (!env.PASSWORD_VERIFIER || !env.PASSWORD_PEPPER || !env.SESSION_KEY || !env.LOGIN_LIMITER)
       return new Response('Private site setup is not yet complete.',{status:503,headers:headers()});
