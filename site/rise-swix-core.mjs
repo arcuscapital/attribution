@@ -117,7 +117,7 @@ const SHORT_BY_TICKER={AGL:'Anglo Am',AMS:'Amplats',ANG:'AngloGold',ARI:'ARM',BI
 // First words that say nothing on their own: keep the next word too (Mr Price, Gold Fields, Old Mutual, Super Micro).
 const GENERIC_FIRST=new Set(['mr','old','gold','new','first','south','north','african','american','british','united','general','advanced',
  'applied','international','national','standard','life','sun','super','royal','capital','bank','china','hong','tokyo','taiwan','ninety',
- 'compagnie','cie','global','great','pick','san','st','de','la','le','van','von','pan','universal','western','eastern']);
+ 'compagnie','cie','global','great','pick','famous','tiger','net1','long','san','st','de','la','le','van','von','pan','universal','western','eastern']);
 const LEGAL=/^(?:limited|ltd|holdings?|hldgs|group|grp|plc|inc|incorporated|corp|corporation|company|co|sa|s\.a|nv|n\.v|ag|se|asa|ab|oyj|spa|bhd|berhad|lp|adr|ads|ord|soc|reit|properties|class|cl|shs|shares?|n|a|b|c)\.?$/i;
 export function shortName(name,ticker=''){
  const code=String(ticker||'').trim().toUpperCase().replace(/\.JO$/,'').replace(/[-.\s](?:[A-Z])$/,'');

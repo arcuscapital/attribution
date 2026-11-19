@@ -1164,7 +1164,7 @@ function renderRows() {
   $("table-hint").textContent = compact
     ? (visible[0][0] === 'name' ? "Weights and returns in %, contributions (CTR) in percentage points. Tap a heading to sort, or a row for its full name, ticker and the other figures." : "Weights and returns in %, contributions in percentage points. Tap a heading to sort, or a row for weights and contributions.")
     : "Weights and returns in %, contributions (CTR) in percentage points. Click a heading to sort. The total is the first row, from unrounded values. Scroll inside the table.";
-  if (!sectors && securityLinks.size) $('table-hint').textContent += ' Tickers open Arcus Watchlists in a new tab.';
+  if (!sectors && securityLinks.size) $('table-hint').textContent += compact && visible[0][0] === 'name' ? ' Tickers in the row details open Arcus Watchlists in a new tab.' : ' Tickers open Arcus Watchlists in a new tab.';
   const heading = (key, name, label) => {
     const th = text("th", label + (sortKey === key ? (sortDirection === 1 ? " ↑" : " ↓") : ""));
     th.scope = "col";
