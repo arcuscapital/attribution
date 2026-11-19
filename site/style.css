@@ -870,7 +870,8 @@ html:not(.light) :is(#gics-weights,#theme-weights,#reg28-weights,#sa-equity-weig
  :is(#rise-swix,#gics-table) table:not(.trade-on) thead tr:first-child th:nth-child(2),:is(#rise-swix,#gics-table) table:not(.trade-on) tbody td:nth-child(2){display:none}
  :is(#rise-swix,#gics-table) table:not(.trade-on) thead tr:first-child th:first-child,:is(#rise-swix,#gics-table) table:not(.trade-on) tbody td:first-child,
  #results table.phone-paired thead tr:first-child th:first-child,#results table.phone-paired #rows tr:not(.detail)>:first-child{position:sticky;left:0;z-index:2;width:34vw;min-width:34vw;max-width:34vw;padding-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
- #results table.phone-paired thead tr:first-child th:first-child{z-index:4}
+ #results table.phone-paired thead tr:first-child th:first-child,#results table.phone-paired thead tr:nth-child(2) th:first-child{position:sticky;left:0;z-index:4;width:34vw;min-width:34vw;max-width:34vw;padding-left:8px;text-align:left;background:var(--table-head)}
+ html:not(.light) #results table.phone-paired thead :is(tr:first-child,tr:nth-child(2)) th:first-child{background:var(--bbg-head)}
  :is(#rise-swix,#gics-table) table:not(.trade-on) thead tr:nth-child(2) th,:is(#rise-swix,#gics-table) table:not(.trade-on) tbody td:nth-child(n+3):not(.rise-text),
  #results table.phone-paired thead tr:nth-child(2) th,#results table.phone-paired #rows tr:not(.detail)>:not(:first-child){width:16.5vw;min-width:16.5vw;max-width:16.5vw;text-align:right}
  :is(#rise-swix,#gics-table) table:not(.trade-on) thead tr:first-child th[colspan],#results table.phone-paired thead th[colspan]{padding-inline:4px;font-size:12px;white-space:nowrap}

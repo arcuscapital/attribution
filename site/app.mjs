@@ -1193,6 +1193,9 @@ function renderRows() {
       const group = groups.find(([, keys]) => keys.includes(key));
       if (!group) {
         const th = heading(key, name, name);
+        // Phones: no rowspan (Chrome clipped a sticky two-row cell to its first row when swiping to CTR); Name sits in the
+        // lower heading row beside Port and Bmrk, over an empty sticky cell.
+        if (compact) { top.append(text('th', '', 'phone-name-top')); sub.append(th); continue; }
         th.rowSpan = 2;
         if (key === 'gics' || key === 'reg28') th.classList.add('class-head');
         top.append(th);

@@ -113,14 +113,15 @@ export const shortSector=name=>SHORT_SECTORS[String(name||'').trim()]||String(na
 // Names that a first word would make ambiguous or unrecognisable, by listing (JSE code without .JO, or US/other ticker).
 const SHORT_BY_TICKER={AGL:'Anglo Am',AMS:'Amplats',ANG:'AngloGold',ARI:'ARM',BID:'BidCorp',BTI:'BAT',CFR:'Richemont',IMP:'Implats',
  LHC:'Life Health',PIK:'Pick n Pay',SBK:'Std Bank',SSW:'Sibanye',SUI:'Sun Intl',TBS:'Tiger',TSM:'TSMC','2330.TW':'TSMC',AMD:'AMD',
- AMAT:'Applied Mat',IBM:'IBM',GOOGL:'Alphabet A',GOOG:'Alphabet C',BRK:'Berkshire'};
+ AMAT:'Applied Mat',IBM:'IBM',GOOGL:'Alphabet A',GOOG:'Alphabet C',BRK:'Berkshire',DRD:'DRDGOLD',WBO:'WBHO',AFH:'Alex Forbes',
+ SSU:'Southern Sun',ANH:'AB InBev',SPG:'Super Group',WBC:'WeBuyCars'};
 // First words that say nothing on their own: keep the next word too (Mr Price, Gold Fields, Old Mutual, Super Micro).
 const GENERIC_FIRST=new Set(['mr','old','gold','new','first','south','north','african','american','british','united','general','advanced',
  'applied','international','national','standard','life','sun','super','royal','capital','bank','china','hong','tokyo','taiwan','ninety',
  'compagnie','cie','global','great','pick','famous','tiger','net1','long','san','st','de','la','le','van','von','pan','universal','western','eastern']);
 const LEGAL=/^(?:limited|ltd|holdings?|hldgs|group|grp|plc|inc|incorporated|corp|corporation|company|co|sa|s\.a|nv|n\.v|ag|se|asa|ab|oyj|spa|bhd|berhad|lp|adr|ads|ord|soc|reit|properties|class|cl|shs|shares?|n|a|b|c)\.?$/i;
 export function shortName(name,ticker=''){
- const code=String(ticker||'').trim().toUpperCase().replace(/\.JO$/,'').replace(/[-.\s](?:[A-Z])$/,'');
+ const code=String(ticker||'').trim().toUpperCase().replace(/(?:\.JO|\s+SJ)$/,'').replace(/[-.\s](?:[A-Z])$/,'');
  if(SHORT_BY_TICKER[code])return SHORT_BY_TICKER[code];
  const words=String(name||'').replace(/\([^)]*\)/g,' ').replace(/\.com\b/gi,'').replace(/[,;]/g,' ').replace(/\s+-[A-Z]-?\s*$/,' ').trim().split(/\s+/).filter(Boolean);
  if(words[0]?.toLowerCase()==='the'&&words.length>1)words.shift();
