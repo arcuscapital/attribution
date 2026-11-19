@@ -35,14 +35,17 @@ export async function refreshArchivePrice(kv,symbol,through,{fetcher=fetch,now=D
   const key='j303:price:v1:'+symbol,saved=await kv.get(key,'json');
   const completed=previous(iso(now+7200000)),end=through<completed?completed:through;
   const has=(p,d)=>p?.points?.some(([day])=>day===d);
+  const losesHistory=p=>saved&&(p.points[0][0]>saved.points[0][0]||p.points.at(-1)[0]<saved.points.at(-1)[0]||
+    (saved.returnVersion===RETURN_VERSION&&(p.returnVersion!==RETURN_VERSION||p.totalReturnFrom>saved.totalReturnFrom||
+    (p.totalReturnPoints?.at(-1)?.[0]||'')<(saved.totalReturnPoints?.at(-1)?.[0]||''))));
   if(has(saved,through)&&saved.returnVersion===RETURN_VERSION&&(through<previous(completed)||now-Date.parse(saved.checkedAt)<86400000))return saved;
   try{
     const last=saved?.points?.at(-1)?.[0];
     const start=last&&last<end&&saved.returnVersion===RETURN_VERSION?previous(previous(previous(last))):'2025-03-01';
     let packet=preserveHistory(saved,await fetchJseHistory(symbol,{fetcher,now,start,end}));
-    if(saved&&(packet.points[0][0]>saved.points[0][0]||packet.points.at(-1)[0]<last||(saved.returnVersion===RETURN_VERSION&&packet.returnVersion!==RETURN_VERSION))){
+    if(losesHistory(packet)){
       packet=preserveHistory(saved,await fetchJseHistory(symbol,{fetcher,now,end}));
-      if(packet.points[0][0]>saved.points[0][0]||packet.points.at(-1)[0]<last||(saved.returnVersion===RETURN_VERSION&&packet.returnVersion!==RETURN_VERSION))return saved;
+      if(losesHistory(packet))return saved;
     }
     if(!has(packet,through)&&has(saved,through))return saved;
     await kv.put(key,JSON.stringify(packet));return packet;

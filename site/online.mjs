@@ -196,8 +196,9 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
         const {loadJ303}=await import('./j303-source.mjs?v=satrix-20261119');
         return loadJ303({manifest,ids,start,end,currency,onProgress,loadOther:(others,basis)=>this.load(manifest,others,start,end,currency,basis),get:async path=>{
         if(path.startsWith('j303?start='))return get(path);
-        const saved=j303Cache.get(path);if(saved&&Date.now()-saved.at<900000)return saved.data;
-        const data=await get(path);j303Cache.set(path,{at:Date.now(),data});return data;
+        const [key,through]=path.split('&through='),saved=j303Cache.get(key);
+        if(saved&&Date.now()-saved.at<900000&&(!through||saved.through===through||saved.data.points?.some(([d])=>d===through)))return saved.data;
+        const data=await get(path);j303Cache.set(key,{at:Date.now(),data,through});return data;
         }});
       }
       const run=generation, baseline=new Date(Date.parse(start)-14*86400000).toISOString().slice(0,10);

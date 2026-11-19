@@ -19,6 +19,9 @@ function memory(){
 }
 test('only the complete STXCAP ETF table is accepted, with a uniquely supported trading date',async()=>{
   const b=await makeSatrixSnapshot(page,{now,prices});assert.equal(b.asOf,'2026-11-17');assert.equal(b.publishedOn,'2026-11-19');assert.equal(b.matched.length,5);assert.equal(b.rows.length,50);
+  const blocked=new Set(b.matched.slice(0,1)),intermittent=s=>blocked.has(s)?Promise.reject(Error('feed offline')):prices(s);
+  assert.equal((await verifySatrixClose(b,intermittent,now)).matched.length,4);
+  blocked.add(b.matched[1]);await assert.rejects(()=>verifySatrixClose(b,intermittent,now),/uniquely/);
   for(const bad of [page.replace('STXCAP','STXOTHER'),page.replace(row(100,0),''),page.replace('S49</td>','S48</td>'),page.replace('2.00%','12.00%'),page.replace('CLOSING','OPENING')])assert.throws(()=>parseSatrixETF(bad,now));
   await assert.rejects(()=>verifySatrixClose(b,async s=>{const p=await prices(s);p.points[1][1]=p.points[0][1];return p;},now),/uniquely/);
 });
@@ -34,6 +37,9 @@ test('a correction replaces its close, earlier and later anchors survive, failed
   assert.deepEqual(all.map(x=>x.digest),['correction','later']);near(all[0].rows.reduce((s,x)=>s+x.weight,0),1);
   await scheduledSatrix({HOLDINGS_ARCHIVE:kv},now,async()=>new Response('',{status:503}));
   assert.equal((await kv.get(SOURCE_HEALTH,'json')).status,'retained-last-basket');assert.equal((await basketHistory(kv,'2026-11-20','2026-11-20'))[0].digest,'later');
+  let onWeekend=0;
+  await scheduledSatrix({HOLDINGS_ARCHIVE:kv},Date.parse('2026-11-21T06:00:00Z'),async()=>{onWeekend++;return new Response('',{status:503});});
+  assert.equal(onWeekend,1);
 });
 test('legacy closes and levels survive the cutover; a later disclosure changes closing membership, subsequent drift and no prior return',()=>{
   const days=sessions('2026-12-14','2026-12-22'),symbols=Array.from({length:10},(_,i)=>'S'+i+'.JO');

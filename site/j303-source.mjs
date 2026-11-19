@@ -8,11 +8,21 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
   const swixRows=report?.groups.flatMap(g=>g.children.filter(p=>p.values[1]>0&&!p.cash).map(p=>({symbol:p.symbol,name:p.name,sector:g.name,weight:p.values[1]/100})))||[];
   const baseline=previous(start),baskets=packet.baskets||[],useJ303=ids.includes(J303);
   const legacyNeeded=useJ303&&(!baskets.length||baskets[0].asOf>baseline);
-  const symbols=[...new Set([...(legacyNeeded?model.holdings.map(p=>p.symbol):[]),...(useJ303?baskets.flatMap(b=>b.rows.map(p=>p.symbol)):[]),...swixRows.map(p=>p.symbol)])],packets=[];
   const final=tradingDay(end)?end:previous(end);
-  const through=report&&report.period.at(-1)>final?report.period.at(-1):final;
+  const required=new Map(),packets=[];
+  const requireThrough=(symbol,day)=>{if(!required.has(symbol)||required.get(symbol)<day)required.set(symbol,day);};
+  if(legacyNeeded){
+    const last=baskets[0]?.asOf||final;
+    for(const p of model.holdings)requireThrough(p.symbol,p.to&&p.to<=last?previous(p.to):last);
+  }
+  if(useJ303)for(const [i,b] of baskets.entries()){
+    const last=baskets[i+1]?.asOf||final;
+    for(const p of b.rows)requireThrough(p.symbol,last);
+  }
+  for(const p of swixRows)requireThrough(p.symbol,report.period.at(-1)>final?report.period.at(-1):final);
+  const symbols=[...required.keys()];
   let cursor=0,done=0;
-  await Promise.all([0,1,2,3].map(async()=>{while(cursor<symbols.length){const symbol=symbols[cursor++];packets.push(await get('j303?'+new URLSearchParams({symbol,through})));onProgress(++done,symbols.length);}}));
+  await Promise.all([0,1,2,3].map(async()=>{while(cursor<symbols.length){const symbol=symbols[cursor++];packets.push(await get('j303?'+new URLSearchParams({symbol,through:required.get(symbol)})));onProgress(++done,symbols.length);}}));
   const paths=new Map(),price=priceLookup(packets);
   if(useJ303){
     const j303=buildSatrixPath(model,packets,end,baskets,baseline);
@@ -47,7 +57,11 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
   for(const [fund,p] of paths){
     data.snapshots.push(...p.snapshots.filter(s=>s.asOf>=baseline));
     for(const s of p.snapshots)if(s.asOf>=baseline)for(const row of s.positions)involved.add(row.symbol);
-    const reference=total?holdingsReturnLevels(p.snapshots,dates,returns):p.levels;
+    const exactIncome=(symbol,date)=>{
+      const q=returns(symbol,date);
+      return fund===J303&&baskets.length&&date>=baskets[0].asOf&&q?.date!==date?null:q;
+    };
+    const reference=total?holdingsReturnLevels(p.snapshots,dates,exactIncome):p.levels;
     for(const q of reference)if(q.date>=baseline&&fx.has(q.date))data.levels.push({id:fund,date:q.date,value:q.value/fx.get(q.date),currency:'USD',basis:returnBasis});
   }
   const replaced=new Set([...involved,'USDZAR=X']);data.levels=data.levels.filter(l=>!replaced.has(l.id));

@@ -56,11 +56,12 @@ export async function verifySatrixClose(basket,getPrices,now){
   const completed=tradingDay(today)&&local.getUTCHours()>=18?today:previous(today);
   const end=basket.publishedOn<completed?basket.publishedOn:completed,start=iso(Date.parse(end)-14*DAY);
   const liquid=[...basket.rows].sort((a,b)=>b.weightPct-a.weightPct).slice(0,5);
-  const evidence=await Promise.all(liquid.map(async p=>{
+  const histories=await Promise.allSettled(liquid.map(async p=>{
     const packet=await getPrices(p.symbol,start,end);
     if(packet.symbol!==p.symbol||packet.currency!=='ZAR')throw Error('STXCAP close identity mismatch');
     return new Set(packet.points.filter(([d,v])=>d>=start&&d<=end&&tradingDay(d)&&Math.abs(v-p.close)<.0051).map(([d])=>d));
   }));
+  const evidence=histories.map(result=>result.status==='fulfilled'?result.value:new Set());
   const dates=[...new Set(evidence.flatMap(s=>[...s]))].filter(d=>evidence.filter(s=>s.has(d)).length>=4);
   if(dates.length!==1||dates[0]<FIRST_CLOSE||dates[0]>iso(now+7200000))throw Error('STXCAP valuation date could not be uniquely verified');
   return {asOf:dates[0],matched:liquid.filter((_,i)=>evidence[i].has(dates[0])).map(p=>p.symbol)};
@@ -110,12 +111,13 @@ export async function pollSatrix(kv,now,fetcher=fetch){
   return saved;
 }
 
-// This uses the existing two-minute trigger. Check the issuer every two hours
-// on working days. Warm two constituents per tick and retry only missing ones.
+// Check the issuer every two hours on trading days, every six on other days.
+// The same trigger warms two constituents per tick, including Friday's close
+// on Saturday. Retry only missing prices.
 export async function scheduledSatrix(env,now=Date.now(),fetcher=fetch){
   const kv=env.HOLDINGS_ARCHIVE,local=iso(now+7200000),clock=new Date(now);
-  if(!tradingDay(local))return;
-  const regularPoll=clock.getUTCMinutes()===0&&clock.getUTCHours()%2===0;
+  const cadence=tradingDay(local)?2:6;
+  const regularPoll=clock.getUTCMinutes()===0&&clock.getUTCHours()%cadence===0;
   if(regularPoll||!await kv.get(SOURCE_HEALTH)){
     try{await pollSatrix(kv,now,fetcher);}
     catch(error){
