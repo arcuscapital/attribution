@@ -103,6 +103,41 @@ export function withShareReturns(groups){
   return reference.length?{...p,values,reference}:p;
  })}));
 }
+// Phone names (owner, 2026-11-19): on phones the comparison tables drop the Ticker column, so names are cut to
+// a word or two that still identifies the company (Vodacom, Blue, Aspen, Naspers) and sectors to short labels
+// (Tech, Comm Serv). Desktop, downloads and the row details keep the full names.
+const SHORT_SECTORS={'Communication Services':'Comm Serv','Consumer Discretionary':'Cons Disc','Consumer Staples':'Cons Staples',
+ 'Energy':'Energy','Financials':'Financials','Health Care':'Health Care','Industrials':'Industrials','Information Technology':'Tech',
+ 'Materials':'Materials','Real Estate':'Real Estate','Utilities':'Utilities','Unknown GICS':'Unknown'};
+export const shortSector=name=>SHORT_SECTORS[String(name||'').trim()]||String(name||'').trim();
+// Names that a first word would make ambiguous or unrecognisable, by listing (JSE code without .JO, or US/other ticker).
+const SHORT_BY_TICKER={AGL:'Anglo Am',AMS:'Amplats',ANG:'AngloGold',ARI:'ARM',BID:'BidCorp',BTI:'BAT',CFR:'Richemont',IMP:'Implats',
+ LHC:'Life Health',PIK:'Pick n Pay',SBK:'Std Bank',SSW:'Sibanye',SUI:'Sun Intl',TBS:'Tiger',TSM:'TSMC','2330.TW':'TSMC',AMD:'AMD',
+ AMAT:'Applied Mat',IBM:'IBM',GOOGL:'Alphabet A',GOOG:'Alphabet C',BRK:'Berkshire'};
+// First words that say nothing on their own: keep the next word too (Mr Price, Gold Fields, Old Mutual, Super Micro).
+const GENERIC_FIRST=new Set(['mr','old','gold','new','first','south','north','african','american','british','united','general','advanced',
+ 'applied','international','national','standard','life','sun','super','royal','capital','bank','china','hong','tokyo','taiwan','ninety',
+ 'compagnie','cie','global','great','pick','san','st','de','la','le','van','von','pan','universal','western','eastern']);
+const LEGAL=/^(?:limited|ltd|holdings?|hldgs|group|grp|plc|inc|incorporated|corp|corporation|company|co|sa|s\.a|nv|n\.v|ag|se|asa|ab|oyj|spa|bhd|berhad|lp|adr|ads|ord|soc|reit|properties|class|cl|shs|shares?|n|a|b|c)\.?$/i;
+export function shortName(name,ticker=''){
+ const code=String(ticker||'').trim().toUpperCase().replace(/\.JO$/,'').replace(/[-.\s](?:[A-Z])$/,'');
+ if(SHORT_BY_TICKER[code])return SHORT_BY_TICKER[code];
+ const words=String(name||'').replace(/\([^)]*\)/g,' ').replace(/\.com\b/gi,'').replace(/[,;]/g,' ').replace(/\s+-[A-Z]-?\s*$/,' ').trim().split(/\s+/).filter(Boolean);
+ if(words[0]?.toLowerCase()==='the'&&words.length>1)words.shift();
+ if(!words.length)return String(ticker||'').trim();
+ const kept=words.filter((w,i)=>i===0||!LEGAL.test(w));
+ // Capitals-only names from issuer files (NASPERS LTD) read as Naspers; short codes (MTN, NEPI, BHP) stay as they are.
+ if(words.every(w=>!/[a-z]/.test(w)))kept.forEach((w,i)=>{if(w.length>4&&/^[A-Z]+$/.test(w))kept[i]=w[0]+w.slice(1).toLowerCase();});
+ const first=kept[0],acronym=/^[A-Z0-9&]{1,2}$/.test(first),shortMixed=first.length<=3&&!/^[A-Z0-9&]+$/.test(first);
+ return (GENERIC_FIRST.has(first.toLowerCase())||acronym||shortMixed)&&kept[1]||/^cash$/i.test(kept[1]||'')?first+' '+kept[1]:first;
+}
+// Short names for a whole table: two holdings that would share one (Investec plc and Ltd) get their ticker added.
+export function shortNames(rows){
+ const out=new Map(),seen=new Map();
+ for(const r of rows||[]){const s=shortName(r.name,r.ticker||r.symbol||r.id);out.set(r.id??r.name,s);seen.set(s,(seen.get(s)||0)+1);}
+ for(const r of rows||[]){const key=r.id??r.name,s=out.get(key);if(seen.get(s)>1){const t=String(r.ticker||r.symbol||'').replace(/\.JO$/,'');if(t&&t!==s)out.set(key,s+' '+t);}}
+ return out;
+}
 export function reported(report,start,end){
  return end===report.period[1]&&start>=report.period[0]&&start<=report.period[1];
 }

@@ -1,7 +1,7 @@
 import {completedPrices} from './price-data.mjs?v=returns-20261116';
 import {periodBasis,basisLabel} from './price-data.mjs?v=returns-20261116';
-import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,withShareReturns,collectQuotes,liveReturns,jseCloseReturn,checkCoverage,adjustedLevels,jseCloseLevels,riseSeries} from './rise-swix-core.mjs?v=trade-20261115';
-import {dateRange,drawReturnChart,renderSectorWeights,collapsible} from './ranges.mjs?v=trade-20261115';
+import {RISE,SWIX,isRisePair,validateReport,period,reported,historyReturn,liveReturn,estimate,completeQuotes,completedCalendar,sessionDate,previous,ETN_PRICE_ONLY,etnPriceReturn,sortRiseGroups,shortNames,shortSector,withShareReturns,collectQuotes,liveReturns,jseCloseReturn,checkCoverage,adjustedLevels,jseCloseLevels,riseSeries} from './rise-swix-core.mjs?v=phone-20261119';
+import {dateRange,drawReturnChart,renderSectorWeights,collapsible} from './ranges.mjs?v=phone-20261119';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.createElement(tag);n.textContent=text??'';if(cls)n.className=cls;return n;};
 // trade (optional) is the Trade slider (owner, 2026-11-15): while it is on, each holding has a New weight field after
 // Bmrk, the total and sector rows show the sum, and the GICS sector weights gain a New column. Rise has no Arcus trade
@@ -9,7 +9,7 @@ const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const n=document.cre
 export function createRiseSwix({check,lock,trade=null}){
  let generation=0,controller=new AbortController(),timer,report=null,busy=false,worker=null,rejectWorker=null,last=null,priorCurrency=null,priorGrouping='none',entered=false,syncing=false;
  const prices=new Map(),opened=new Set();let current=null;
- let sort=null,refocus=null,cooldown;
+ let sort=null,refocus=null,cooldown,shorts=new Map();
  const sums=trade?.sums(),trading=()=>!!trade?.on,items=list=>list.map(c=>({key:c.id,current:c.values[0]}));
  const panel=el('section',null,'panel rise-swix');panel.id='rise-swix';panel.hidden=true;$('results').before(panel);
  const title=el('h2','Rise vs Swix'),note=el('p'),status=el('p'),scroll=el('div',null,'rise-scroll'),table=el('table'),foot=el('p'),download=el('button','Download CSV');download.type='button';
@@ -65,10 +65,10 @@ export function createRiseSwix({check,lock,trade=null}){
  function row(x,type,index,sector=''){
   const tr=el('tr',null,type),name=el('td');
   if(type==='rise-sector'){
-   const button=el('button');button.type='button';button.append(el('span',opened.has(index)?'▾':'▸'),el('span',x.name));button.setAttribute('aria-expanded',String(opened.has(index)));
+   const button=el('button');button.type='button';const label=el('span',x.name);label.dataset.short=shortSector(x.name);button.append(el('span',opened.has(index)?'▾':'▸'),label);button.setAttribute('aria-expanded',String(opened.has(index)));
    button.addEventListener('click',()=>{opened.has(index)?opened.delete(index):opened.add(index);current=index;render(last);});name.append(button);
    if(current===index)tr.classList.add('rise-current'); // the last clicked sector gets the Bloomberg selection band
-  }else name.textContent=x.name;
+  }else{name.textContent=x.name;if(type==='rise-holding'){name.dataset.short=shorts.get(x.id??x.name)||x.name;name.title=x.name+(x.ticker?' · '+x.ticker:'');}}
   tr.append(name,el('td',x.ticker||''));
   x.values.forEach((v,i)=>{
    const td=el('td',format(v),i>1&&v!==null&&v!==0?(v>0?'positive':'negative'):'');
@@ -88,7 +88,7 @@ export function createRiseSwix({check,lock,trade=null}){
    {portfolio:'Rise',benchmark:'Swix',heading:'h3',newLabel:on?'New % weight':null,note:'Report average weights by GICS sector (Bloomberg report sectors).'+(on?' New follows the weights you type in the table; holdings you have not changed keep their weight.':'')});
  }
  function render(value){
-  if(!value)return;last=value;sums?.reset();const x=scroll.scrollLeft;
+  if(!value)return;last=value;shorts=shortNames(value.groups.flatMap(g=>g.children));sums?.reset();const x=scroll.scrollLeft;
   const head=el('thead'),a=el('tr'),b=el('tr');
   // Every column heading sorts: sectors first, then the holdings inside each open sector. Total stays on top.
   const sortable=(th,key,label,name)=>{

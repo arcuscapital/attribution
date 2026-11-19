@@ -47,7 +47,7 @@ const node = (tag, attrs = {}, text) => {
 const fmt = v => (Math.abs(v) < 0.005 ? 0 : v).toFixed(2);
 
 // Evenly spaced round tick values covering lo..hi.
-import {sortRiseGroups} from './rise-swix-core.mjs?v=trade-20261115';
+import {sortRiseGroups,shortNames,shortSector} from './rise-swix-core.mjs?v=phone-20261119';
 
 export function niceTicks(lo, hi, count = 6) {
   if (!(hi > lo)) { lo -= 1; hi += 1; }
@@ -150,19 +150,20 @@ export function createGroupedTable({trade = null, extra = () => [], extraText = 
   scroll.append(table);
   const opened = new Set(), sums = trade?.sums(), trading = () => !!trade?.on;
   const items = list => list.filter(c => c.id).map(c => ({key: c.id, current: c.values[0]}));
-  let current = null, sort = null, refocus = null, last = null, labels = {portfolio: 'The portfolio', benchmark: 'The benchmark'};
+  let current = null, sort = null, refocus = null, last = null, labels = {portfolio: 'The portfolio', benchmark: 'The benchmark'}, shorts = new Map();
   const format = v => v === null || v === undefined || !Number.isFinite(v) ? '—' : (Math.abs(v) < .005 ? 0 : v).toFixed(2);
   function row(x, type) {
     const tr = mk('tr', null, type), name = mk('td');
     if (type === 'rise-sector') {
       const open = opened.has(x.name), button = mk('button');
       button.type = 'button';
-      button.append(mk('span', open ? '▾' : '▸'), mk('span', x.name));
+      const label = mk('span', x.name); label.dataset.short = shortSector(x.name); // phones show the short sector label
+      button.append(mk('span', open ? '▾' : '▸'), label);
       button.setAttribute('aria-expanded', String(open));
       button.addEventListener('click', () => { open ? opened.delete(x.name) : opened.add(x.name); current = x.name; render(last); });
       name.append(button);
       if (current === x.name) tr.classList.add('rise-current');
-    } else name.textContent = x.name;
+    } else { name.textContent = x.name; if (type === 'rise-holding') { name.dataset.short = shorts.get(x.id ?? x.name) || x.name; name.title = x.name + (x.ticker ? ' · ' + x.ticker : ''); } }
     tr.append(name, mk('td', x.ticker || ''));
     x.values.forEach((v, i) => {
       const td = mk('td', format(v), i > 1 && Number.isFinite(v) && v !== 0 ? (v > 0 ? 'positive' : 'negative') : '');
@@ -179,6 +180,7 @@ export function createGroupedTable({trade = null, extra = () => [], extraText = 
   function render(value) {
     if (!value) return;
     last = value;
+    shorts = shortNames(value.groups.flatMap(g => g.children));
     sums?.reset();
     const x = scroll.scrollLeft, head = mk('thead'), a = mk('tr'), b = mk('tr');
     const sortable = (th, key, label, title) => {

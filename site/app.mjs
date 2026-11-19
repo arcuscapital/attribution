@@ -1,6 +1,6 @@
 import {basisLabel} from './price-data.mjs?v=returns-20261116';
-import { dateRange, drawReturnChart, intradaySeries, createGroupedTable, renderSectorWeights, collapsible } from './ranges.mjs?v=trade-20261115';
-import { groupByGics, UNKNOWN_GICS, gicsWeights, gicsSector, GICS_SECTORS, completedCalendar } from './rise-swix-core.mjs?v=trade-20261115';
+import { dateRange, drawReturnChart, intradaySeries, createGroupedTable, renderSectorWeights, collapsible } from './ranges.mjs?v=phone-20261119';
+import { groupByGics, UNKNOWN_GICS, gicsWeights, gicsSector, GICS_SECTORS, completedCalendar, shortNames } from './rise-swix-core.mjs?v=phone-20261119';
 import { createSessionGuard } from './session.mjs';
 import { isNonListed, assetKind, primaryThemePath } from './arcus-source.mjs?v=cash-20261113';
 const $ = (id) => document.getElementById(id);
@@ -1121,7 +1121,7 @@ function wireTableScroll(table) {
       left.hidden = right.hidden = !overflow;
       left.disabled = scroll.scrollLeft <= 1;
       right.disabled = scroll.scrollLeft + scroll.clientWidth >= scroll.scrollWidth - 2;
-      status.textContent = overflow ? (right.disabled ? 'End of columns · scroll left to return' : 'More columns to the right, including Theme') : 'Scroll rows below · column headings stay visible';
+      status.textContent = overflow ? (right.disabled ? 'End of columns · scroll left to return' : typeof phone !== 'undefined' && phone.matches ? 'Swipe the table for CTR' : 'More columns to the right, including Theme') : 'Scroll rows below · column headings stay visible';
     };
     scroll.addEventListener('scroll', update, {passive: true});
     scroll._updateTableScroll = update;
@@ -1133,11 +1133,12 @@ function wireTableScroll(table) {
   }
   scroll._updateTableScroll?.();
 }
-// Phones show three columns; the remaining figures open under the tapped row.
+// Phones (owner, 2026-11-19): a short Name, then Avg % weight and Total return for both sides fill the screen edge to
+// edge; CTR follows to the right. No Ticker column: the full name, ticker and the other figures open under a tapped row.
 const phoneColumns = () => $("group").value === "sector"
   ? [["ticker", "Sector"], ["activeWeight", "Active wt (%)"], ["activeCtr", "Diff (pp)"]]
   : trade?.on ? [["ticker", "Security"], ["weightA", "Weight (%)"], ["newWeight", "New (%)"]] // Trade slider: weight now and the new weight
-  : [["ticker", "Security"], ["returnA", "Return (%)"], ["activeCtr", "Diff (pp)"]];
+  : columns.filter(([key]) => ['name', 'weightA', 'weightB', 'returnA', 'returnB', 'ctrA', 'ctrB'].includes(key));
 const signClass = (key, value) => ["ctrA", "ctrB", "activeCtr", "securityReturn", "returnA", "returnB", "activeWeight"].includes(key)
   ? (value === null || value === undefined ? "muted" : value >= 0 ? "positive" : "negative") : "";
 function columnLabel(key, name) {
@@ -1159,8 +1160,9 @@ function renderRows() {
   syncSortControls();
   tradeSums?.reset();
   $('rows').closest('table').classList.toggle('trade-on', !!trade?.on);
+  $('rows').closest('table').classList.toggle('phone-paired', compact && visible[0][0] === 'name');
   $("table-hint").textContent = compact
-    ? "Weights and returns in %, contributions in percentage points. Tap a heading to sort, or a row for weights and contributions."
+    ? (visible[0][0] === 'name' ? "Weights and returns in %, contributions (CTR) in percentage points. Tap a heading to sort, or a row for its full name, ticker and the other figures." : "Weights and returns in %, contributions in percentage points. Tap a heading to sort, or a row for weights and contributions.")
     : "Weights and returns in %, contributions (CTR) in percentage points. Click a heading to sort. The total is the first row, from unrounded values. Scroll inside the table.";
   if (!sectors && securityLinks.size) $('table-hint').textContent += ' Tickers open Arcus Watchlists in a new tab.';
   const heading = (key, name, label) => {
@@ -1179,14 +1181,15 @@ function renderRows() {
     });
     return th;
   };
-  if (compact) {
+  const paired = !compact || visible[0][0] === 'name', headCols = compact ? visible : all;
+  if (!paired) {
     const tr = document.createElement("tr");
     for (const [key, name] of visible) tr.append(heading(key, name, columnLabel(key, name)));
     $("columns").replaceChildren(tr);
   } else {
     // Two heading rows, as in the Rise vs Swix table: group headings over Port and Bmrk.
     const top = document.createElement("tr"), sub = document.createElement("tr");
-    for (const [key, name] of all) {
+    for (const [key, name] of headCols) {
       const group = groups.find(([, keys]) => keys.includes(key));
       if (!group) {
         const th = heading(key, name, name);
@@ -1197,7 +1200,7 @@ function renderRows() {
       }
       if (group[1][0] === key) {
         const th = text("th", group[0]);
-        th.colSpan = group[1].length;
+        th.colSpan = group[1].filter(k => headCols.some(([c]) => c === k)).length;
         th.scope = "colgroup";
         top.append(th);
       }
@@ -1220,6 +1223,7 @@ function renderRows() {
   if (grouped) renderGicsTable(); else if (gicsView) gicsView.panel.hidden = true;
   // GICS sector weights after the chart, with or without grouping (owner, 2026-11-13).
   renderSummaryTables();
+  const shorts = compact ? shortNames(result.rows) : null, nameKey = visible.some(([k]) => k === 'name') ? 'name' : 'ticker';
   const body = [
     tableTotalRow(visible),
     ...rows.flatMap((r) => {
@@ -1249,10 +1253,11 @@ function renderRows() {
           cell.replaceChildren(link);
         }
         if (compact && key === "ticker" && r.name !== r.ticker) cell.append(text("small", r.name));
-        if (key === (compact ? 'ticker' : 'name') && r.assumedZero) cell.append(text('small', 'Assumed 0%'));
+        if (compact && key === 'name' && !r.aggregate) cell.dataset.short = shorts.get(r.id) || cell.textContent; // phones show the short name
+        if (key === nameKey && r.assumedZero) cell.append(text('small', 'Assumed 0%'));
         // As in the Rise vs Swix table, an exact zero stays uncoloured on desktop.
         if (compact || ["returnA", "returnB", "ctrA", "ctrB", "activeCtr"].includes(key)) cell.className = !compact && value === 0 ? '' : signClass(key, value);
-        if (!compact && !r.aggregate && (key === 'returnA' || key === 'returnB')) {
+        if ((!compact || nameKey === 'name') && !r.aggregate && (key === 'returnA' || key === 'returnB')) {
           const side = key.slice(-1);
           if (r.assumedZero) {
             cell.classList.add('zeroed');
@@ -1271,6 +1276,11 @@ function renderRows() {
       const cell = document.createElement("td");
       cell.colSpan = visible.length;
       const list = document.createElement("dl");
+      if (nameKey === 'name' && !r.aggregate) {
+        const ticker = text('dd', r.ticker || '—');
+        if (!r.nonListed && securityLinks.has(r.id)) { const link = text('a', r.ticker, 'security-link'); link.href = securityLinks.get(r.id); link.target = '_blank'; link.rel = 'noopener'; ticker.replaceChildren(link); }
+        list.append(text('dt', 'Name'), text('dd', r.name || r.ticker || ''), text('dt', 'Ticker'), ticker);
+      }
       for (const [key, name] of all) {
         if (key === "ticker" || key === "name" || key === "newWeight" || (key === "returnB" && !r.aggregate) || visible.some(([k]) => k === key)) continue;
         list.append(text("dt", columnLabel(key, name)), text("dd", tableCellValue(r, key), signClass(key, rowValue(r, key))));
@@ -1430,7 +1440,7 @@ async function connectSaved() {
     message('Loading saved ETFs and portfolios…');
     const m=await online.catalog();
     if(generation!==accessGeneration)return;
-    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=live-20261117');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock(),trade});}
+    if(integrated&&m.riseSwixEnabled&&!riseSwix){const module=await import('./rise-swix.mjs?v=phone-20261119');riseSwix=module.createRiseSwix({check:()=>session.check(),lock:()=>session.lock(),trade});}
     onlineMode=true;dataset=folder=null; setup(m);
     void refreshArcusReturns();
     $('archive-title').textContent=m.holdingsSource==='arcus'?'Arcus ETFs & portfolios':'Saved ETFs & portfolios';

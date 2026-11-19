@@ -1,6 +1,6 @@
 import {J303,SWIX,buildIndexPath,buildSatrixPath,priceLookup} from './j303-core.mjs';
 import {tradingDay,iso,previous} from './rise-swix-core.mjs';
-import {periodBasis,basisLabel,holdingsReturnLevels} from './price-data.mjs';
+import {periodBasis,basisLabel,holdingsReturnLevels,completedPrices} from './price-data.mjs';
 export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=()=>{},loadOther}){
   const packet=await get(ids.includes(J303)?'j303?'+new URLSearchParams({start,end}):'j303'),model=packet.model;
   if(start<model.availableFrom)throw Error('J303 history starts '+model.availableFrom+'.');
@@ -51,7 +51,9 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
   // inverse consistently, so a ZAR comparison cancels FX exactly.
   if(currency==='USD'||others.length){
     const raw=await get('prices?'+new URLSearchParams({symbol:'USDZAR=X',start:baseline,end}));
-    fx=new Map((raw.timestamp||[]).map((t,i)=>[new Date(t*1000).toISOString().slice(0,10),raw.indicators?.quote?.[0]?.close?.[i]]).filter(([,v])=>v>0));
+    // Dated in the exchange's own time zone: Yahoo stamps USD/ZAR daily bars 23:00 UTC during UK summer time, so UTC
+    // dates moved each rate a day early and every Friday looked missing (owner, 2026-11-19: Last Month failed).
+    fx=new Map(completedPrices(raw,{symbol:'USDZAR=X',start:baseline,end}).points);
   }else fx=new Map(dates.map(d=>[d,1]));
   const involved=new Set();
   for(const [fund,p] of paths){

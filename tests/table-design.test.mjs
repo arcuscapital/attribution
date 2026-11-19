@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const app = fs.readFileSync('site/app.mjs', 'utf8');
-const source = app.slice(app.indexOf('const columns = ['), app.indexOf('// Phones show three columns;'));
+const source = app.slice(app.indexOf('const columns = ['), app.indexOf('// Phones (owner, 2026-11-19)'));
 class Element {
   constructor(tag, value = '') { this.tagName = tag.toUpperCase(); this.textContent = value; this.children = []; this.dataset = {}; this.attrs = {}; this.listeners = {}; }
   append(...children) { this.children.push(...children); }

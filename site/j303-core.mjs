@@ -80,7 +80,7 @@ export function buildSatrixPath(model,packets,end,baskets,baseline){
     }
     if(byDate.has(day)){
       anchor=byDate.get(day);
-      positions=anchor.rows.map(p=>({id:p.symbol,symbol:p.symbol,ticker:p.symbol.slice(0,-3),name:names.get(p.symbol)?.name||p.name,sector:names.get(p.symbol)?.sector||p.industry,weight:p.weight,asset:'Equity',currency:'ZAR'}));
+      positions=anchor.rows.map(p=>({id:p.symbol,symbol:p.symbol,ticker:p.symbol,name:names.get(p.symbol)?.name||p.name,sector:names.get(p.symbol)?.sector||p.industry,weight:p.weight,asset:'Equity',currency:'ZAR'}));
       events.push({kind:'STXCAP disclosure',implementation:day,publishedOn:anchor.publishedOn,members:positions.length});
     }
     snapshots.push({fund:J303,asOf:day,basketDate:anchor.asOf,publishedOn:anchor.publishedOn,source:day===anchor.asOf?'Satrix STXCAP closing holdings':'Satrix STXCAP holdings floated to close',positions});
@@ -139,7 +139,7 @@ export function buildIndexPath(model,packets,end,{fund=J303,capped=true,calibrat
     }
     const total=holdings.reduce((s,p)=>s+(units.get(p.symbol)||0)*valueIfHeld(p),0);
     function valueIfHeld(p){return units.has(p.symbol)?value(p,day):0;}
-    const positions=holdings.filter(p=>units.has(p.symbol)).map(p=>({...p,id:p.symbol,ticker:p.symbol.replace('.JO',''),weight:units.get(p.symbol)*value(p,day)/total,asset:'Equity',currency:'ZAR'}));
+    const positions=holdings.filter(p=>units.has(p.symbol)).map(p=>({...p,id:p.symbol,ticker:p.symbol,weight:units.get(p.symbol)*value(p,day)/total,asset:'Equity',currency:'ZAR'}));
     snapshots.push({fund,asOf:day,source:'J303 automatic daily holdings',positions});prior=day;
   }
   return {snapshots,levels,events,carried:[...carried],last:days.at(-1),state:{asOf:days.at(-1),value:wealth,units:Object.fromEntries(units),base:Object.fromEntries(base),prices:Object.fromEntries(holdings.filter(p=>units.has(p.symbol)).map(p=>[p.symbol,value(p,days.at(-1))]))}};

@@ -3,7 +3,7 @@
 // the sector / Reg 28 tables follow as you type. The Trade button hands the marked rows to the Arcus Trade
 // screens, which size, check and show every order exactly as they do for a trade entered there.
 // Nothing here places or sends an order.
-import {GICS_SECTORS,UNKNOWN_GICS} from './rise-swix-core.mjs?v=trade-20261115';
+import {GICS_SECTORS,UNKNOWN_GICS} from './rise-swix-core.mjs?v=phone-20261119';
 
 export const HANDOFF_KEY='arcus-analysis-trades';
 export const TRADE_ACCOUNTS={'PORTFOLIO:EASYAI':'easyai','PORTFOLIO:EASYGE':'easyge','PORTFOLIO:EASYBF':'easybf','PORTFOLIO:EASYSA':'easysa'};
