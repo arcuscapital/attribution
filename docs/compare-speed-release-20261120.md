@@ -80,3 +80,33 @@ single requests. Stadio's sector is data, not code: to undo it,
 ## Still Unknown GICS in EasyBest vs J303
 
 Canal+ (CNP.JO), Brait (BAT.JO), Greencoat Renewables (GCT.JO), NewGold (GLD.JO, an ETF) and ZAR cash. Not changed.
+
+## Follow-up release, same day: loading in parallel + more GICS sectors
+
+| Item | Value |
+|---|---|
+| Commit | 7c28a12 (on 7c24824) |
+| Deploy (UTC) | **83d48407-62af-47a2-a25d-a9ee22c3a562** at 2026-11-20T08:58Z |
+| Rollback target | 9b672124-c12e-4288-9918-d9964577ca6a (previous release), or 7c6a32ea for everything |
+| KV data | `gics:v1`: added CNP.JO Communication Services, BAT.JO Financials, GCT.JO Utilities (745 sectors). Backup before this change: `C:\Users\Skrom\ArcusAttributionBackups\gics-v1-before-20261120b.json` |
+
+- `site/j303-source.mjs`: the other side of a J303/SWIX comparison (e.g. EasyBest holdings and prices) now loads at the same
+  time as the J303 closes, on the expected basis (`expectedBasis`: one JSE session = price return, otherwise total
+  return). If J303's actual basis differs, it loads again as before. While both load, the button shows the other
+  side's price count.
+- `site/app.mjs`: `data/arcus-funds` is requested together with the catalog check, then applied after the catalog as
+  before. Module versions `speed-20261120b`.
+- Tests: 244/244 (two new; the compare-controls harness gained `integrated:false`). Python OK.
+- Production, owner's Brave, fresh tab, EasyBest vs J303 ZAR. Figures identical before and after:
+
+| Period | Before (9b672124) | After (83d48407) | Figures (Port / Bmrk / Diff) |
+|---|---|---|---|
+| Last Week | 4.5 s | 2.3 s | 0.45% / −0.21% / 0.66%, 126 rows |
+| Last 3 Months | 2.1 s | 1.5 s | 1.07% / −1.92% / 2.99% |
+| One Day | 1.9 s | 1.4 s | 0.01% / −0.33% / 0.34%, 122 rows |
+| Live | ~2.5 s | 1.5 s | (moves with quotes) |
+
+  EasyBest vs QQQ (no J303), Last Week: works, 8.0 s on first use: QQQ's US holdings still need Yahoo total-return
+  histories (six at a time). Not changed in this release.
+- GICS for Canal+, Brait, Greencoat confirmed on the live catalog. Their ISIN/SEDOL are not in Arcus's trade identifier
+  table (nor Stadio's); the SEDOLs supplied for Canal+ and Greencoat look like London-line codes, not JSE lines.
