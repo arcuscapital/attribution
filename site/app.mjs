@@ -487,6 +487,7 @@ $("controls").addEventListener("submit", async (e) => {
   clearTimeout(liveTimer);
   // A 35-second Live refresh keeps the shown result in place until the new one is ready.
   const refreshing = liveRefreshing && !$('results').hidden; liveRefreshing = false;
+  keepGicsState = refreshing; // owner, 2026-11-20: a Live price refresh keeps the GICS table's sort and open sectors
   const live = onlineMode && $('range').value === 'live';
   clearExport();
   $("run").disabled = true;
@@ -1043,7 +1044,7 @@ async function drawIntradayChart(shown, options) {
 }
 // GICS grouping (owner, 2026-11-13): with Grouping = GICS sector, ordinary comparisons show the Rise vs Swix
 // table (white sector rows that open to the holdings, same columns and formatting); No grouping keeps the table.
-var gicsView = null, gicsShown = null; // var: the reset above may run before this line
+var gicsView = null, gicsShown = null, keepGicsState = false; // var: the reset above may run before this line
 function gicsPanel() {
   if (gicsView) return gicsView;
   const rowOf = holding => result?.rows.find(r => r.id === holding.id) || {id: holding.id, ticker: holding.ticker, name: holding.name};
@@ -1059,7 +1060,9 @@ function gicsPanel() {
 }
 function renderGicsTable() {
   const view = gicsPanel(), options = lastOptions || {}, port = fundLabel(options.portfolio), bench = fundLabel(options.benchmark);
-  if (gicsShown !== result) { view.grid.reset(); gicsShown = result; }
+  // A new Compare starts the table fresh; a 35-second Live refresh of the same comparison keeps the chosen column
+  // sort, the open sectors and the highlighted sector (owner, 2026-11-20: the sort was lost on every price update).
+  if (gicsShown !== result) { if (!keepGicsState) view.grid.reset(); gicsShown = result; }
   view.grid.setLabels({portfolio: port, benchmark: bench});
   const value = groupByGics(result.rows, sectorList(), {total: port + ' vs ' + bench, returnA: result.returnA, returnB: result.returnB});
   view.grid.render(value);

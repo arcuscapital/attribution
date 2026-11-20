@@ -83,3 +83,59 @@ test('compare wiring: getMany used by the J303 loader, generic prices six at a t
   assert.match(app,/online\.mjs\?v=speed-20261120/);
   assert.match(source,/if\(getMany\)return getMany\(/);
 });
+
+test('a Live price refresh keeps the GICS table sort and open sectors; a new Compare resets them', async () => {
+  const app = await readFile(new URL('../site/app.mjs', import.meta.url), 'utf8');
+  assert.match(app, /const refreshing = liveRefreshing && !\$\('results'\)\.hidden; liveRefreshing = false;\s*keepGicsState = refreshing;/);
+  assert.match(app, /if \(gicsShown !== result\) \{ if \(!keepGicsState\) view\.grid\.reset\(\); gicsShown = result; \}/);
+  const ranges = await readFile(new URL('../site/ranges.mjs', import.meta.url), 'utf8');
+  assert.match(ranges, /reset\(\) \{ opened\.clear\(\); current = null; sort = null; \}/, 'reset is what clears sort and open sectors');
+});
+
+// Saved JSE histories reused by the prices route (compare speed, 2026-11-20).
+import {savedJseHistory} from '../cloudflare/j303-market.mjs';
+import {previous,iso} from '../site/rise-swix-core.mjs';
+import {cashDividendLevels} from '../site/price-data.mjs';
+const sessions=(last,n)=>{const out=[last];while(out.length<n)out.unshift(previous(out[0]));return out;};
+const history=(symbol,days,checkedAt)=>{const points=days.map((d,i)=>[d,100+i]),dividends=[{date:days[3],amount:2}];
+  return {symbol,currency:'ZAR',basis:'price-return',points,dividends,returnVersion:RETURN_VERSION,totalReturnFrom:days[0],totalReturnPoints:cashDividendLevels(points,dividends),checkedAt,unitCorrections:0};};
+const kvOf=packets=>({get:async(k,t)=>{const p=packets[k.replace('j303:price:v1:','')];return p?(t==='json'?structuredClone(p):JSON.stringify(p)):null;}});
+
+test('savedJseHistory slices a covering saved history and rebases its total-return levels', async () => {
+  const now=Date.parse('2026-11-14T10:00:00Z'),days=sessions('2026-11-13',10);
+  const kv=kvOf({'NPN.JO':history('NPN.JO',days,new Date(now-3600000).toISOString())});
+  const got=await savedJseHistory(kv,{symbol:'NPN.JO',start:days[2],end:'2026-11-13'},now);
+  assert.deepEqual(got.points.map(p=>p[0]),days.slice(2));
+  assert.equal(got.totalReturnPoints[0][1],100);
+  assert.deepEqual(got.totalReturnPoints,cashDividendLevels(got.points,got.dividends),'same levels a fresh download would give');
+  assert.deepEqual(got.dividends.map(d=>d.date),[days[3]]);
+  // Returns between any two days are unchanged by the slice.
+  const full=kv.get('j303:price:v1:NPN.JO','json').then(p=>new Map(p.totalReturnPoints));const f=await full,s=new Map(got.totalReturnPoints);
+  assert.ok(Math.abs(s.get(days[9])/s.get(days[4])-f.get(days[9])/f.get(days[4]))<1e-12);
+});
+
+test('savedJseHistory refuses stale, short, gapped or foreign packets', async () => {
+  const now=Date.parse('2026-11-14T10:00:00Z'),days=sessions('2026-11-13',10),fresh=new Date(now-3600000).toISOString();
+  const ask=(p,q={})=>savedJseHistory(kvOf({'NPN.JO':p}),{symbol:'NPN.JO',start:days[2],end:'2026-11-13',...q},now);
+  assert.equal(await ask(history('NPN.JO',days,new Date(now-2*86400000).toISOString())),null,'latest session needs a check within a day');
+  assert.ok(await ask(history('NPN.JO',days,new Date(now-9*86400000).toISOString()),{end:days[5]}),'older periods do not need a recent check');
+  assert.equal(await ask(history('NPN.JO',days.slice(0,-1),fresh)),null,'missing the last completed session');
+  assert.equal(await ask(history('NPN.JO',days,fresh),{start:previous(days[0])}),null,'starts after the requested start');
+  assert.equal(await ask({...history('NPN.JO',days,fresh),returnVersion:0}),null);
+  assert.equal(await ask({...history('NPN.JO',days,fresh),totalReturnPoints:undefined}),null);
+  assert.equal(await savedJseHistory(kvOf({}),{symbol:'NPN.JO',start:days[2],end:'2026-11-13'},now),null);
+  assert.equal(await savedJseHistory(kvOf({'SPY':history('SPY',days,fresh)}),{symbol:'SPY',start:days[2],end:'2026-11-13'},now),null);
+});
+
+test('prices route serves JSE closes from the saved history without Yahoo; Retry (refresh=1) downloads', async () => {
+  const completed=previous(iso(Date.now()+7200000)),days=sessions(completed,12);
+  const env={HOLDINGS_ARCHIVE:kvOf({'NPN.JO':history('NPN.JO',days,new Date().toISOString())})};
+  let calls=0;const fetcher=async()=>{calls++;return new Response('down',{status:503});};
+  const url='https://a.invalid/data/prices?'+new URLSearchParams({symbol:'NPN.JO',start:days[1],end:completed});
+  const res=await dataResponse(new Request(url),env,{},fetcher,null);
+  assert.equal(res.status,200);assert.equal(calls,0);
+  const body=await res.json();
+  assert.equal(body.meta.symbol,'NPN.JO');assert.equal(body.timestamp.length,11);assert.equal(body.indicators.adjclose[0].adjclose[0],100);
+  const retry=await dataResponse(new Request(url+'&refresh=1'),env,{},fetcher,null);
+  assert.ok(calls>0,'refresh bypasses the saved history');assert.equal(retry.status,502);
+});

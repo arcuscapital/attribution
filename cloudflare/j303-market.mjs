@@ -29,6 +29,22 @@ async function sharenet(symbol,fetcher,start,end){
   if(!points.length)throw Error('No completed closes');return [...new Map(points)];
 }
 
+// Compare speed (owner, 2026-11-20): the J303 job keeps full JSE close histories in this archive, current through the
+// last completed session. A comparison's JSE price request reuses one when it covers the whole period, instead of a
+// ~1 s Yahoo (and Sharenet) round trip; otherwise it returns null and the caller downloads as before. Same rule as
+// refreshArchivePrice: the latest session is trusted only from a packet checked within a day.
+export async function savedJseHistory(kv,{symbol,start,end},now=Date.now()){
+  if(!kv||!/^[A-Z0-9-]+\.JO$/.test(symbol||''))return null;
+  let saved;try{saved=await kv.get('j303:price:v1:'+symbol,'json');}catch{return null;}
+  if(saved?.symbol!==symbol||saved.currency!=='ZAR'||saved.returnVersion!==RETURN_VERSION||!saved.points?.length||!saved.totalReturnPoints?.length)return null;
+  const completed=previous(iso(now+7200000)),cap=end<completed?end:completed,final=tradingDay(cap)?cap:previous(cap);
+  if(saved.points[0][0]>start||saved.totalReturnFrom>start||!saved.points.some(([d])=>d===final))return null;
+  if(final>=previous(completed)&&!(now-Date.parse(saved.checkedAt)<86400000))return null;
+  const points=saved.points.filter(([d])=>d>=start&&d<=end),dividends=(saved.dividends||[]).filter(d=>d.date>=start&&d.date<=end);
+  if(!points.length)return null;
+  try{return {...saved,points,dividends,totalReturnFrom:points[0][0],totalReturnPoints:cashDividendLevels(points,dividends),savedHistory:true};}
+  catch{return null;}
+}
 // Price requests and the scheduled warmer share this archive. A failed
 // refresh must not shorten a saved series or discard its dividend coverage.
 export async function refreshArchivePrice(kv,symbol,through,{fetcher=fetch,now=Date.now()}={}){

@@ -1,7 +1,7 @@
 // Authenticated, on-demand research data. No cron, queue, Arcus DB or private public assets.
 import {issuerNav,navQuery} from './issuer-nav.mjs';
 import {historicalNav} from './nav-history.mjs';
-import {fetchJseHistory,refreshArchivePrice} from './j303-market.mjs';
+import {fetchJseHistory,refreshArchivePrice,savedJseHistory} from './j303-market.mjs';
 import {MODEL_KEY,STATE_KEY} from './j303-scheduled.mjs';
 import {basketHistory,FIRST_CLOSE} from './satrix-baskets.mjs';
 import {previous,iso} from '../site/rise-swix-core.mjs';
@@ -119,7 +119,7 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
   const period1=Math.floor(Date.parse(query.start)/1000),period2=Math.min(Math.floor(Date.now()/1000),Math.floor(Date.parse(query.end)/1000)+2*86400);
   try {
     if(/\.JO$/i.test(query.symbol)){
-      const packet=await fetchJseHistory(query.symbol,{fetcher,start:query.start,end:query.end});
+      const packet=(url.searchParams.get('refresh')==='1'?null:await savedJseHistory(env.HOLDINGS_ARCHIVE,query))||await fetchJseHistory(query.symbol,{fetcher,start:query.start,end:query.end});
       const total=new Map(packet.totalReturnPoints||[]);
       const result={meta:{symbol:query.symbol,currency:'ZAR',exchangeTimezoneName:'Africa/Johannesburg',returnVersion:packet.returnVersion||0},
         timestamp:packet.points.map(([d])=>Date.parse(d+'T12:00:00Z')/1000),
