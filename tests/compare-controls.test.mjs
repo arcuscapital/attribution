@@ -62,7 +62,7 @@ function submitHarness({latest, refreshError, onlineMode = true} = {}) {
   for (const [id,value] of Object.entries({portfolio:'PORTFOLIO:TEST', benchmark:'ETF',currency:'USD',range:'day',start:'2026-11-06',end:'2026-11-06'})) $(id).value = value;
   $('controls').elements = ['portfolio','benchmark','currency','range','start','end','run'].map($);
   let posted;
-  const ctx = vm.createContext({$, manifest, onlineMode, accessGeneration:0, session:{check:async()=>true}, result:null,
+  const ctx = vm.createContext({$, manifest, onlineMode, integrated:false, accessGeneration:0, session:{check:async()=>true}, result:null,
     clearExport(){}, saveSelection(){}, loadRange:async(start,end)=>{calls.push(['load',start,end]);return {snapshots:[],levels:[]};},
     online:{refreshManifest:async current=>{calls.push(['freshness',current.version]);if(refreshError)throw Error(refreshError);return latest || {...manifest,version:'new',valuationDates:['2026-11-09']};},
       calendar:async latest=>{calls.push(['calendar',latest.version]);return latest.valuationDates;}},

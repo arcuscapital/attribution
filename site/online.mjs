@@ -223,7 +223,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
     },
     async load(manifest,ids,start,end,currency,basisOverride=null) {
       if(ids.includes('PORTFOLIO:J303')||(ids.includes('PORTFOLIO:SWIX')&&manifest.funds?.some(f=>f.id==='PORTFOLIO:J303'))){
-        const {loadJ303}=await import('./j303-source.mjs?v=speed-20261120');
+        const {loadJ303}=await import('./j303-source.mjs?v=speed-20261120b');
         const {one,many}=j303Fetchers({get,cache:j303Cache,aborted:()=>controller.signal.aborted});
         return loadJ303({manifest,ids,start,end,currency,onProgress,loadOther:(others,basis)=>this.load(manifest,others,start,end,currency,basis),get:one,getMany:many});
       }

@@ -340,11 +340,12 @@ function createFundPicker(id) {
   new MutationObserver(sync).observe(select,{attributes:true,attributeFilter:['disabled']});
   return {close,render(values){funds=values;sync();draw();},clear(){funds=[];list.replaceChildren();close();sync();}};
 }
-async function refreshArcusReturns(){
+// pending: an arcus-funds request already started (compare speed, 2026-11-20: it runs beside the catalog check).
+async function refreshArcusReturns(pending=null){
   if(!integrated)return;
   const generation=accessGeneration;
   try{
-    const response=await fetch('./data/arcus-funds',{credentials:'same-origin',cache:'no-store'});
+    const response=await (pending||fetch('./data/arcus-funds',{credentials:'same-origin',cache:'no-store'}));
     if(response.status===401){session.lock();return;}
     if(!response.ok)return;
     const data=await response.json();if(generation!==accessGeneration || !manifest)return;
@@ -502,6 +503,7 @@ $("controls").addEventListener("submit", async (e) => {
     const generation = accessGeneration;
     if(onlineMode && !refreshing) {
       $('run').textContent='Checking latest saved holdings…';
+      const arcusFunds=integrated?fetch('./data/arcus-funds',{credentials:'same-origin',cache:'no-store'}):null;arcusFunds?.catch(()=>{});
       const latest=await online.refreshManifest(manifest);
       if(generation!==accessGeneration)return;
       const selected=[$('portfolio').value,$('benchmark').value];
@@ -509,7 +511,7 @@ $("controls").addEventListener("submit", async (e) => {
       Object.assign(manifest,latest);
       manifest.valuationDates=await online.calendar(manifest);
       if($('range').value!=='custom')applyRange();
-      await refreshArcusReturns();
+      await refreshArcusReturns(arcusFunds);
     }
     const options = Object.fromEntries(
       ["portfolio", "benchmark", "start", "end", "currency"].map((id) => [
@@ -1408,7 +1410,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=speed-20261120');
+  const {createOnlineSource}=await import('./online.mjs?v=speed-20261120b');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;

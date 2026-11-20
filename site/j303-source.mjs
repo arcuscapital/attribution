@@ -8,7 +8,17 @@ async function constituentPackets(symbols,required,get,getMany,onProgress){
   await Promise.all([...Array(8)].map(async()=>{while(cursor<symbols.length){const symbol=symbols[cursor++];packets.push(await get('j303?'+new URLSearchParams({symbol,through:required.get(symbol)})));onProgress(++done,symbols.length);}}));
   return packets;
 }
+// Return basis the other side will need, from the JSE calendar: one session is a price return, longer periods total return.
+export function expectedBasis(start,end){
+  if(start===end)return 'price-return';
+  let sessions=0;for(let t=Date.parse(start);t<=Date.parse(end)&&sessions<2;t+=86400000)if(tradingDay(iso(t)))sessions++;
+  return sessions>1?'total-return':'price-return';
+}
 export async function loadJ303({get,getMany,manifest,ids,start,end,currency,onProgress=()=>{},loadOther}){
+  // Compare speed (owner, 2026-11-20): the other side (e.g. EasyBest holdings and prices) loads at the same time as the
+  // J303 closes, on the expected return basis. If J303's actual basis differs, it is loaded again as before.
+  const others=ids.filter(id=>id!==J303&&id!==SWIX),guess=others.length?expectedBasis(start,end):null;
+  const early=guess?loadOther(others,guess).then(data=>({data}),error=>({error})):null;
   const packet=await get(ids.includes(J303)?'j303?'+new URLSearchParams({start,end}):'j303'),model=packet.model;
   if(start<model.availableFrom)throw Error('J303 history starts '+model.availableFrom+'.');
   const report=ids.includes(SWIX)?await get('rise-swix'):null;
@@ -28,7 +38,8 @@ export async function loadJ303({get,getMany,manifest,ids,start,end,currency,onPr
   }
   for(const p of swixRows)requireThrough(p.symbol,report.period.at(-1)>final?report.period.at(-1):final);
   const symbols=[...required.keys()];
-  const packets=await constituentPackets(symbols,required,get,getMany,onProgress);
+  // With another side loading at the same time, its price count is the progress shown on the button.
+  const packets=await constituentPackets(symbols,required,get,getMany,others.length?()=>{}:onProgress);
   const paths=new Map(),price=priceLookup(packets);
   if(useJ303){
     const j303=buildSatrixPath(model,packets,end,baskets,baseline);
@@ -51,7 +62,8 @@ export async function loadJ303({get,getMany,manifest,ids,start,end,currency,onPr
   const path=paths.get(J303)||paths.get(SWIX),dates=path.levels.map(p=>p.date).filter(d=>d>=baseline);
   const returnBasis=periodBasis(dates,start,end),total=returnBasis==='total-return';
   const returns=total?priceLookup(packets.map(p=>({...p,points:p.totalReturnPoints||[]}))):price;
-  const others=ids.filter(id=>!paths.has(id)),data=others.length?await loadOther(others,returnBasis):{manifest,snapshots:[],levels:[],priceNotes:[],priceFailures:[]};
+  const early_=early&&returnBasis===guess?await early:null;
+  const data=!others.length?{manifest,snapshots:[],levels:[],priceNotes:[],priceFailures:[]}:early_&&!early_.error?early_.data:await loadOther(others,returnBasis);
   let fx=new Map();
   // Engine has a common USD internal numeraire. Use one FX series and its
   // inverse consistently, so a ZAR comparison cancels FX exactly.

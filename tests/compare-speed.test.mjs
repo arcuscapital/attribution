@@ -139,3 +139,20 @@ test('prices route serves JSE closes from the saved history without Yahoo; Retry
   const retry=await dataResponse(new Request(url+'&refresh=1'),env,{},fetcher,null);
   assert.ok(calls>0,'refresh bypasses the saved history');assert.equal(retry.status,502);
 });
+
+// The other side loads beside the J303 closes on the expected basis (compare speed, 2026-11-20).
+import {expectedBasis} from '../site/j303-source.mjs';
+test('expectedBasis: one JSE session is a price return, two or more a total return', () => {
+  assert.equal(expectedBasis('2026-11-19','2026-11-19'),'price-return');
+  assert.equal(expectedBasis('2026-11-14','2026-11-16'),'price-return','Saturday to Monday is one session');
+  assert.equal(expectedBasis('2026-11-13','2026-11-16'),'total-return','Friday and Monday');
+  assert.equal(expectedBasis('2026-10-20','2026-11-19'),'total-return');
+});
+test('J303 loader starts the other side early and reuses it only on the same basis', async () => {
+  const source = await readFile(new URL('../site/j303-source.mjs', import.meta.url), 'utf8');
+  assert.match(source, /const early=guess\?loadOther\(others,guess\)\.then\(data=>\(\{data\}\),error=>\(\{error\}\)\):null;/);
+  assert.match(source, /early&&returnBasis===guess\?await early:null/);
+  assert.match(source, /early_&&!early_\.error\?early_\.data:await loadOther\(others,returnBasis\)/);
+  const app = await readFile(new URL('../site/app.mjs', import.meta.url), 'utf8');
+  assert.match(app, /await refreshArcusReturns\(arcusFunds\);/);
+});
