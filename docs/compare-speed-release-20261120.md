@@ -110,3 +110,54 @@ Canal+ (CNP.JO), Brait (BAT.JO), Greencoat Renewables (GCT.JO), NewGold (GLD.JO,
   histories (six at a time). Not changed in this release.
 - GICS for Canal+, Brait, Greencoat confirmed on the live catalog. Their ISIN/SEDOL are not in Arcus's trade identifier
   table (nor Stadio's); the SEDOLs supplied for Canal+ and Greencoat look like London-line codes, not JSE lines.
+
+## Third release, same day: all fund pairs (QQQ, VOO, US portfolios)
+
+| Item | Value |
+|---|---|
+| Commits | afd4065 (shared histories, 16 requests + retry, JSE closed days); 705cead (one note per set of JSE closed days); 726b204 (cut by market-local start date) |
+| Deploys (UTC) | 20a32a56-782e-4405-90a5-d81e1b7986e2 at 09:12Z; 0cf79e40-02c5-4d52-b3d4-6668797a0c99 at 09:17Z; **c39e8c66-1521-46d7-babc-b3fd8f18fc9f** at 09:21Z |
+| Rollback target | 83d48407-62af-47a2-a25d-a9ee22c3a562 (previous release; keeps J303 batches and parallel loading), or 7c6a32ea for everything |
+
+Measured first (owner's Brave): EasyBest vs QQQ Month to Date 8.5 s, EasyBest vs VOO 26.6 s (419 Yahoo requests six at a
+time, ~240 ms each). Concurrency test against production, 102 uncached US listings: 6 → 5.3 s, 12 → 2.3 s,
+16 → 1.85 s, 24 → 1.7 s, all 102/102 OK.
+
+- `cloudflare/data.mjs`: US/other (non-JSE) prices are downloaded once per listing and end date as a three-year history
+  (cache key `history-v1/<symbol>?end=`; 15 min for recent ends, 6 h for ends more than five days old) and cut to each
+  request's start (`sliceHistory`, by the market's own date). A direct check on AAPL, MSFT, KO, JNJ, NVDA and ZARUSD=X
+  found Yahoo's closes and adjusted closes identical for a two-month and a three-year window. `refresh=1` downloads again.
+- `site/online.mjs`: `PRICE_CONCURRENCY` 16; one retry 600 ms after a failed price request (not for sign-in errors or a
+  cancelled comparison). Listings Yahoo has no data for (e.g. Kenvue, the Honeywell spin-offs) still show as missing,
+  after one retry.
+- `site/price-data.mjs`: JSE closed days (the J303 calendar, 2024–2027) carry the last JSE close onto other markets'
+  dates, as Tokyo and Taiwan already did. **Bug fixed:** 4 November 2026 (election holiday) made every JSE holding drop
+  out of EasyBest vs QQQ/VOO for any period spanning it (0% coverage). One note per set of carried dates.
+- **Regression found and fixed within this release:** cutting at midnight UTC dropped USD/ZAR bars that Yahoo stamps
+  23:00 UTC during UK summer time, so EasyBF/EasyBest vs J303 Last Month failed ("USD/ZAR closing rate missing on
+  2026-09-30") on 20a32a56 and 0cf79e40, from 09:12Z to 09:21Z. Fixed in 726b204 (c39e8c66).
+- Tests: 250/250 (new: history cut incl. the 23:00 UTC FX bar and Tokyo, shared download, retry, JSE closures, grouped
+  notes). Python OK.
+
+Production results after the release (owner's Brave, desktop). Figures equal the pre-release baseline where one was taken:
+
+| Pair | Period | Time | Port / Bmrk | Note |
+|---|---|---|---|---|
+| EasyBest vs QQQ (ZAR) | Last Week | 3.0 → 2.2 s | 0.45% / 5.37% | identical |
+| EasyBest vs VOO (ZAR) | Last Week | 22.0 → 4.4 s | 0.45% / 4.30% | identical |
+| Marlow vs QQQ (USD) | Last Week | 2.1 → 1.3 s | 5.74% / 3.63% | identical |
+| EasyBest vs VOO (ZAR) | MTD | 26.6 → 4.1 s | −0.78% / −1.51% | EasyBest was 0% coverage before (4 Nov) |
+| Marlow vs QQQ / VOO (USD) | YTD, 3M, MTD, 1D | 1.8–12.0 s | e.g. YTD 14.45% / 5.36% (QQQ), 5.83% (VOO) | all load |
+| IBKR vs VOO (USD) | YTD, 3M, MTD, 1D | 2.1–4.9 s | YTD 19.08% / 5.83% | all load |
+| EasyAI vs QQQ (ZAR) | YTD, 3M, MTD, 1D | 1.4–2.1 s | YTD 23.80% / 9.71% | all load |
+| EasyGE vs VOO (ZAR/USD) | YTD, 3M, MTD, 1D, Last Month | 2.1–8.2 s | YTD 27.29% / 10.20% | all load |
+| EasyBF vs VOO (ZAR) | YTD, MTD | 10.9 / 6.0 s | 3.53% / 10.20% | loads |
+| EasyBF vs J303 (ZAR) | Last Month, 3M, YTD | 2.2 / 3.0 / 11.4 s | LM −5.72% / −0.29% | J303 −0.29% equals the 19 Nov record |
+| EasyBest vs J303 (ZAR) | Last Month, Live | 1.5 / 1.7 s | LM −0.35% / −0.29% | loads |
+
+The slowest cases (8–12 s) are the first request of a new end date for VOO's ~420 shares; later periods ending on the
+same date reuse that download (e.g. VOO Last Year then MTD: 22.5 s, then 2.5 s).
+
+Found, not changed (existing rules): ZAR comparisons spanning 21 April 2025 (Easter Monday) fail with 0% coverage
+because Yahoo has no USD/ZAR rate that day and the code never fills a missing FX rate ("FX must still be observed on
+the valuation date"). This affects Last Year in ZAR. EasyBF vs SWIX switches to Rise vs SWIX by design.
