@@ -9,6 +9,15 @@ const DAY = 86400000;
 const SYMBOL = /^[A-Za-z0-9^][A-Za-z0-9.^=\-]{0,29}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const J303_BATCH = 30;
+// Covers any allowed request: start may be up to 1096 days before end.
+export const HISTORY_DAYS = 1100;
+// The bars and events a direct Yahoo request for [period1, period2] would return (seconds, as Yahoo uses).
+export function sliceHistory(history,period1,period2){
+  const keep=history.timestamp.map((t,i)=>t>=period1&&t<=period2?i:-1).filter(i=>i>=0),pick=list=>list?keep.map(i=>list[i]):list;
+  const events=Object.fromEntries(Object.entries(history.events||{}).map(([kind,items])=>[kind,Object.fromEntries(Object.entries(items||{}).filter(([,e])=>e?.date>=period1&&e.date<=period2))]).filter(([,items])=>Object.keys(items).length));
+  const q=history.indicators.quote?.[0]||{},adj=history.indicators.adjclose?.[0];
+  return {...history,timestamp:pick(history.timestamp),events,indicators:{quote:[{close:pick(q.close)}],...(adj?{adjclose:[{adjclose:pick(adj.adjclose)}]}:{})}};
+}
 const reply = (body, status=200) => Response.json(body, {status,headers:{'Cache-Control':'private, no-store'}});
 export function priceQuery(params) {
   const symbol=params.get('symbol'), start=params.get('start'), end=params.get('end');
@@ -128,22 +137,31 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
       if(cache&&packet.returnVersion===1){const write=cache.put(key,Response.json(result,{headers:{'Cache-Control':'public, max-age=900'}}));if(ctx.waitUntil)ctx.waitUntil(write);else await write;}
       return reply(result);
     }
-    const response=await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(query.symbol)+'?period1='+period1+'&period2='+period2+'&interval=1d&events=div%2Csplits&includeAdjustedClose=true',{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(15000)});
-    if(!response.ok)throw Error('Price source is temporarily unavailable');
-    const data=await response.json();
-    const raw=data.chart?.result?.[0];
-    if(raw?.meta?.symbol?.toUpperCase()!==query.symbol.toUpperCase())throw Error('Price identity mismatch');
-    const fx=query.symbol.endsWith('=X');
-    const values=fx ? raw.indicators?.quote?.[0]?.close : raw.indicators?.adjclose?.[0]?.adjclose;
-    if(!values?.length || !raw.timestamp?.length)throw Error('Adjusted closing prices are not available');
-    const result={meta:{symbol:raw.meta.symbol,currency:raw.meta.currency,exchangeTimezoneName:raw.meta.exchangeTimezoneName},
-      timestamp:raw.timestamp,events:raw.events||{},indicators:fx?{quote:[{close:values}]}:{quote:[{close:raw.indicators?.quote?.[0]?.close||[]}],adjclose:[{adjclose:values}]}};
-
-    if(cache) {
-      const write=cache.put(key,Response.json(result,{headers:{'Cache-Control':'public, max-age=900'}}));
-      if(ctx.waitUntil)ctx.waitUntil(write);else await write;
+    // Compare speed (owner, 2026-11-20): one three-year download per listing and end date, cut to the requested start.
+    // Yahoo's closes and adjusted closes are the same whatever window is asked for (checked on AAPL, MSFT, KO, JNJ, NVDA
+    // and ZARUSD=X), so every period ending on the same date (MTD, QTD, YTD, last year, Live, One Day) shares it.
+    const refresh=url.searchParams.get('refresh')==='1';
+    const historyKey=new Request('https://analysis-market-cache.invalid/history-v1/'+encodeURIComponent(query.symbol)+'?end='+query.end);
+    let history=refresh?null:await (await cache?.match(historyKey))?.json();
+    if(!history){
+      const from=Math.floor((Date.parse(query.end)-HISTORY_DAYS*DAY)/1000);
+      const response=await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(query.symbol)+'?period1='+from+'&period2='+period2+'&interval=1d&events=div%2Csplits&includeAdjustedClose=true',{headers:{'User-Agent':'Mozilla/5.0'},signal:AbortSignal.timeout(15000)});
+      if(!response.ok)throw Error('Price source is temporarily unavailable');
+      const data=await response.json();
+      const raw=data.chart?.result?.[0];
+      if(raw?.meta?.symbol?.toUpperCase()!==query.symbol.toUpperCase())throw Error('Price identity mismatch');
+      const fx=query.symbol.endsWith('=X');
+      const values=fx ? raw.indicators?.quote?.[0]?.close : raw.indicators?.adjclose?.[0]?.adjclose;
+      if(!values?.length || !raw.timestamp?.length)throw Error('Adjusted closing prices are not available');
+      history={meta:{symbol:raw.meta.symbol,currency:raw.meta.currency,exchangeTimezoneName:raw.meta.exchangeTimezoneName},
+        timestamp:raw.timestamp,events:raw.events||{},indicators:fx?{quote:[{close:values}]}:{quote:[{close:raw.indicators?.quote?.[0]?.close||[]}],adjclose:[{adjclose:values}]}};
+      if(cache) {
+        // Recent end dates keep the 15-minute freshness; periods that ended more than five days ago are settled.
+        const age=Date.now()-Date.parse(query.end),write=cache.put(historyKey,Response.json(history,{headers:{'Cache-Control':'public, max-age='+(age>5*DAY?21600:900)}}));
+        if(ctx.waitUntil)ctx.waitUntil(write);else await write;
+      }
     }
-    return reply(result);
+    return reply(sliceHistory(history,period1,period2));
   } catch(e){return reply({error:e.message || 'Prices unavailable',symbol:query.symbol},502);}
 }
 

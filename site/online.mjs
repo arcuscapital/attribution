@@ -1,5 +1,5 @@
 import {normalizeArcusPacket,resolveArchiveListings,resolveKnownListings,isNonListed} from './arcus-source.mjs?v=cash-20261113';
-import {completedPrices,valuationPrices} from './price-data.mjs?v=returns-20261116';
+import {completedPrices,valuationPrices,closureMarket} from './price-data.mjs?v=jse-20261120';
 import {periodBasis,basisLabel} from './price-data.mjs';
 import {driftHoldings} from './holdings-drift.mjs';
 import {previous,tradingDay} from './rise-swix-core.mjs';
@@ -49,6 +49,8 @@ export const reusableArcusReturn=symbol=>!/\.JO$/i.test(symbol);
 // attributes the session exactly as for One Day. Daily-holdings indices (J303 and its SWIX) move with their
 // closing weights; a constituent without a quote is held unchanged.
 const J303_BATCH=30; // matches cloudflare/data.mjs J303_BATCH
+// Price requests at once. 6, 12, 16 and 24 all returned 102/102 without errors on 2026-11-20; gains flatten after 16.
+export const PRICE_CONCURRENCY=16;
 const SUFFIX_CURRENCY={JO:'ZAR',L:'GBP',TW:'TWD',TWO:'TWD',T:'JPY',KS:'KRW',KQ:'KRW',HK:'HKD',AS:'EUR',PA:'EUR',DE:'EUR',F:'EUR',MI:'EUR',MC:'EUR',BR:'EUR',
   HE:'EUR',LS:'EUR',VI:'EUR',IR:'EUR',SW:'CHF',TO:'CAD',V:'CAD',AX:'AUD',SS:'CNY',SZ:'CNY',ST:'SEK',OL:'NOK',CO:'DKK',TA:'ILS',NS:'INR',BO:'INR',SI:'SGD',NZ:'NZD',SA:'BRL',MX:'MXN'};
 export function listingCurrency(symbol,known){
@@ -163,7 +165,9 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
     const key=[symbol,start,end].join('|'),saved=prices.get(key);
     const refresh=refreshSymbols.delete(symbol);
     if(!refresh && saved && Date.now()-saved.at<15*60000)return completedPrices(await saved.promise,{symbol,start,end,basis});
-    const promise=get('prices?'+new URLSearchParams({symbol,start,end,...(refresh?{refresh:'1'}:{})}));
+    // One retry after a short pause for a failed price request (compare speed, 2026-11-20: requests now run 16 at a time).
+    const ask=()=>get('prices?'+new URLSearchParams({symbol,start,end,...(refresh?{refresh:'1'}:{})}));
+    const promise=ask().catch(async e=>{if(controller.signal.aborted||e?.name==='AbortError'||/Sign in/.test(e?.message))throw e;await new Promise(r=>setTimeout(r,600));if(controller.signal.aborted)throw e;return ask();});
     const entry={at:Date.now(),promise};prices.set(key,entry);
     try{return completedPrices(await promise,{symbol,start,end,basis});}catch(e){if(prices.get(key)===entry)prices.delete(key);throw e;}
   }
@@ -275,7 +279,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       const downloaded=new Map(), failures=[];
       async function batch(list) {
         let next=0,done=0;
-        await Promise.all([0,1,2,3,4,5].map(async()=>{ // six at a time (was two): compare speed, 2026-11-20
+        await Promise.all([...Array(PRICE_CONCURRENCY)].map(async()=>{ // compare speed, 2026-11-20: was two, then six
           while(next<list.length) {
             if(run!==generation)throw Error('Data request cancelled');
             const symbol=list[next++];
@@ -296,7 +300,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       priceNotes.push(basisLabel(returnBasis)+' for both portfolio and benchmark. '+(returnBasis==='price-return'?'One completed trading session; dividends excluded.':'Yahoo dividend-adjusted history; SA cash dividends are reinvested at the ex-date close before withholding tax. Saved daily price returns are not compounded for total-return comparisons.'));
       for(const [id,data] of downloaded) {
         const aligned=valuationPrices(data,valuationDates);
-        if(aligned.carried.length)priceNotes.push(id+': local adjusted close carried across verified '+(data.timeZone==='Asia/Taipei'?'Taiwan':'Tokyo')+' market closures ('+aligned.carried.map(p=>p.date+' uses '+p.priceDate).join('; ')+'); FX still uses each valuation date.');
+        if(aligned.carried.length)priceNotes.push(id+': local adjusted close carried across verified '+closureMarket(data)+' market closures ('+aligned.carried.map(p=>p.date+' uses '+p.priceDate).join('; ')+'); FX still uses each valuation date.');
         if(data.currency==='USD' || id==='USDZAR=X') {
           for(const [date,value] of data.points)levels.push({id,date,value,currency:data.currency,basis:id.endsWith('=X')?'fx':returnBasis});
         } else if(!id.endsWith('=X')) {

@@ -1,3 +1,4 @@
+import {tradingDay} from './rise-swix-core.mjs';
 // A return basis is selected once for the whole comparison, including its benchmark.
 export const RETURN_VERSION = 1;
 export function periodBasis(calendar, start, end) {
@@ -74,6 +75,11 @@ const TOKYO_HOLIDAYS = {
 // TWSE cash-equity calendar, verified 2026-10-28 (opening dates excluded).
 // https://www.twse.com.tw/holidaySchedule/holidaySchedule?queryYear=115&response=json
 const TAIWAN_HOLIDAYS={2026:new Set('01-01 02-12 02-13 02-15 02-16 02-17 02-18 02-19 02-20 02-27 02-28 04-03 04-04 04-05 04-06 05-01 06-19 09-25 09-28 10-09 10-10 10-25 10-26 12-25'.split(' '))};
+// JSE cash-equity closures (owner, 2026-11-20): the JSE calendar used for J303 (public holidays, Sunday holidays moved
+// to Monday, Good Friday, Family Day, and special closures such as the 4 November 2026 election), verified for 2024-2027.
+// Without it, a period spanning 4 November 2026 lost every JSE holding on a US calendar date.
+const JSE_HOLIDAYS={};for(const y of [2024,2025,2026,2027]){const set=new Set();for(let t=Date.UTC(y,0,1);t<Date.UTC(y+1,0,1);t+=86400000){const d=new Date(t).toISOString().slice(0,10),w=new Date(t).getUTCDay();if(w!==0&&w!==6&&!tradingDay(d))set.add(d.slice(5));}JSE_HOLIDAYS[y]=set;}
+export const closureMarket=data=>data.timeZone==='Asia/Taipei'?'Taiwan':data.timeZone==='Africa/Johannesburg'?'JSE':'Tokyo';
 function marketClosed(calendar,date) {
   const holidays=calendar[date.slice(0,4)];
   if(!holidays)return false;
@@ -86,7 +92,8 @@ const previousDate=date=>new Date(Date.parse(date+'T00:00:00Z')-86400000).toISOS
 export function valuationPrices(data, dates) {
   const points=new Map(data.points), carried=[];
   const calendar=/^[0-9A-Z]{4}\.T$/i.test(data.symbol) && data.currency==='JPY' && data.timeZone==='Asia/Tokyo' ? TOKYO_HOLIDAYS
-    : /^\d{4,6}\.TW$/i.test(data.symbol) && data.currency==='TWD' && data.timeZone==='Asia/Taipei' ? TAIWAN_HOLIDAYS : null;
+    : /^\d{4,6}\.TW$/i.test(data.symbol) && data.currency==='TWD' && data.timeZone==='Asia/Taipei' ? TAIWAN_HOLIDAYS
+    : /^[A-Z0-9-]+\.JO$/i.test(data.symbol) && ['ZAR','ZAc'].includes(data.currency) && data.timeZone==='Africa/Johannesburg' ? JSE_HOLIDAYS : null;
   if(!calendar)return {points:data.points,carried};
   const closed=date=>marketClosed(calendar,date);
   for(const date of dates) {

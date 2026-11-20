@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {dataResponse,J303_BATCH} from '../cloudflare/data.mjs';
-import {j303Fetchers} from '../site/online.mjs';
+import {j303Fetchers,PRICE_CONCURRENCY,createOnlineSource} from '../site/online.mjs';
 import {RETURN_VERSION} from '../site/price-data.mjs';
 
 const through='2026-11-13';
@@ -75,12 +75,13 @@ test('j303Fetchers does not retry after the session is cleared', async () => {
   await assert.rejects(j303Fetchers({get,aborted:()=>true}).many([['NPN.JO',through]]),/aborted/);
 });
 
-test('compare wiring: getMany used by the J303 loader, generic prices six at a time, module versions bumped', async () => {
+test('compare wiring: getMany used by the J303 loader, generic prices PRICE_CONCURRENCY at a time, module versions bumped', async () => {
   const [online,source,app]=await Promise.all(['site/online.mjs','site/j303-source.mjs','site/app.mjs'].map(f=>readFile(new URL('../'+f,import.meta.url),'utf8')));
   assert.match(online,/get:one,getMany:many/);
-  assert.match(online,/Promise\.all\(\[0,1,2,3,4,5\]\.map/);
-  assert.match(online,/j303-source\.mjs\?v=speed-20261120/);
-  assert.match(app,/online\.mjs\?v=speed-20261120/);
+  assert.ok(online.includes('await Promise.all([...Array(PRICE_CONCURRENCY)].map('));
+  assert.equal(PRICE_CONCURRENCY,16);
+  assert.match(online,/j303-source\.mjs\?v=speed-20261120b/);
+  assert.match(app,/online\.mjs\?v=speed-20261120c/);
   assert.match(source,/if\(getMany\)return getMany\(/);
 });
 
@@ -155,4 +156,55 @@ test('J303 loader starts the other side early and reuses it only on the same bas
   assert.match(source, /early_&&!early_\.error\?early_\.data:await loadOther\(others,returnBasis\)/);
   const app = await readFile(new URL('../site/app.mjs', import.meta.url), 'utf8');
   assert.match(app, /await refreshArcusReturns\(arcusFunds\);/);
+});
+
+// One three-year history per listing and end date, cut to each request (compare speed, 2026-11-20).
+import {sliceHistory,HISTORY_DAYS} from '../cloudflare/data.mjs';
+import {valuationPrices} from '../site/price-data.mjs';
+const yahoo=(symbol,days)=>{const ts=days.map(d=>Date.parse(d+'T14:30:00Z')/1000);
+  return {chart:{result:[{meta:{symbol,currency:'USD',exchangeTimezoneName:'America/New_York'},timestamp:ts,
+    events:{dividends:{[ts[2]]:{amount:.5,date:ts[2]},[ts[ts.length-2]]:{amount:.6,date:ts[ts.length-2]}}},
+    indicators:{quote:[{close:days.map((_,i)=>100+i)}],adjclose:[{adjclose:days.map((_,i)=>99+i)}]}}]}};};
+test('sliceHistory returns exactly the bars and events of the requested window', () => {
+  const days=sessions('2026-11-13',30),raw=yahoo('AAPL',days).chart.result[0];
+  const history={meta:raw.meta,timestamp:raw.timestamp,events:raw.events,indicators:{quote:[{close:raw.indicators.quote[0].close}],adjclose:[{adjclose:raw.indicators.adjclose[0].adjclose}]}};
+  const p1=Date.parse(days[10])/1000,p2=Date.parse(days[29])/1000+2*86400,got=sliceHistory(history,p1,p2);
+  assert.deepEqual(got.timestamp,raw.timestamp.slice(10));
+  assert.deepEqual(got.indicators.adjclose[0].adjclose,raw.indicators.adjclose[0].adjclose.slice(10));
+  assert.deepEqual(got.indicators.quote[0].close,raw.indicators.quote[0].close.slice(10));
+  assert.deepEqual(Object.values(got.events.dividends).map(d=>d.amount),[.6],'only the dividend inside the window');
+  const fx=sliceHistory({meta:{symbol:'ZARUSD=X'},timestamp:[1,2,3],events:{},indicators:{quote:[{close:[1,2,3]}]}},2,3);
+  assert.deepEqual(fx.indicators,{quote:[{close:[2,3]}]});assert.deepEqual(fx.events,{});
+});
+test('prices route: periods ending on the same date share one download; refresh downloads again', async () => {
+  const end=previous(iso(Date.now()+7200000)),days=sessions(end,40),calls=[];
+  const store=new Map(),cache={match:async k=>store.get(k.url)?.clone(),put:async(k,r)=>{store.set(k.url,r);}};
+  const fetcher=async url=>{calls.push(url);return Response.json(yahoo('AAPL',days));};
+  const ask=async(start,extra='')=>(await dataResponse(new Request('https://a.invalid/data/prices?'+new URLSearchParams({symbol:'AAPL',start,end})+extra),{},{},fetcher,cache)).json();
+  const a=await ask(days[30]),b=await ask(days[5]);
+  assert.equal(calls.length,1,'second period reused the history');
+  assert.match(calls[0],new RegExp('period1='+Math.floor((Date.parse(end)-HISTORY_DAYS*86400000)/1000)));
+  assert.equal(a.timestamp.length,10);assert.equal(b.timestamp.length,35);
+  assert.deepEqual(b.indicators.adjclose[0].adjclose.slice(-10),a.indicators.adjclose[0].adjclose);
+  await ask(days[30],'&refresh=1');assert.equal(calls.length,2);
+});
+test('a failed price request is retried once; sign-in errors are not retried', async () => {
+  let n=0;const fetcher=async path=>{const u=new URL(path,'https://t/');const symbol=u.searchParams.get('symbol');
+    if(u.pathname.endsWith('/nav'))return Response.json({status:'no-data'});
+    if(symbol==='US'&&n++===0)return Response.json({error:'Price source is temporarily unavailable'},{status:502});
+    return Response.json({meta:{symbol,currency:'USD',exchangeTimezoneName:'UTC'},timestamp:[Date.parse('2026-10-07T12:00Z')/1000,Date.parse('2026-10-08T12:00Z')/1000],indicators:{quote:[{close:[100,110]}],adjclose:[{adjclose:[100,110]}]}});};
+  const snaps={A:{fund:'A',asOf:'2026-10-01',positions:[{id:'US',symbol:'US',weight:1}]},B:{fund:'B',asOf:'2026-10-01',positions:[{id:'US',symbol:'US',weight:1}]}};
+  const source=createOnlineSource({fetcher:async path=>{const fund=new URL(path,'https://t/').searchParams.get('fund');return fund&&!path.includes('/nav')?Response.json(snaps[fund]):fetcher(path);}});
+  const data=await source.load({schemaVersion:1,version:'1'},['A','B'],'2026-10-08','2026-10-08','USD');
+  assert.equal(n,2,'one failure then one retry');assert.equal(data.levels.find(l=>l.id==='US'&&l.date==='2026-10-08').value,110);
+  const online=await readFile(new URL('../site/online.mjs',import.meta.url),'utf8');
+  assert.match(online,/\/Sign in\/\.test\(e\?\.message\)\)throw e;/);
+});
+test('JSE closed days (4 November 2026 election) carry the last close; ordinary gaps stay blank', () => {
+  const r=valuationPrices({symbol:'NPN.JO',currency:'ZAR',timeZone:'Africa/Johannesburg',points:[['2026-11-03',10],['2026-11-05',11]]},['2026-11-03','2026-11-04','2026-11-05']);
+  assert.deepEqual(r.carried,[{date:'2026-11-04',priceDate:'2026-11-03'}]);
+  assert.equal(new Map(r.points).get('2026-11-04'),10);
+  assert.deepEqual(valuationPrices({symbol:'NPN.JO',currency:'ZAR',timeZone:'Africa/Johannesburg',points:[['2026-11-03',10],['2026-11-06',11]]},['2026-11-05']).carried,[]);
+  assert.deepEqual(valuationPrices({symbol:'NPN.JO',currency:'ZAR',timeZone:'Africa/Johannesburg',points:[['2026-04-02',10],['2026-04-07',11]]},['2026-04-03','2026-04-06']).carried.map(c=>c.date),['2026-04-03','2026-04-06'],'Good Friday and Family Day');
+  assert.deepEqual(valuationPrices({symbol:'AAPL',currency:'USD',timeZone:'America/New_York',points:[['2026-11-03',10]]},['2026-11-04']).carried,[]);
 });
