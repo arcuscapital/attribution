@@ -298,9 +298,12 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       const levels=[...reused.levels],priceNotes=[...sourceNotes];
       const valuationDates=useCalendar ? calendar : downloaded.get('SPY').points.map(([date])=>date);
       priceNotes.push(basisLabel(returnBasis)+' for both portfolio and benchmark. '+(returnBasis==='price-return'?'One completed trading session; dividends excluded.':'Yahoo dividend-adjusted history; SA cash dividends are reinvested at the ex-date close before withholding tax. Saved daily price returns are not compounded for total-return comparisons.'));
+      const jseCarried=new Map();
       for(const [id,data] of downloaded) {
         const aligned=valuationPrices(data,valuationDates);
-        if(aligned.carried.length)priceNotes.push(id+': local adjusted close carried across verified '+closureMarket(data)+' market closures ('+aligned.carried.map(p=>p.date+' uses '+p.priceDate).join('; ')+'); FX still uses each valuation date.');
+        // JSE listings usually share the same closed days: one note per set of dates instead of one per share (2026-11-20).
+        if(aligned.carried.length&&closureMarket(data)==='JSE'){const k=aligned.carried.map(p=>p.date+' uses '+p.priceDate).join('; ');if(!jseCarried.has(k))jseCarried.set(k,[]);jseCarried.get(k).push(id);}
+        else if(aligned.carried.length)priceNotes.push(id+': local adjusted close carried across verified '+closureMarket(data)+' market closures ('+aligned.carried.map(p=>p.date+' uses '+p.priceDate).join('; ')+'); FX still uses each valuation date.');
         if(data.currency==='USD' || id==='USDZAR=X') {
           for(const [date,value] of data.points)levels.push({id,date,value,currency:data.currency,basis:id.endsWith('=X')?'fx':returnBasis});
         } else if(!id.endsWith('=X')) {
@@ -310,6 +313,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
           for(const [date,value] of aligned.points)if(map.has(date))levels.push({id,date,value:value*unit.scale*map.get(date),currency:'USD',basis:returnBasis});
         }
       }
+      for(const [dates,list] of jseCarried)priceNotes.push(list.length+' JSE listing'+(list.length===1?'':'s')+' ('+list.join(', ')+'): local adjusted close carried across verified JSE market closures ('+dates+'); FX still uses each valuation date.');
       if(run!==generation)throw Error('Data request cancelled');
       const issuerNav={};
       // Foreground requests only, independently of allocation cache freshness.

@@ -81,7 +81,7 @@ test('compare wiring: getMany used by the J303 loader, generic prices PRICE_CONC
   assert.ok(online.includes('await Promise.all([...Array(PRICE_CONCURRENCY)].map('));
   assert.equal(PRICE_CONCURRENCY,16);
   assert.match(online,/j303-source\.mjs\?v=speed-20261120b/);
-  assert.match(app,/online\.mjs\?v=speed-20261120c/);
+  assert.match(app,/online\.mjs\?v=speed-20261120d/);
   assert.match(source,/if\(getMany\)return getMany\(/);
 });
 
@@ -207,4 +207,9 @@ test('JSE closed days (4 November 2026 election) carry the last close; ordinary 
   assert.deepEqual(valuationPrices({symbol:'NPN.JO',currency:'ZAR',timeZone:'Africa/Johannesburg',points:[['2026-11-03',10],['2026-11-06',11]]},['2026-11-05']).carried,[]);
   assert.deepEqual(valuationPrices({symbol:'NPN.JO',currency:'ZAR',timeZone:'Africa/Johannesburg',points:[['2026-04-02',10],['2026-04-07',11]]},['2026-04-03','2026-04-06']).carried.map(c=>c.date),['2026-04-03','2026-04-06'],'Good Friday and Family Day');
   assert.deepEqual(valuationPrices({symbol:'AAPL',currency:'USD',timeZone:'America/New_York',points:[['2026-11-03',10]]},['2026-11-04']).carried,[]);
+});
+test('JSE carry notes are grouped by shared dates (one note, not one per share)', async () => {
+  const online=await readFile(new URL('../site/online.mjs',import.meta.url),'utf8');
+  assert.match(online,/for\(const \[dates,list\] of jseCarried\)priceNotes\.push\(list\.length\+' JSE listing'/);
+  assert.match(online,/else if\(aligned\.carried\.length\)priceNotes\.push\(id\+': local adjusted close carried across verified '\+closureMarket\(data\)/,'Tokyo and Taiwan keep one note per listing');
 });
