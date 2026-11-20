@@ -168,13 +168,21 @@ const yahoo=(symbol,days)=>{const ts=days.map(d=>Date.parse(d+'T14:30:00Z')/1000
 test('sliceHistory returns exactly the bars and events of the requested window', () => {
   const days=sessions('2026-11-13',30),raw=yahoo('AAPL',days).chart.result[0];
   const history={meta:raw.meta,timestamp:raw.timestamp,events:raw.events,indicators:{quote:[{close:raw.indicators.quote[0].close}],adjclose:[{adjclose:raw.indicators.adjclose[0].adjclose}]}};
-  const p1=Date.parse(days[10])/1000,p2=Date.parse(days[29])/1000+2*86400,got=sliceHistory(history,p1,p2);
+  const p2=Date.parse(days[29])/1000+2*86400,got=sliceHistory(history,days[10],p2);
   assert.deepEqual(got.timestamp,raw.timestamp.slice(10));
   assert.deepEqual(got.indicators.adjclose[0].adjclose,raw.indicators.adjclose[0].adjclose.slice(10));
   assert.deepEqual(got.indicators.quote[0].close,raw.indicators.quote[0].close.slice(10));
   assert.deepEqual(Object.values(got.events.dividends).map(d=>d.amount),[.6],'only the dividend inside the window');
-  const fx=sliceHistory({meta:{symbol:'ZARUSD=X'},timestamp:[1,2,3],events:{},indicators:{quote:[{close:[1,2,3]}]}},2,3);
-  assert.deepEqual(fx.indicators,{quote:[{close:[2,3]}]});assert.deepEqual(fx.events,{});
+  assert.deepEqual(sliceHistory(history,days[10],Date.parse(days[20])/1000).timestamp,raw.timestamp.slice(10,20),'period2 still caps the end');
+});
+test('sliceHistory keeps a UK-summer FX bar stamped 23:00 UTC the evening before the start (J303 Last Month baseline)', () => {
+  const ts=['2026-09-28T23:00:00Z','2026-09-29T23:00:00Z','2026-09-30T23:00:00Z'].map(d=>Date.parse(d)/1000);
+  const fx={meta:{symbol:'USDZAR=X',exchangeTimezoneName:'Europe/London'},timestamp:ts,events:{},indicators:{quote:[{close:[17.1,17.2,17.3]}]}};
+  const got=sliceHistory(fx,'2026-09-30',Date.parse('2026-10-03')/1000);
+  assert.deepEqual(got.indicators,{quote:[{close:[17.2,17.3]}]},'the 09-30 London-dated bar is kept');
+  assert.deepEqual(got.events,{});
+  const tokyo={meta:{symbol:'7203.T',exchangeTimezoneName:'Asia/Tokyo'},timestamp:[Date.parse('2026-10-05T00:00:00Z')/1000],events:{},indicators:{quote:[{close:[1]}],adjclose:[{adjclose:[1]}]}};
+  assert.equal(sliceHistory(tokyo,'2026-10-05',Date.parse('2026-10-07')/1000).timestamp.length,1,'09:00 Tokyo on the start date is kept');
 });
 test('prices route: periods ending on the same date share one download; refresh downloads again', async () => {
   const end=previous(iso(Date.now()+7200000)),days=sessions(end,40),calls=[];

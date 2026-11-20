@@ -11,10 +11,15 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const J303_BATCH = 30;
 // Covers any allowed request: start may be up to 1096 days before end.
 export const HISTORY_DAYS = 1100;
-// The bars and events a direct Yahoo request for [period1, period2] would return (seconds, as Yahoo uses).
-export function sliceHistory(history,period1,period2){
-  const keep=history.timestamp.map((t,i)=>t>=period1&&t<=period2?i:-1).filter(i=>i>=0),pick=list=>list?keep.map(i=>list[i]):list;
-  const events=Object.fromEntries(Object.entries(history.events||{}).map(([kind,items])=>[kind,Object.fromEntries(Object.entries(items||{}).filter(([,e])=>e?.date>=period1&&e.date<=period2))]).filter(([,items])=>Object.keys(items).length));
+// The bars and events a direct Yahoo request from `start` to period2 returns. The start is compared as the market's own
+// date: during UK summer time Yahoo stamps FX bars 23:00 UTC the evening before, and a request from midnight UTC still
+// includes that bar (owner, 2026-11-20: cutting at midnight UTC dropped the baseline USD/ZAR rate for J303 Last Month).
+export function sliceHistory(history,start,period2){
+  let local;try{const f=new Intl.DateTimeFormat('en-CA',{timeZone:history.meta?.exchangeTimezoneName||'UTC',year:'numeric',month:'2-digit',day:'2-digit'});local=t=>f.format(new Date(t*1000));}
+  catch{local=t=>new Date(t*1000).toISOString().slice(0,10);}
+  const inside=t=>Number.isFinite(t)&&t<=period2&&local(t)>=start;
+  const keep=history.timestamp.map((t,i)=>inside(t)?i:-1).filter(i=>i>=0),pick=list=>list?keep.map(i=>list[i]):list;
+  const events=Object.fromEntries(Object.entries(history.events||{}).map(([kind,items])=>[kind,Object.fromEntries(Object.entries(items||{}).filter(([,e])=>inside(e?.date)))]).filter(([,items])=>Object.keys(items).length));
   const q=history.indicators.quote?.[0]||{},adj=history.indicators.adjclose?.[0];
   return {...history,timestamp:pick(history.timestamp),events,indicators:{quote:[{close:pick(q.close)}],...(adj?{adjclose:[{adjclose:pick(adj.adjclose)}]}:{})}};
 }
@@ -161,7 +166,7 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
         if(ctx.waitUntil)ctx.waitUntil(write);else await write;
       }
     }
-    return reply(sliceHistory(history,period1,period2));
+    return reply(sliceHistory(history,query.start,period2));
   } catch(e){return reply({error:e.message || 'Prices unavailable',symbol:query.symbol},502);}
 }
 
