@@ -30,7 +30,7 @@ test('private data requires login or fresh query-bound bridge signature',async()
  assert.equal(await bridgeAsset(new Request('https://test'+path.replace('ARKK','BAI'),{headers}),env),null);
  assert.equal(await bridgeAsset(new Request('https://test'+path,{headers:{...headers,'X-Arcus-Time':String(+seconds-60)}}),env),null);
 });
-test('phone source keeps exact USD price dates for one session and FX, leaves unknowns and missing dates blank, uses two requests maximum',async()=>{
+test('phone source keeps exact USD price dates for one session and FX, leaves unknowns and missing dates blank, uses six requests maximum (two until 2026-11-20)',async()=>{
  let active=0,max=0,count=0;
  const snaps={A:{fund:'A',asOf:'2026-10-01',positions:[{id:'US',symbol:'US',weight:.5},{id:'JP',symbol:'JP',weight:.4},{id:'PRIVATE',weight:.1}]},B:{fund:'B',asOf:'2026-10-02',positions:[{id:'US',symbol:'US',weight:1}]}};
  const source=createOnlineSource({fetcher:async path=>{
@@ -48,7 +48,7 @@ test('phone source keeps exact USD price dates for one session and FX, leaves un
  }});
  const m={schemaVersion:1,version:'1790000000000'};
  const data=await source.load(m,['A','B'],'2026-10-08','2026-10-08','USD');
- assert.ok(max<=2);assert.equal(data.snapshots[0].asOf,'2026-10-01');
+ assert.ok(max<=6);assert.equal(data.snapshots[0].asOf,'2026-10-01');
  assert.equal(data.levels.find(l=>l.id==='US'&&l.date==='2026-10-08').value,110);
  assert.deepEqual(data.levels.filter(l=>l.id==='JP').map(l=>[l.date,l.value]),[['2026-10-08',1.1]]);
  assert.equal(data.levels.some(l=>l.id==='PRIVATE'),false);

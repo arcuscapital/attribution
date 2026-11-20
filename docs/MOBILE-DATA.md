@@ -47,7 +47,7 @@ Browser-private responses use private/no-store. Session expiry/logout clears bro
 pending requests; page navigation aborts outstanding price requests. Authentication is checked before
 and after calculations. Existing session-token revocation limitations are unchanged.
 
-Only selected unique securities are downloaded, at most two at once, plus SPY for an observed
+Only selected unique securities are downloaded, at most six at once (two until 2026-11-20), plus SPY for an observed
 valuation calendar and required FX series. One symbol per Worker invocation, at most three years.
 Only public market responses are cached internally for 15 minutes; cached prices still require auth.
 Time-zone/date validation and calculations run in the browser, keeping Worker CPU bounded.
@@ -55,7 +55,7 @@ No prices are written to D1/KV. Catalog/selected snapshots cost small KV reads; 
 one write per fund plus a catalog write and old-generation deletes. These use the Attribution account.
 Arcus adds authenticated proxy requests only while using this page; Watchlist code, startup and 6s/35s
 collectors are untouched. This is low incremental usage, not zero usage. Large ETFs can require many
-on-demand requests; two-at-a-time bounds concurrency rather than promising instant calculation.
+on-demand requests; six-at-a-time bounds concurrency rather than promising instant calculation.
 
 ## Portable testing and deployment
 Node 22+ / Python 3.11+. Run:

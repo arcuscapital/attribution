@@ -48,6 +48,7 @@ export const reusableArcusReturn=symbol=>!/\.JO$/i.test(symbol);
 // unchanged (0%); one without a quote has no return and is reported as missing. The existing engine then
 // attributes the session exactly as for One Day. Daily-holdings indices (J303 and its SWIX) move with their
 // closing weights; a constituent without a quote is held unchanged.
+const J303_BATCH=30; // matches cloudflare/data.mjs J303_BATCH
 const SUFFIX_CURRENCY={JO:'ZAR',L:'GBP',TW:'TWD',TWO:'TWD',T:'JPY',KS:'KRW',KQ:'KRW',HK:'HKD',AS:'EUR',PA:'EUR',DE:'EUR',F:'EUR',MI:'EUR',MC:'EUR',BR:'EUR',
   HE:'EUR',LS:'EUR',VI:'EUR',IR:'EUR',SW:'CHF',TO:'CAD',V:'CAD',AX:'AUD',SS:'CNY',SZ:'CNY',ST:'SEK',OL:'NOK',CO:'DKK',TA:'ILS',NS:'INR',BO:'INR',SI:'SGD',NZ:'NZD',SA:'BRL',MX:'MXN'};
 export function listingCurrency(symbol,known){
@@ -114,6 +115,35 @@ export function liveDataset(base,quotes,{currencyOf=()=>null,at=Date.now()}={}){
     live:{date:liveDate,prev,live,unchanged,missing,carried,quotedAt},
     priceNotes:[...(base.priceNotes||[]).filter(n=>!n.startsWith(basisLabel(basis))),
       'Live: today’s moves from live quotes (via Arcus, provider prices may be delayed) against the '+prev+' close, applied to the holdings used for '+prev+'. Listings not traded yet today count as 0%; US listings use pre-market moves before the US open. Non-US listings include today’s move in their currency against the dollar.']};
+}
+// J303 constituent closes, cached for 15 minutes per listing. Compare speed (owner, 2026-11-20): `many` asks for
+// J303_BATCH listings per request, four requests at a time, instead of one request each (~117 for J303). A failed
+// batch falls back to single requests for its listings, so an older server or one bad listing behaves as before.
+export function j303Fetchers({get,cache=new Map(),aborted=()=>false,now=()=>Date.now()}){
+  const fresh=(key,through)=>{const saved=cache.get(key);return saved&&now()-saved.at<900000&&(!through||saved.through===through||saved.data.points?.some(([d])=>d===through))?saved.data:null;};
+  const one=async path=>{
+    if(path.startsWith('j303?start='))return get(path);
+    const [key,through]=path.split('&through=');
+    const hit=fresh(key,through);if(hit)return hit;
+    const data=await get(path);cache.set(key,{at:now(),data,through});return data;
+  };
+  const many=async(entries,progress=()=>{})=>{
+    const keyOf=symbol=>'j303?'+new URLSearchParams({symbol}),out=new Map(),missing=[];
+    for(const [symbol,through] of entries){const hit=fresh(keyOf(symbol),through);if(hit)out.set(symbol,hit);else missing.push([symbol,through]);}
+    const chunks=[];for(let i=0;i<missing.length;i+=J303_BATCH)chunks.push(missing.slice(i,i+J303_BATCH));
+    let next=0,done=entries.length-missing.length;if(missing.length)progress(done,entries.length);
+    await Promise.all([0,1,2,3].map(async()=>{while(next<chunks.length){
+      const chunk=chunks[next++];
+      let packets;
+      try{packets=(await get('j303?'+new URLSearchParams({symbols:chunk.map(([s,t])=>s+'~'+t).join(',')}))).packets;
+        if(!Array.isArray(packets)||packets.length!==chunk.length||packets.some((p,i)=>p?.symbol!==chunk[i][0]))throw Error('J303 batch mismatch');}
+      catch(e){if(aborted())throw e;packets=[];for(const [symbol,through] of chunk)packets.push(await one('j303?'+new URLSearchParams({symbol,through})));}
+      chunk.forEach(([symbol,through],i)=>{cache.set(keyOf(symbol),{at:now(),data:packets[i],through});out.set(symbol,packets[i]);});
+      progress(done+=chunk.length,entries.length);
+    }}));
+    return entries.map(([symbol])=>out.get(symbol));
+  };
+  return {one,many};
 }
 // Phone-independent data adapter; prices only for the two selected holdings lists.
 export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgress=()=>{}}={}) {
@@ -193,13 +223,9 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
     },
     async load(manifest,ids,start,end,currency,basisOverride=null) {
       if(ids.includes('PORTFOLIO:J303')||(ids.includes('PORTFOLIO:SWIX')&&manifest.funds?.some(f=>f.id==='PORTFOLIO:J303'))){
-        const {loadJ303}=await import('./j303-source.mjs?v=satrix-20261119');
-        return loadJ303({manifest,ids,start,end,currency,onProgress,loadOther:(others,basis)=>this.load(manifest,others,start,end,currency,basis),get:async path=>{
-        if(path.startsWith('j303?start='))return get(path);
-        const [key,through]=path.split('&through='),saved=j303Cache.get(key);
-        if(saved&&Date.now()-saved.at<900000&&(!through||saved.through===through||saved.data.points?.some(([d])=>d===through)))return saved.data;
-        const data=await get(path);j303Cache.set(key,{at:Date.now(),data,through});return data;
-        }});
+        const {loadJ303}=await import('./j303-source.mjs?v=speed-20261120');
+        const {one,many}=j303Fetchers({get,cache:j303Cache,aborted:()=>controller.signal.aborted});
+        return loadJ303({manifest,ids,start,end,currency,onProgress,loadOther:(others,basis)=>this.load(manifest,others,start,end,currency,basis),get:one,getMany:many});
       }
       const run=generation, baseline=new Date(Date.parse(start)-14*86400000).toISOString().slice(0,10);
       if(!start || !end || start>end || Date.parse(end)-Date.parse(start)>1096*86400000)throw Error('Choose a period of at most three years.');
@@ -249,7 +275,7 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       const downloaded=new Map(), failures=[];
       async function batch(list) {
         let next=0,done=0;
-        await Promise.all([0,1].map(async()=>{
+        await Promise.all([0,1,2,3,4,5].map(async()=>{ // six at a time (was two): compare speed, 2026-11-20
           while(next<list.length) {
             if(run!==generation)throw Error('Data request cancelled');
             const symbol=list[next++];

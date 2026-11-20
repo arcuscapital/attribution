@@ -1,7 +1,14 @@
 import {J303,SWIX,buildIndexPath,buildSatrixPath,priceLookup} from './j303-core.mjs';
 import {tradingDay,iso,previous} from './rise-swix-core.mjs';
 import {periodBasis,basisLabel,holdingsReturnLevels,completedPrices} from './price-data.mjs';
-export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=()=>{},loadOther}){
+// Constituent closes: getMany (batched, cached by the caller) when available, else one request per listing.
+async function constituentPackets(symbols,required,get,getMany,onProgress){
+  if(getMany)return getMany(symbols.map(symbol=>[symbol,required.get(symbol)]),onProgress);
+  const packets=[];let cursor=0,done=0;
+  await Promise.all([...Array(8)].map(async()=>{while(cursor<symbols.length){const symbol=symbols[cursor++];packets.push(await get('j303?'+new URLSearchParams({symbol,through:required.get(symbol)})));onProgress(++done,symbols.length);}}));
+  return packets;
+}
+export async function loadJ303({get,getMany,manifest,ids,start,end,currency,onProgress=()=>{},loadOther}){
   const packet=await get(ids.includes(J303)?'j303?'+new URLSearchParams({start,end}):'j303'),model=packet.model;
   if(start<model.availableFrom)throw Error('J303 history starts '+model.availableFrom+'.');
   const report=ids.includes(SWIX)?await get('rise-swix'):null;
@@ -9,7 +16,7 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
   const baseline=previous(start),baskets=packet.baskets||[],useJ303=ids.includes(J303);
   const legacyNeeded=useJ303&&(!baskets.length||baskets[0].asOf>baseline);
   const final=tradingDay(end)?end:previous(end);
-  const required=new Map(),packets=[];
+  const required=new Map();
   const requireThrough=(symbol,day)=>{if(!required.has(symbol)||required.get(symbol)<day)required.set(symbol,day);};
   if(legacyNeeded){
     const last=baskets[0]?.asOf||final;
@@ -21,8 +28,7 @@ export async function loadJ303({get,manifest,ids,start,end,currency,onProgress=(
   }
   for(const p of swixRows)requireThrough(p.symbol,report.period.at(-1)>final?report.period.at(-1):final);
   const symbols=[...required.keys()];
-  let cursor=0,done=0;
-  await Promise.all([0,1,2,3].map(async()=>{while(cursor<symbols.length){const symbol=symbols[cursor++];packets.push(await get('j303?'+new URLSearchParams({symbol,through:required.get(symbol)})));onProgress(++done,symbols.length);}}));
+  const packets=await constituentPackets(symbols,required,get,getMany,onProgress);
   const paths=new Map(),price=priceLookup(packets);
   if(useJ303){
     const j303=buildSatrixPath(model,packets,end,baskets,baseline);

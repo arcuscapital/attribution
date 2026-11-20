@@ -8,6 +8,7 @@ import {previous,iso} from '../site/rise-swix-core.mjs';
 const DAY = 86400000;
 const SYMBOL = /^[A-Za-z0-9^][A-Za-z0-9.^=\-]{0,29}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+export const J303_BATCH = 30;
 const reply = (body, status=200) => Response.json(body, {status,headers:{'Cache-Control':'private, no-store'}});
 export function priceQuery(params) {
   const symbol=params.get('symbol'), start=params.get('start'), end=params.get('end');
@@ -20,6 +21,17 @@ export async function dataResponse(request,env,ctx={},fetcher=fetch,cache=global
   const url=new URL(request.url), route=url.pathname.split('/').at(-1);
   if(request.method!=='GET')return reply({error:'GET required'},405);
   if(route==='j303'){
+    // Compare speed (owner, 2026-11-20): many constituents in one request. Each saved packet is a separate
+    // KV read that is slow when cold, so reading them side by side here replaces ~117 browser round trips.
+    const list=url.searchParams.get('symbols');
+    if(list!==null){
+      const completed=previous(iso(Date.now()+7200000)),items=list.split(',').map(x=>x.split('~'));
+      if(!items.length||items.length>J303_BATCH||new Set(items.map(([s])=>s)).size!==items.length||
+        items.some(([s,t,...rest])=>rest.length||!/^[A-Z0-9-]+\.JO$/.test(s||'')||!DATE.test(t||'')||!Number.isFinite(Date.parse(t))||t>completed))
+        return reply({error:'Invalid J303 batch'},400);
+      try{return reply({packets:await Promise.all(items.map(([s,t])=>refreshArchivePrice(env.HOLDINGS_ARCHIVE,s,t,{fetcher})))});}
+      catch{return reply({error:'J303 closing prices unavailable'},503);}
+    }
     const symbol=url.searchParams.get('symbol');
     if(symbol){
       if(!/^[A-Z0-9-]+\.JO$/.test(symbol))return reply({error:'Invalid JSE listing'},400);
