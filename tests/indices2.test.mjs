@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {createOnlineSource} from '../site/online.mjs';
-test('Indices 2 is last in the benchmark picker and omits IWM/IWV',()=>{
+test('Indices 2 is last in the benchmark picker; IWV (Russell 3000) joined 2026-11-24, IWM stays out',()=>{
  const app=fs.readFileSync('site/app.mjs','utf8');
  assert(app.includes('SOX ETF proxy'));
  const start=app.indexOf('const FUND_THEMES'),end=app.indexOf('function createFundPicker',start);
  const ctx=vm.createContext({});vm.runInContext(app.slice(start,end),ctx);
- for(const id of 'QQQ RSP XLU IVW SLYV XLE XLY XLB XLK XLI XLF XLP XLV MDY VONE XLC SOXX IBIT'.split(' '))assert.equal(ctx.fundTheme({id},'benchmark'),'Indices 2');
- assert.notEqual(ctx.fundTheme({id:'IWM'},'benchmark'),'Indices 2');assert.notEqual(ctx.fundTheme({id:'IWV'},'benchmark'),'Indices 2');
+ for(const id of 'QQQ RSP XLU IVW SLYV XLE XLY XLB XLK XLI XLF XLP XLV MDY VONE IWV XLC SOXX IBIT'.split(' '))assert.equal(ctx.fundTheme({id},'benchmark'),'Indices 2');
+ assert.notEqual(ctx.fundTheme({id:'IWM'},'benchmark'),'Indices 2');
+ assert.equal(ctx.fundTheme({id:'IWV'},'portfolio'),'Market benchmarks','as a portfolio IWV sits with VOO and IJR');
  assert.equal(ctx.fundTheme({id:'QQQ'},'portfolio'),'Market benchmarks');
  assert(app.includes("'Other ETFs',...(id==='benchmark'?['Indices 2']:[])"));
 });

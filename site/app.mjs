@@ -256,7 +256,7 @@ function setup(m) {
 const FUND_THEMES = [
   ['Portfolios',[]],
   ['AI','BAI WCLD AIQ ARTY CHAT IGPT WTAI THNQ IVES IVEP AIS LRNZ JHAI GPT'.split(' ')],
-  ['Market benchmarks','QQQ RSP VOO QQEW IJR'.split(' ')],
+  ['Market benchmarks','QQQ RSP VOO QQEW IJR IWV'.split(' ')],
   ['Robotics','ARKQ BOTT BOTZ HUMN KOID ROBO'.split(' ')],
   ['Semiconductors & photonics','SOXX DISK LAZR'.split(' ')],
   ['Space','ARKX ROKT UFO WARP'.split(' ')],
@@ -269,7 +269,7 @@ const FUND_THEMES = [
   ['Growth & innovation','ARKK ARKW LOUP XT TEK FFND NITE'.split(' ')],
   ['Factors & strategies','MTUM VLUE GRNY FCTE FFLS TIME'.split(' ')],
 ];
-const INDEX2 = 'QQQ RSP XLU IVW SLYV XLE XLY XLB XLK XLI XLF XLP XLV MDY VONE XLC SOXX IBIT'.split(' ');
+const INDEX2 = 'QQQ RSP XLU IVW SLYV XLE XLY XLB XLK XLI XLF XLP XLV MDY VONE IWV XLC SOXX IBIT'.split(' ');
 function fundTheme(fund, picker) {
   if(picker==='benchmark' && INDEX2.includes(fund.id))return 'Indices 2';
   if (fund.id.startsWith('PORTFOLIO:')) return 'Portfolios';
