@@ -112,6 +112,34 @@ npx --yes wrangler@4.129.0 kv key put gics:v1 --path C:\Users\Skrom\ArcusAttribu
 ```
 Each piece can be rolled back on its own. Rolling back everything: `rollback c508e1f6…` plus the three data restores above (use `gics-v1-before-20261125.json` for the map).
 
+## Third release, same day: "fix all open"
+
+Owner: "fix all open git deploy". Portfolio Analysis side of it here; the Arcus holdings collector side (Invesco listings, Kosdaq/TSX Venture, ARK SEDOL rows, NITE/Global X names, secondary lines) is in Watchlists `docs/holdings-foreign-listings-release-20261125.md`, branch `claude/holdings-foreign-listings`, holdings version ce3ed96f.
+
+| Item | Value |
+|---|---|
+| Commit | **`efafadedb4e5532e91c82d781cfd01506b3178ed`** on `73ee465` |
+| Deploy | 2026-11-25T12:16:33Z, version **8e6d3bc5-0e25-4737-a99c-6ca43d026e3b**, deployment 6a05ab53-a71d-427d-bfc3-9c35a54ea795, tag efafade. Replaces a65ff1ca (confirmed live just before) |
+| KV `gics:v1` | 2026-11-25T12:45:24Z, **3,280** sectors: the listings resolved by today's collector refresh (285A.T, NXT.AX, 9660.HK, 0700.HK, 3690.HK, HO.PA, AM.PA, 688256.SS …), the iShares CNYA/EEMS/ECNS/SCJ files, ARI/SSW/NPH.JO and ORSTED.CO/108490.KQ from IXUS; every key of the 3,267 version kept; Bloomberg values unchanged (checked). Before: `gics-v1-20261125-listings.json`; now `gics-v1-20261125-final.json` (an intermediate 3,278 write at 12:41:15Z) |
+
+- `site/arcus-source.mjs`: `allocationSnapshot` records the candidates Arcus already looked up and rejected for an unresolved holding (`rejected`); `resolveArchiveListings` never reuses a bare saved listing in that list (the 28 Oct archive gave NEXTDC "NXT" = Nextpower). Suffixed saved listings stay usable because Arcus's strict name check also rejects some correct ones (DUERR AG DUE.DE). Cache keys `guard-20261125`.
+- `desktop/arcus_attribution/sources.py` (ARK): a bare ticker beside a 7-character SEDOL is never mapped as a US listing. Invesco rows in the desktop publisher still have no exchange; the page guard above and `tools/check-archive-listings.mjs` cover them.
+- `tools/gics-from-issuers.mjs`: optional iShares CNYA (China A), EEMS (EM small cap), ECNS (China small cap) and SCJ (Japan small cap) files as extra GICS sources; a suffixed listing matched by symbol keeps its sector when the issuer uses an old name (IEIT Systems = Inspur, 000977.SZ).
+- Live, owner's Brave (`app.mjs?v=guard-20261125`), One Day 24 Nov:
+  - IGPT vs NITE: "No price" is only Keppel DC REIT (Yahoo's 23 Nov gap; it was 8 IGPT names), and NITE is fully classified (SpaceX SPCX, AMD and MGM priced).
+  - ARKX vs UFO: "No price" was only UFO's Ispace and Contec, and both resolved minutes later (9348.T, Kosdaq).
+  - Owner's selection (Rise vs Swix, ZAR, Live) restored each time.
+- Tests: `node --test tests/*.test.mjs` 251/251 (guard case added; it fails without the code change); Python 22/22 (ARK SEDOL test added).
+
+### Rollback (third)
+```powershell
+cd C:\Users\Skrom\ArcusGicsIssuers
+$env:CLOUDFLARE_ACCOUNT_ID='5695cae2becf35e049eb5df3e2849ae2'
+$env:XDG_CONFIG_HOME='C:/Users/Skrom/AppData/Local/ArcusAttribution/cloudflare-auth'
+npx wrangler@4.129.0 rollback a65ff1ca-3ef6-4a0c-9479-229f5abd650f --config wrangler.jsonc
+npx --yes wrangler@4.129.0 kv key put gics:v1 --path C:\Users\Skrom\ArcusAttributionBackups\gics-v1-20261125-listings.json --namespace-id 98da8aed88f9416d84a9497daed06dc5 --remote
+```
+
 ## Unknown GICS per fund, listed holdings only (% of fund)
 
 | Fund | Holdings used | Unknown before (%) | Unknown after (%) | Biggest left |
