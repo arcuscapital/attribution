@@ -39,8 +39,11 @@ function asset(p){
   const knownPrivate=(identity==='PPOPENAIC'&&/^OPENAI GROUP PBC SERIES C$/i.test(p.name||'')) ||
     (identity==='PPKALSHIC'&&/^KALSHI INC\.?$/i.test(p.name||''));
   if(knownPrivate || /^(?:private|unlisted)(?: equity| company)?$/i.test(p.asset||'') || /\bprvt\b|\bprivate\b|\bunlisted\b/i.test(p.name||''))return 'Private';
-  if(p.corporateAction || /\bCVR\b|acquired for cash/i.test(description))return 'Corporate action';
-  if(/^FX$/i.test(p.asset||'') || /\bTRS\s*:|\b(?:futures?|swaps?|options?|warrants?|derivatives?)\b|\bEMINI\b|\bWTS$/i.test(description))return 'Derivative';
+  // State Street lists an acquired company's pending rights as "CONTRA <company>" (XLV CONTRA HOLOGIC INCORPO, XLP CONTRA WALGREENS BOOTS).
+  if(p.corporateAction || /\bCVR\b|acquired for cash/i.test(description) || /^CONTRA\b(?!\s+FUTURE)/i.test(p.name||''))return 'Corporate action';
+  // Sector SPDR index futures carry a CME contract code and a month-year name (XLV IXCZ6 "XAV HEALTH CARE DEC26"), 2026-11-25.
+  const datedFuture=/\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\d{2}$/i.test(p.name||'') && /^[A-Z]{2,4}[FGHJKMNQUVXZ]\d{1,2}$/.test(p.ticker||'');
+  if(datedFuture || /^FX$/i.test(p.asset||'') || /\bTRS\s*:|\b(?:futures?|swaps?|options?|warrants?|derivatives?)\b|\bEMINI\b|\bWTS$/i.test(description))return 'Derivative';
   return p.asset||'Equity';
 }
 // Asset kind of a position or result row (Cash, Money Market, Private, Corporate action, Derivative, or its own).

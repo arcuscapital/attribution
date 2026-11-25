@@ -5,7 +5,7 @@ import {compare} from '../site/engine.mjs';
 import {normalizeArcusPacket} from '../site/arcus-source.mjs';
 
 test('archive listing recovery preserves current dates and weights and excludes non-listed positions',async()=>{
- const {resolveArchiveListings,isNonListed,allocationSnapshot}=await import('../site/arcus-source.mjs');
+ const {resolveArchiveListings,isNonListed,allocationSnapshot,assetKind}=await import('../site/arcus-source.mjs');
  const snapshot={asOf:'2026-10-27',positions:[{id:'new',ticker:'ABC',name:'ABC Inc',weight:.7},{id:'wrong',ticker:'ABC',name:'Other business',weight:.1},{id:'private',ticker:'ABC',name:'ABC Inc Prvt',asset:'Private',weight:.2}]};
  resolveArchiveListings(snapshot,{asOf:'2026-10-01',positions:[{id:'ABC',symbol:'ABC',ticker:'ABC',name:'ABC Corporation',weight:1}]});
  assert.equal(snapshot.positions[0].symbol,'ABC');assert.equal(snapshot.positions[0].weight,.7);assert.equal(snapshot.asOf,'2026-10-27');assert(!snapshot.positions[1].symbol);assert(!snapshot.positions[2].symbol);
@@ -17,6 +17,12 @@ test('archive listing recovery preserves current dates and weights and excludes 
  assert(isNonListed({name:'GOLDMAN FS TRSY OBLIG INST 468'}));
  assert(isNonListed({name:'BRERA HOLDINGS PLC WTS'}));
  assert(isNonListed({name:'US Dollar',ticker:'$USD'}));
+ // State Street sector SPDR rows, 23 Nov 2026: index futures and pending acquisition rights are not listed shares.
+ for(const [ticker,name] of [['IXCZ6','XAV HEALTH CARE DEC26'],['IXSZ6','XAU UTILITIES DEC26'],['IXPZ6','XAE ENERGY DEC26'],['IXYZ6','XAY CONS DISCRET DEC26']])
+   assert.equal(assetKind({ticker,name,asset:''}),'Derivative',name);
+ for(const [ticker,name] of [['2602335D','CONTRA HOLOGIC INCORPO'],['-','CONTRA WALGREENS BOOTS']])assert.equal(assetKind({ticker,name,asset:''}),'Corporate action',name);
+ for(const [ticker,name] of [['CTRA','COTERRA ENERGY INC'],['DECK','DECKERS OUTDOOR CORP'],['IXCZ6','HEALTH CARE INDEX'],['ABC','XAV HEALTH CARE DEC26']])
+   assert(!isNonListed({ticker,name,asset:''}),name);
  const r=allocationSnapshot('ETF',{asOf:'2026-10-27',positions:[{ticker:'OLD',name:'Old Inc',weight:100}]},[{id:'old',rawSymbol:'OLD',name:'Old Inc (acquired for cash)',sourceName:'Old Inc',corporateAction:{kind:'cash-acquisition'}}]);
  assert(isNonListed(r.positions[0]));assert.equal(r.positions[0].symbol,null);
 });
