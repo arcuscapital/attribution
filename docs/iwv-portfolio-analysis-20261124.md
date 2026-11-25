@@ -38,3 +38,14 @@ npx wrangler@4.129.0 deployments status --config wrangler.jsonc
 ```
 
 Rolling back only Attribution is harmless: IWV would then sit under "Other ETFs" in both pickers if Arcus still lists it.
+
+## First live IWV comparison (25 Nov 2026, ~07:44Z)
+
+Run in the owner's signed-in Brave with the page's own `online.mjs` (`createOnlineSource().load`), exactly as the Compare button does: portfolio **QQQ**, benchmark **IWV**, 17–24 Nov 2026, USD, total return. IWV was still partly resolved (977 of 2,581 positions had no identity yet; the nightly holdings run finishes them).
+
+| Run | Time | Price requests | Failures |
+|---|---|---|---|
+| First (cold prices) | **45.1 s** | 1,636 | 0 |
+| Second (cached prices) | **12.1 s** | 1,636 | 0 (identical results: 26,176 levels) |
+
+IWV snapshot: 2,584 weighted positions dated 2026-11-23. Cloudflare cost for both runs together (07:43:30–07:56Z): Arcus `arcus-watchlists` (bridge) 3,282 requests, 4,514 CPU-ms (p50 1.2 ms, p99 6.9 ms); `arcus-attribution` 3,213 requests, 11,475 CPU-ms (p50 3.4 ms, p99 6.6 ms), 1,639 Yahoo subrequests (first run only); `arcus-etf-holdings` 4 requests, 194 CPU-ms (largest 172 ms, the IWV packet). No errors. About 8k CPU-ms and 1,600 requests per account per IWV comparison. Once all IWV positions are identified, expect about 2,500 price requests, so roughly 70 s cold and 18 s warm (scaled, not measured). No phone or emulator test.
