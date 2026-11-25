@@ -226,3 +226,6 @@ npx --yes wrangler@4.129.0 kv key put gics:v1 --path C:\Users\Skrom\ArcusAttribu
 | MARLOW | PA archive 2026-10-06 | 0.0 | 0.0 |  |
 | XBI | PA archive 2026-10-26 | 80.8 | 0.0 | 2200963D OMNIAB INC 12.5 EARNOUT 0.00%; 2200964D OMNIAB INC 15.00 EARNOUT 0.00% |
 | FFLS | PA archive 2026-10-06 | 12.4 | -2.5 | ARCC US(ARCC) ARES CAPITAL COR -2.45% |
+## Currency follow-up: deployed and rolled back (owner: keep everything except the Global X work)
+
+At 13:25:40Z version 5c0e4753 (commit 06f0770) added TRY, PLN, THB, IDR, MYR, PHP, SAR, CZK and HUF to the page's FX list (for Aselsan in Global X SHLD). The owner did not want it: rolled back at **2026-11-25T13:27:39Z** to **8e6d3bc5** (`wrangler rollback`), commit reverted. `gics:v1` was put back to the 3,280 version (`gics-v1-20261125-final.json`) at 13:27:57Z; the 8 sectors added from the Global X refresh (3,288 version, `gics-v1-20261125-globalx.json`) are not live. Live state is as recorded in the third release above.
