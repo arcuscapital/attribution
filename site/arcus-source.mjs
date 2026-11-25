@@ -29,21 +29,27 @@ const portfolios={IBKR:'ibkr',MARLOW:'marlow',EASYAI:'easyai',EASYGE:'easyge'};
 const validDate=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'');
 const json=async response=>{if(!response.ok)throw Error('Arcus source unavailable');return response.json();};
 const cash=p=>/^(cash|currency)$/i.test(p.asset||'') || /^(USD|TWD|EUR|GBP|JPY|ZAR) CASH$/i.test(p.name||'') ||
-  /^(?:(?:US|CANADIAN|AUSTRALIAN|HONG KONG|(?:NEW )?TAIWAN) DOLLARS?|SWISS FRANC|EURO|(?:SOUTH )?KOREAN WON|JAPANESE YEN|BRITISH STERLING POUND|GREAT BRITISH POUND|SWEDISH KRONA|SOUTH AFRICAN RAND|TURKISH LIRA|ISRAELI SHEKEL|CHINESE YUAN RENMINBI|OTHER ASSETS AND LIABILITIES|NET CURRENT ASSETS|OTHER PAYABLE & RECEIVABLES|Receivables\/Payables|Cash & Other)$/i.test(p.name||'');
+  /^(?:(?:US|U\.S\.|CANADIAN|AUSTRALIAN|HONG KONG|(?:NEW )?TAIWAN) DOLLARS?|US DOLLAR BROKER|SWISS FRANC|EURO|(?:SOUTH )?KOREAN? WON|JAPANESE YEN|BRITISH (?:STERLING )?POUNDS?|POUND STERLING|GREAT BRITISH POUND|SWEDISH KRON[AE]|SOUTH AFRICAN RAND|TURKISH LIRA|ISRAELI SHEKEL|CHINESE YUAN(?: RENMINBI)?|OTHER ASSETS AND LIABILITIES|NET CURRENT ASSETS|OTHER PAYABLE & RECEIVABLES|Receivables\/Payables|Cash & Other|CASH|CASH (?:AND|&|&amp;) (?:CASH )?EQUIVALENTS)$/i.test(p.name||'');
+// Listed companies whose names contain a derivative or rights word (owner, 2026-11-25: Option Care Health was read as
+// a derivative and CVR Energy as a corporate action, so their returns counted as 0 %).
+const namedCompany=p=>/^(?:OPTION CARE HEALTH|CVR (?:ENERGY|PARTNERS))\b/i.test(p.name||'');
 function asset(p){
   const description=(p.asset||'')+' '+(p.name||'');
   if(cash(p))return 'Cash';
-  if(/money market|cash collateral|short.term reserves|market liquidity|treasury.*(?:cash|csh) (?:mgmt|mgt)|\bMKTLIQ\b|\bSLBBH1142\b/i.test(description+' '+p.ticker) || /^(?:GOLDMAN FS TRSY OBLIG INST 468|DREYFUS TRSY OBLIG CASH MGMT CL INS)$/i.test(p.name||''))return 'Money Market';
+  // Government money-market funds held as cash (FGXXX "First American Government Obligations Fund" / "... Government
+  // Obligs X", SALXX "... U.S. GOVERNMENT MMKT ...", iShares XTSLA "BLK CSH FND TREASURY SL AGENCY", asset "Cash fund"), 2026-11-25.
+  if(/money market|cash collateral|short.term reserves|market liquidity|treasury.*(?:cash|csh) (?:mgmt|mgt)|\bMKTLIQ\b|\bSLBBH1142\b|\bMMKT\b|\bgovernment oblig(?:ation)?s\b|\bCSH FND\b/i.test(description+' '+p.ticker) || /^cash fund$/i.test(p.asset||'') || /^(?:GOLDMAN FS TRSY OBLIG INST 468|DREYFUS TRSY OBLIG CASH MGMT CL INS)$/i.test(p.name||''))return 'Money Market';
   // ARK issuer identities, verified against its Q3 2026 private-company disclosure.
   const identity=p.identity||String(p.id||'').split(':').at(-1);
   const knownPrivate=(identity==='PPOPENAIC'&&/^OPENAI GROUP PBC SERIES C$/i.test(p.name||'')) ||
     (identity==='PPKALSHIC'&&/^KALSHI INC\.?$/i.test(p.name||''));
   if(knownPrivate || /^(?:private|unlisted)(?: equity| company)?$/i.test(p.asset||'') || /\bprvt\b|\bprivate\b|\bunlisted\b/i.test(p.name||''))return 'Private';
   // State Street lists an acquired company's pending rights as "CONTRA <company>" (XLV CONTRA HOLOGIC INCORPO, XLP CONTRA WALGREENS BOOTS).
-  if(p.corporateAction || /\bCVR\b|acquired for cash/i.test(description) || /^CONTRA\b(?!\s+FUTURE)/i.test(p.name||''))return 'Corporate action';
+  const company=namedCompany(p);
+  if(p.corporateAction || (!company && /\bCVR\b|acquired for cash/i.test(description)) || /^CONTRA\b(?!\s+FUTURE)/i.test(p.name||''))return 'Corporate action';
   // Sector SPDR index futures carry a CME contract code and a month-year name (XLV IXCZ6 "XAV HEALTH CARE DEC26"), 2026-11-25.
   const datedFuture=/\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\d{2}$/i.test(p.name||'') && /^[A-Z]{2,4}[FGHJKMNQUVXZ]\d{1,2}$/.test(p.ticker||'');
-  if(datedFuture || /^FX$/i.test(p.asset||'') || /\bTRS\s*:|\b(?:futures?|swaps?|options?|warrants?|derivatives?)\b|\bEMINI\b|\bWTS$/i.test(description))return 'Derivative';
+  if(datedFuture || /^FX$/i.test(p.asset||'') || (!company && /\bTRS\s*:|\b(?:futures?|swaps?|options?|warrants?|derivatives?)\b|\bEMINI\b|\bWTS$/i.test(description)))return 'Derivative';
   return p.asset||'Equity';
 }
 // Asset kind of a position or result row (Cash, Money Market, Private, Corporate action, Derivative, or its own).

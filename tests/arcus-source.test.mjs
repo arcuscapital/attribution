@@ -23,6 +23,18 @@ test('archive listing recovery preserves current dates and weights and excludes 
  for(const [ticker,name] of [['2602335D','CONTRA HOLOGIC INCORPO'],['-','CONTRA WALGREENS BOOTS']])assert.equal(assetKind({ticker,name,asset:''}),'Corporate action',name);
  for(const [ticker,name] of [['CTRA','COTERRA ENERGY INC'],['DECK','DECKERS OUTDOOR CORP'],['IXCZ6','HEALTH CARE INDEX'],['ABC','XAV HEALTH CARE DEC26']])
    assert(!isNonListed({ticker,name,asset:''}),name);
+ // 25 Nov 2026: listed companies whose names hold a derivative/rights word stay listed; real rights stay rights.
+ for(const [ticker,name] of [['OPCH','OPTION CARE HEALTH INC'],['OPCH','Option Care Health Inc'],['CVI','CVR ENERGY INC'],['UAN','CVR PARTNERS LP']])
+   assert.equal(assetKind({ticker,name,asset:'Equity'}),'Equity',name);
+ for(const [ticker,name] of [['AKE','AKERO THERAPEUTICS CVR'],['INH','INHIBRX INC CVR']])assert.equal(assetKind({ticker,name,asset:'Equity'}),'Corporate action',name);
+ assert.equal(assetKind({ticker:'X',name:'CALL OPTION ON NVDA',asset:''}),'Derivative');
+ // Currency and money-market lines issuers list among equities.
+ for(const name of ['CHINESE YUAN','SOUTH KOREA WON','BRITISH POUNDS','POUND STERLING','SWEDISH KRONE','U.S. Dollar','US DOLLAR BROKER','Cash','CASH AND CASH EQUIVALENTS','CASH &amp; EQUIVALENTS'])
+   assert.equal(assetKind({ticker:'',name,asset:''}),'Cash',name);
+ for(const [ticker,name,a] of [['FGXXX','First American Government Obligations Fund 12/01/2031',''],['FGXXX','First American Funds Inc X Government Obligations Fund',''],['FGXXX','First American Government Obligs X',''],['SALXX','STATE STREET INST U.S. GOVERNMENT MMKT ADMN CLASS',''],['XTSLA','BLK CSH FND TREASURY SL AGENCY','Cash fund']])
+   assert.equal(assetKind({ticker,name,asset:a}),'Money Market',name);
+ for(const [ticker,name] of [['DG','DOLLAR GENERAL CORP'],['DLTR','DOLLAR TREE INC'],['STRL','STERLING INFRASTRUCTURE'],['ARE','ALEXANDRIA REAL ESTATE EQUITIES RE'],['CASS','CASS INFORMATION SYSTEMS']])
+   assert(!isNonListed({ticker,name,asset:'Equity'}),name);
  const r=allocationSnapshot('ETF',{asOf:'2026-10-27',positions:[{ticker:'OLD',name:'Old Inc',weight:100}]},[{id:'old',rawSymbol:'OLD',name:'Old Inc (acquired for cash)',sourceName:'Old Inc',corporateAction:{kind:'cash-acquisition'}}]);
  assert(isNonListed(r.positions[0]));assert.equal(r.positions[0].symbol,null);
 });

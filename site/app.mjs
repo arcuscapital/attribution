@@ -2,7 +2,7 @@ import {basisLabel} from './price-data.mjs?v=returns-20261116';
 import { dateRange, drawReturnChart, intradaySeries, createGroupedTable, renderSectorWeights, collapsible } from './ranges.mjs?v=phone-20261119';
 import { groupByGics, UNKNOWN_GICS, gicsWeights, gicsSector, GICS_SECTORS, completedCalendar, shortNames } from './rise-swix-core.mjs?v=phone-20261119';
 import { createSessionGuard } from './session.mjs';
-import { isNonListed, assetKind, primaryThemePath } from './arcus-source.mjs?v=futures-20261125';
+import { isNonListed, assetKind, primaryThemePath } from './arcus-source.mjs?v=listings-20261125';
 const $ = (id) => document.getElementById(id);
 // Return % graph and GICS sector weights can be hidden with an arrow; both open on every load (owner, 2026-11-15).
 collapsible($('return-chart'), 'Return % graph');
@@ -1421,7 +1421,7 @@ $("download").addEventListener("click", async () => {
 
 // An older Arcus bridge may not yet allow the online modules during rollout/rollback.
 try {
-  const {createOnlineSource}=await import('./online.mjs?v=futures-20261125');
+  const {createOnlineSource}=await import('./online.mjs?v=listings-20261125');
   online = createOnlineSource({onUnauthorized:()=>session.lock(),onProgress:(done,total)=>{if(onlineMode) $('run').textContent='Checking prices '+done+' / '+total;}});
 } catch {
   $('connect-saved').disabled=true;

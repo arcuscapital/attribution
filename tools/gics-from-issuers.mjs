@@ -180,7 +180,9 @@ for (const fund of [...snaps.keys(), ...archiveOnly.map(a => a.fund)]) {
       if (secs.size === 1 && byName[0].sector !== viaTicker) { propose(key, byName[0].sector, byName[0].file.replace('.csv', '') + ' name', r.name); ixLog.name.push(`${fund} ${key} ${r.name} = ${byName.map(x => x.name + ' ' + x.sym).join(' / ')} -> ${byName[0].sector}${viaTicker ? ' (ticker alone gave ' + viaTicker + ')' : ''}`); }
       continue;
     }
-    if (gicsSector(r, current.sectors) !== UNKNOWN_GICS) continue;
+    // Known by its own listing only: the page's bare-ticker fallback can hide a gap (IGPT NEXTDC NXT.AX would read as
+    // Nextpower through "NXT").
+    if ([r.id, r.symbol].some(k => k && (current.sectors[String(k).toUpperCase()] || current.sectors[String(k).toUpperCase().replace(/[/.](?=[A-Z]$)/, '-')]))) continue;
     const hit = r.symbol ? ixBySym.get(key) : null;
     if (hit) {
       if (nameMatches(r.name, hit.name) || nameMatches(hit.name, r.name) || r.name.split(/\s+/)[0].toUpperCase().replace(/[^A-Z0-9]/g, '') === hit.name.split(/\s+/)[0].toUpperCase().replace(/[^A-Z0-9]/g, '')) { for (const k of [key, extra]) propose(k, hit.sector, hit.file.replace('.csv', '') + ' symbol', r.name); ixLog.symbol.push(`${fund} ${key} ${r.name} = ${hit.name} -> ${hit.sector}`); }

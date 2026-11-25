@@ -1,4 +1,4 @@
-import {normalizeArcusPacket,resolveArchiveListings,resolveKnownListings,isNonListed} from './arcus-source.mjs?v=futures-20261125';
+import {normalizeArcusPacket,resolveArchiveListings,resolveKnownListings,isNonListed} from './arcus-source.mjs?v=listings-20261125';
 import {completedPrices,valuationPrices,closureMarket} from './price-data.mjs?v=jse-20261120';
 import {periodBasis,basisLabel} from './price-data.mjs';
 import {driftHoldings} from './holdings-drift.mjs';
