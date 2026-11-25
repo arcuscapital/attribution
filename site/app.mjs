@@ -828,7 +828,8 @@ function tableColumns() {
   return columns.flatMap(c => c[0] === 'weightB' && trade?.on ? [c, ['newWeight', 'Avg % weight · New']] : c[0] === 'ctrB' ? [c, ...extra] : [c]);
 }
 const tableGroups = () => columnGroups.map(([label, keys]) => [keys[0]==='returnA'&&result?.returnBasis?basisLabel(result.returnBasis)+' (%)':label,keys]).map(([name, keys]) => keys[0] === 'weightA' && trade?.on ? [name, [...keys, 'newWeight']] : [name, keys]);
-// GICS sectors: the Bloomberg list for the Arcus shares, plus each JSE share's sector from the Rise vs Swix report.
+// GICS sectors: the Bloomberg list for the Arcus shares, issuer holdings files for other shares (KV gics:v1,
+// owner 2026-11-25: IWV showed many Unknown GICS), plus each JSE share's sector from the Rise vs Swix report.
 function sectorList() {
   const base = manifest?.gics?.sectors || {};
   if (!jseSectors) return base;
@@ -1080,7 +1081,7 @@ function renderGicsTable() {
   view.grid.render(value);
   const unknown = value.groups.find(g => g.name === UNKNOWN_GICS)?.children.length || 0;
   view.note.textContent = 'Port = ' + port + ' · Bmrk = ' + bench + ' · ' + (options.start || '') + ' to ' + (options.end || '') + ' · ' + (options.currency || '') + ' · grouped by GICS sector';
-  view.foot.textContent = 'GICS sectors from Bloomberg for the Arcus share list' + (manifest?.gics?.asOf ? ' (' + manifest.gics.asOf + ')' : '') + '. '
+  view.foot.textContent = 'GICS sectors from Bloomberg for the Arcus share list and from the funds’ own holdings files (iShares, State Street) for other shares' + (manifest?.gics?.asOf ? ' (' + manifest.gics.asOf + ')' : '') + '. '
     + (unknown ? unknown + (unknown === 1 ? ' holding has' : ' holdings have') + ' no GICS sector (cash, funds, private or not on the list) and ' + (unknown === 1 ? 'is' : 'are') + ' under Unknown GICS. ' : '')
     + 'Sector returns are contribution over weight on each side; the first row uses the headline returns. Italic returns are for shares that side does not hold: the share’s own return, for reference, with no weight or contribution. Swipe horizontally for more columns.';
   view.panel.hidden = false;
