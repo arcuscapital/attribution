@@ -17,7 +17,7 @@ import {pathToFileURL, fileURLToPath} from 'node:url';
 const DIR = process.argv[2];
 if (!DIR) throw Error('Usage: node tools/gics-from-issuers.mjs <data-dir>');
 const PA = fileURLToPath(new URL('../site/', import.meta.url)).replace(/\\/g, '/');
-const {allocationSnapshot, isNonListed} = await import(pathToFileURL(PA + 'arcus-source.mjs'));
+const {allocationSnapshot, isNonListed, resolveArchiveListings} = await import(pathToFileURL(PA + 'arcus-source.mjs'));
 const {gicsSector, UNKNOWN_GICS, GICS_SECTORS} = await import(pathToFileURL(PA + 'rise-swix-core.mjs'));
 const read = f => JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
 
@@ -60,9 +60,12 @@ for (const f of funds) {
   let b; try { b = JSON.parse(f.body || 'null'); } catch { b = null; }
   if (!b?.allocation?.positions?.length) continue;
   try {
-    const snap = allocationSnapshot(f.symbol, b.allocation, b.positions || [], index);
-    // carry the member (identity) for each position so unresolved rows can be keyed by their candidate
-    snaps.set(f.symbol, {snap, alloc: b.allocation, members: b.positions || []});
+    // As the page does: reuse a listing the PA saved archive already verified (same ticker + name), e.g. ROBO DUERR AG -> DUE.DE.
+    const rawIds = allocationSnapshot(f.symbol, b.allocation, b.positions || [], index).positions.map(p => p.id);
+    const snap = resolveArchiveListings(allocationSnapshot(f.symbol, b.allocation, b.positions || [], index), archive.find(a => a.fund === f.symbol));
+    // carry the member (identity) for each position so unresolved rows can be keyed by their candidate; rawIds keep
+    // the fund:identity id a row has if the archive match ever stops applying (a newer archive, a renamed holding)
+    snaps.set(f.symbol, {snap, rawIds, alloc: b.allocation, members: b.positions || []});
   } catch (e) { console.error('snapshot failed', f.symbol, e.message); }
 }
 // Funds only in the PA saved archive (no Arcus allocation): IJR, IBB, IYK, IYT, KRE, XBI, ...
@@ -83,9 +86,9 @@ const propose = (key, sector, source, name) => {
 // (fund:identity, never shared with another company) plus, for US-only funds, the US ticker it will resolve to.
 const US_ONLY = new Set(['IWV', 'MTUM', 'VLUE', 'SOXX', 'ITA', 'MDY', 'GRNY', 'WELD', 'CANC', 'XLU', 'XLE', 'XLY', 'XLB', 'XLK', 'XLI', 'XLF', 'XLP', 'XLV', 'XLC']);
 function keysFor(fund, i) {
-  const {snap, alloc, members} = snaps.get(fund);
+  const {snap, rawIds, alloc, members} = snaps.get(fund);
   const row = snap.positions[i], p = alloc.positions[i];
-  if (row.symbol) return [row.symbol];
+  if (row.symbol) return [row.symbol, ...(rawIds[i] !== row.id && !US_ONLY.has(fund) ? [rawIds[i]] : [])];
   // PA reads some company names as non-listed (OPTION CARE HEALTH = "option", CVR ENERGY = "CVR"); the issuer's own
   // Equity label keeps them, but rights, escrows and private lines stay out.
   const issuerEquity = p.asset === 'Equity' && !/\bCVR$|\bCVR\b.*\bRIGHTS?\b|\bCONTRA\b|\bPRVT\b|\bESCROW\b|\bVESTING\b|\bEARNOUT\b/i.test(p.name || '');
@@ -155,8 +158,17 @@ const knownNow = k => proposals.has(k) || current.sectors[k] || current.sectors[
 const ixLog = {symbol: [], symbolNameMismatch: [], name: [], nameAmbiguous: []};
 for (const fund of [...snaps.keys(), ...archiveOnly.map(a => a.fund)]) {
   const rows = snaps.get(fund)?.snap.positions || archive.find(a => a.fund === fund)?.positions || [];
-  for (const r of rows) {
+  for (const [ri, r] of rows.entries()) {
     if (isNonListed(r)) continue;
+    const rawId = snaps.get(fund)?.rawIds?.[ri], extra = rawId && rawId !== r.id && !US_ONLY.has(fund) ? rawId : null;
+    // A bare symbol taken from the PA saved archive for a foreign share can be another company's US ticker
+    // (IGPT NEXTDC -> NXT Nextpower, Nemetschek -> NEM Newmont, Dassault -> DSY): key only the row's own id then.
+    if (extra && !String(r.symbol).includes('.')) {
+      if (knownNow(String(extra).toUpperCase())) continue;
+      const byName = ixus.filter(x => nameMatches(r.name, x.name)), secs = new Set(byName.map(x => x.sector));
+      if (secs.size === 1) { propose(extra, byName[0].sector, byName[0].file.replace('.csv', '') + ' name', r.name); ixLog.name.push(`${fund} ${extra} ${r.name} (archive listing ${r.symbol} not keyed) = ${byName[0].name} -> ${byName[0].sector}`); }
+      continue;
+    }
     if (!r.symbol && (!String(r.id).includes(':') || US_ONLY.has(fund))) continue;
     const key = String(r.symbol || r.id).toUpperCase();
     if (knownNow(key)) continue;
@@ -171,13 +183,13 @@ for (const fund of [...snaps.keys(), ...archiveOnly.map(a => a.fund)]) {
     if (gicsSector(r, current.sectors) !== UNKNOWN_GICS) continue;
     const hit = r.symbol ? ixBySym.get(key) : null;
     if (hit) {
-      if (nameMatches(r.name, hit.name) || nameMatches(hit.name, r.name) || r.name.split(/\s+/)[0].toUpperCase().replace(/[^A-Z0-9]/g, '') === hit.name.split(/\s+/)[0].toUpperCase().replace(/[^A-Z0-9]/g, '')) { propose(key, hit.sector, hit.file.replace('.csv', '') + ' symbol', r.name); ixLog.symbol.push(`${fund} ${key} ${r.name} = ${hit.name} -> ${hit.sector}`); }
+      if (nameMatches(r.name, hit.name) || nameMatches(hit.name, r.name) || r.name.split(/\s+/)[0].toUpperCase().replace(/[^A-Z0-9]/g, '') === hit.name.split(/\s+/)[0].toUpperCase().replace(/[^A-Z0-9]/g, '')) { for (const k of [key, extra]) propose(k, hit.sector, hit.file.replace('.csv', '') + ' symbol', r.name); ixLog.symbol.push(`${fund} ${key} ${r.name} = ${hit.name} -> ${hit.sector}`); }
       else ixLog.symbolNameMismatch.push(`${fund} ${key} ${r.name} vs ${hit.name} (${hit.sector})`);
       continue;
     }
     const byName = ixus.filter(x => nameMatches(r.name, x.name));
     const secs = new Set(byName.map(x => x.sector));
-    if (secs.size === 1) { propose(key, byName[0].sector, byName[0].file.replace('.csv', '') + ' name', r.name); ixLog.name.push(`${fund} ${key} ${r.name} = ${byName.map(x => x.name + ' ' + x.sym).join(' / ')} -> ${byName[0].sector}`); }
+    if (secs.size === 1) { for (const k of [key, extra]) propose(k, byName[0].sector, byName[0].file.replace('.csv', '') + ' name', r.name); ixLog.name.push(`${fund} ${key} ${r.name} = ${byName.map(x => x.name + ' ' + x.sym).join(' / ')} -> ${byName[0].sector}`); }
     else if (secs.size > 1) ixLog.nameAmbiguous.push(`${fund} ${key} ${r.name}: ${byName.map(x => x.name + '=' + x.sector).join(', ')}`);
   }
 }
