@@ -41,8 +41,8 @@ Arcus Watchlists is unchanged. Its holdings DB (`arcus-etf-holdings`, account 42
 - **Not companies** (Unknown is correct): cash, money-market funds (FGXXX, SALXX, XTSLA), futures, CONTRA/CVR rights, ETFs held inside funds (SQQQ, ARK Bitcoin holdco, Sprott Physical Uranium), private holdings (Anthropic, Shield AI, Securitize, Anthropic SPV in LAZR).
 - **No issuer file with GICS found**: Chinese A-share and Korean small caps outside MSCI (BOTT 52 %, KOID 14 %, HUMN 12.5 %, EART, BOTZ, LIT), Kazatomprom GDR, some US-listed foreign names (Icon ICLR, Silicon Motion SIMO, Stratasys SSYS, Leonardo FINMY, Vertical Aerospace EVTL, Hawkeye 360). These need Bloomberg sectors from the owner (add rows to the sheet, or paste ticker → sector).
 - **Feed problems, not GICS**: NITE rows arrive with ticker "COMMON STOCKS" and cut names (SpaceX, MGM, AMD), so they never resolve (18.9 % of NITE). Global X rows with ticker "Equity" (SHLD/AIQ Thales, Dassault Aviation, Kraken) are the same kind of parse issue.
-- **Wrong saved listings in the PA archive (pre-existing, affects returns too)**: IGPT NEXTDC → `NXT` (Nextpower), Nemetschek → `NEM` (Newmont), Dassault Systèmes → `DSY` (a different US company), Hexagon/Halma/Inficon/Keppel DC → bare `HEXAB`/`HLMA`/`IFCN`/`KDCREIT`; ARKX Airbus → `AIR` (AAR), Thales → `HO`; ARKF Adyen → `ADYEN`. The page reuses these listings, so NEXTDC shows Nextpower's sector and return and Nemetschek shows Newmont's. Their row ids carry the correct sector, ready for when the listings are fixed. Not changed in this release.
-- **PA reads two company names as non-listed**: OPTION CARE HEALTH (the word "option" → Derivative) and CVR ENERGY ("CVR" → Corporate action). They now show under Health Care / Energy, but their return is still counted as 0 %. Not changed in this release.
+- **Wrong saved listings in the PA archive (pre-existing, affects returns too)**: IGPT NEXTDC → `NXT` (Nextpower), Nemetschek → `NEM` (Newmont), Dassault Systèmes → `DSY` (a different US company), Hexagon/Halma/Inficon/Keppel DC → bare `HEXAB`/`HLMA`/`IFCN`/`KDCREIT`; ARKX Airbus → `AIR` (AAR), Thales → `HO`; ARKF Adyen → `ADYEN`. The page reuses these listings, so NEXTDC shows Nextpower's sector and return and Nemetschek shows Newmont's. **Fixed the same day, see the follow-up release below.**
+- **PA reads two company names as non-listed**: OPTION CARE HEALTH (the word "option" → Derivative) and CVR ENERGY ("CVR" → Corporate action). **Fixed in the follow-up release below.**
 
 ## Rollback
 
@@ -61,6 +61,56 @@ $env:XDG_CONFIG_HOME='C:/Users/Skrom/AppData/Local/ArcusAttribution/cloudflare-a
 npx --yes wrangler@4.129.0 kv key put gics:v1 --path C:\Users\Skrom\ArcusAttributionBackups\gics-v1-before-20261125.json --namespace-id 98da8aed88f9416d84a9497daed06dc5 --remote
 ```
 Roll back the data before (or with) the code if the footer's "issuer files" wording must not appear without the issuer sectors.
+
+## Follow-up release, same day: wrong saved listings and kind misreads
+
+Owner: "Yes, fix them" (the wrong saved listings and the Option Care misread).
+
+| Item | Value |
+|---|---|
+| Commit | **`f3130bd1d2231e39166fdc6fb1bf9babdc4a121d`** on `e65e603`, branch `claude/gics-issuer-sectors` |
+| KV archive (UTC) | 2026-11-25T11:01:13Z: 15 keys `holdings:1793177916828:<fund>` (AIS ARKF ARKX BOTT BOTZ FFLS FFND FINX HUMN IGPT JEDI LIT ROBO SHLD URA), 34 positions, symbol/id fields only. Before: `C:\Users\Skrom\ArcusAttributionBackups\archive-before-20261125\` (one file per key + `bulk-restore.json`) |
+| KV `gics:v1` | 2026-11-25T11:01:15Z, **3,267** sectors (adds the corrected listings, e.g. NXT.AX, DSY.PA, NEM.DE). Before: `gics-v1-20261125-issuers.json`; now `gics-v1-20261125-listings.json` |
+| Deploy | 2026-11-25T11:03:53Z, version **a65ff1ca-3ef6-4a0c-9479-229f5abd650f**, deployment 8990c483-efed-47f6-952a-5a7f017442fc, tag f3130bd. Replaces 0d6f44ae (confirmed live just before) |
+
+Cause: the desktop publisher that wrote the saved archive on 28 Oct (`desktop/arcus_attribution/sources.py`, `mapped_symbol()`) reads a bare ticker with no exchange as a US listing, and its issuer market tags send Kosdaq shares to `.KS` and TSX Venture shares to `.TO`. The page reuses an archive listing when Arcus has not verified the holding (`resolveArchiveListings`). Arcus's own resolver had already rejected these candidates, but it also rejects some correct ones (DUERR AG vs "Dürr"), so the rejection can't be used as a blanket rule.
+
+- **Archive data:** every listing the page uses was checked against Yahoo's company name (`tools/check-archive-listings.mjs`, 1,590 symbols). The 34 wrong or unpriced ones were rewritten, each target confirmed on Yahoo (same company, prices in the last month):
+  - IGPT: NXT→NXT.AX (NEXTDC, was Nextpower), NEM→NEM.DE (Nemetschek, was Newmont), DSY→DSY.PA (Dassault Systèmes, was Big Tree Cloud), HEXAB→HEXA-B.ST, HLMA→HLMA.L, IFCN→IFCN.SW, KDCREIT→AJBU.SI;
+  - ARKX: AIR→AIR.PA (Airbus, was AAR), HO→HO.PA; ARKF ADYEN→ADYEN.AS;
+  - Kosdaq: 098460, 090710, 160980, 466100, 222800, 058610, 090360, 060250 .KS→.KQ;
+  - FINX 6763.TW→.TWO; Kraken PNG.TO→PNG.V; HUMN/ROBO HEXAB.ST→HEXA-B.ST;
+  - TSX Venture: SASK, EU, LI, SYH, FUU, CVV, AEC, V, SLI .TO→.V;
+  - Embraer ERJ→EMBJ (FFLS, FFND).
+  Afterwards the check finds no wrong-company listing in use. 3 holdings have no Yahoo listing at all (Shield AI private, ESG Minerals, Third Harmonic Bio); the other 96 name mismatches are renames (Reliance, Hershey, Campbell's…).
+- **Code, `site/arcus-source.mjs` `asset()`:**
+  - Option Care Health and CVR Energy/Partners are listed shares (they were Derivative / Corporate action, 0 % return); real CVR rights stay rights.
+  - Issuer currency lines are Cash: Chinese yuan, South Korea won, British pounds, Pound sterling, Swedish krone, U.S. Dollar, US Dollar Broker, Cash, Cash and cash equivalents.
+  - Government money-market funds are Money Market: First American Government Obligations/Obligs X (FGXXX), State Street … MMKT (SALXX), BlackRock XTSLA "Cash fund".
+  - Look-alikes stay listed: Dollar General, Dollar Tree, Sterling Infrastructure, the REITs, Cass. Cache keys `listings-20261125` (arcus-source, online, app).
+- **Tests:** `node --test tests/*.test.mjs` 251/251 (new assertions inside the arcus-source test; two version pins updated); Python 21/21 OK. A scan of every live and archive holding afterwards: no cash/currency/money-market line read as a share, and no verified share read as non-listed apart from Akero's CVR (a real right).
+- **Live, owner's Brave (`app.mjs?v=listings-20261125`), One Day 24 Nov, USD, GICS sector:**
+  - IGPT vs ARKX: NEXTDC +2.27 % and Nemetschek +2.64 % under Information Technology (they had shown Nextpower's and Newmont's returns and sectors); Dassault, Hexagon, Halma and Inficon priced; ARKX Airbus −1.63 % and Thales +0.69 % priced on Paris under Industrials. Keppel DC REIT is still "No price": Yahoo has no 23 Nov close for AJBU.SI (data gap; longer periods price it).
+  - MDY vs XLV: Option Care Health −0.16 % under Health Care; "U.S. Dollar" 0.84 % now in the Cash row.
+  - Owner's selection restored (IWV vs XLV, USD, One Day, No grouping). Desktop only.
+- **Not changed:**
+  - IGPT holdings the archive never resolved (Kioxia, Alchip, Cambricon, Horizon Robotics, Hygon, Gigabyte, UBTech) and MDY identities Arcus has not verified (Jazz, Western Alliance, Kyndryl, Charles River) still show "No price".
+  - The desktop publisher still has the bare-ticker rule, so a future archive publish must be followed by `node tools/check-archive-listings.mjs <data-dir>`.
+  - NITE's "COMMON STOCKS" feed rows are not touched (Arcus holdings Worker).
+
+### Rollback (follow-up)
+```powershell
+cd C:\Users\Skrom\ArcusGicsIssuers
+$env:CLOUDFLARE_ACCOUNT_ID='5695cae2becf35e049eb5df3e2849ae2'
+$env:XDG_CONFIG_HOME='C:/Users/Skrom/AppData/Local/ArcusAttribution/cloudflare-auth'
+# code (kinds): back to the GICS-footer version
+npx wrangler@4.129.0 rollback 0d6f44ae-5569-4642-9edf-8c0edf535b82 --config wrangler.jsonc
+# archive listings: restore the 15 saved holdings exactly as before
+npx --yes wrangler@4.129.0 kv bulk put C:\Users\Skrom\ArcusAttributionBackups\archive-before-20261125\bulk-restore.json --namespace-id 98da8aed88f9416d84a9497daed06dc5 --remote
+# GICS map: the 3,265 version (or gics-v1-before-20261125.json for the 745 Bloomberg list)
+npx --yes wrangler@4.129.0 kv key put gics:v1 --path C:\Users\Skrom\ArcusAttributionBackups\gics-v1-20261125-issuers.json --namespace-id 98da8aed88f9416d84a9497daed06dc5 --remote
+```
+Each piece can be rolled back on its own. Rolling back everything: `rollback c508e1f6…` plus the three data restores above (use `gics-v1-before-20261125.json` for the map).
 
 ## Unknown GICS per fund, listed holdings only (% of fund)
 
