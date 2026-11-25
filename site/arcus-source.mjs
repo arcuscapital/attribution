@@ -74,7 +74,9 @@ export function allocationSnapshot(fund,allocation,members=[],index=[]) {
     let id=symbol||fund+':'+(p.identity||p.ticker||i);
     // Repeated verified listings share returns and are aggregated by the engine.
     if(!symbol && seen.has(id))id+=':'+i;seen.add(id);
-    return {id,symbol,ticker:p.ticker||symbol||kind,name:p.name,weight:p.weight/100,asset:kind,currency:p.currency||null,sector:p.sector||'Unclassified'};
+    // Listings Arcus already looked up for this holding and rejected (name check failed or no quote).
+    const rejected=!symbol&&matches.length===1&&(byId.get(matches[0].id)||[]).some(r=>r.status==='unavailable')?(matches[0].candidates||[]):[];
+    return {id,symbol,ticker:p.ticker||symbol||kind,name:p.name,weight:p.weight/100,asset:kind,currency:p.currency||null,sector:p.sector||'Unclassified',...(rejected.length?{rejected}:{})};
   });
   const weight=positions.reduce((n,p)=>n+p.weight,0);
   if(weight<.98 || weight>1.02)throw Error('Complete source allocation unavailable');
@@ -126,7 +128,11 @@ export function resolveKnownListings(snapshot,companies) {
 export function resolveArchiveListings(snapshot,archive) {
   for(const p of snapshot.positions) {
     if(p.symbol || isNonListed(p) || !p.ticker)continue;
-    const matches=(archive?.positions||[]).filter(a=>a.symbol && !isNonListed(a) &&
+    // Never reuse a bare saved listing Arcus has already rejected for this holding: the 28 Oct archive read
+    // foreign local tickers as US listings (IGPT NEXTDC "NXT" = Nextpower, Nemetschek "NEM" = Newmont), owner 2026-11-25.
+    // Suffixed listings stay usable, as Arcus's strict name check also rejects some correct ones (DUERR AG DUE.DE).
+    const refused=a=>!String(a.symbol).includes('.')&&(p.rejected||[]).includes(a.symbol);
+    const matches=(archive?.positions||[]).filter(a=>a.symbol && !isNonListed(a) && !refused(a) &&
       (p.ticker===a.ticker || p.ticker===a.symbol) && nameMatches(p.name,a.name));
     const symbols=[...new Set(matches.map(a=>a.symbol))];
     if(symbols.length===1)Object.assign(p,{id:symbols[0],symbol:symbols[0]});

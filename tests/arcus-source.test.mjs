@@ -37,6 +37,13 @@ test('archive listing recovery preserves current dates and weights and excludes 
    assert(!isNonListed({ticker,name,asset:'Equity'}),name);
  const r=allocationSnapshot('ETF',{asOf:'2026-10-27',positions:[{ticker:'OLD',name:'Old Inc',weight:100}]},[{id:'old',rawSymbol:'OLD',name:'Old Inc (acquired for cash)',sourceName:'Old Inc',corporateAction:{kind:'cash-acquisition'}}]);
  assert(isNonListed(r.positions[0]));assert.equal(r.positions[0].symbol,null);
+ // 25 Nov 2026: a bare saved listing Arcus already rejected for the holding is not reused; suffixed ones still are.
+ const live=allocationSnapshot('IGPT',{asOf:'2026-11-24',positions:[{ticker:'NXT',name:'NEXTDC Ltd',weight:50},{ticker:'DUE GR',name:'DUERR AG',weight:30},{ticker:'ABC',name:'ABC Inc',weight:20}]},
+   [{id:'n',rawSymbol:'NXT',name:'NEXTDC Ltd',candidates:['NXT']},{id:'d',rawSymbol:'DUE GR',name:'DUERR AG',candidates:['DUE.DE']},{id:'a',rawSymbol:'ABC',name:'ABC Inc',candidates:['ABC']}],
+   [{id:'n',status:'unavailable',symbol:null},{id:'d',status:'unavailable',symbol:null},{id:'a',status:'pending',symbol:null}]);
+ assert.deepEqual(live.positions[0].rejected,['NXT']);
+ resolveArchiveListings(live,{positions:[{symbol:'NXT',ticker:'NXT',name:'NEXTDC Ltd'},{symbol:'DUE.DE',ticker:'DUE GR',name:'DUERR AG'},{symbol:'ABC',ticker:'ABC',name:'ABC Inc'}]});
+ assert.equal(live.positions[0].symbol,null);assert.equal(live.positions[1].symbol,'DUE.DE');assert.equal(live.positions[2].symbol,'ABC');
 });
 
 test('browser projects raw D1 packets, preserves duplicate weights and rejects stale seeds',()=>{

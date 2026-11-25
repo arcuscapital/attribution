@@ -20,6 +20,14 @@ class Tests(unittest.TestCase):
   snap=parse_snapshot('T',dict(CONFIG,provider='generic'),'\n'.join(rows).encode())
   self.assertTrue(all(p['symbol'] is None for p in snap['positions'][:3]))
   self.assertEqual(snap['positions'][3]['symbol'],'DLTR')
+ def test_ark_foreign_sedol_ticker_is_not_a_us_listing(self):
+  raw=('date,fund,company,ticker,cusip,shares,market value ($),weight (%)\n'
+       '11/24/2026,ARKX,THALES SA,HO,4162791,1,1,20%\n11/24/2026,ARKX,AIRBUS SE,AIR,4012250,1,1,20%\n'
+       '11/24/2026,ARKX,KRATOS DEFENSE & SECURITY,KTOS,50077B207,1,1,20%\n11/24/2026,ARKX,PALANTIR TECHNOLOGIES,PLTR,69608A108,1,1,20%\n'
+       '11/24/2026,ARKX,ROCKET LAB,RKLB,773121108,1,1,20%\n').encode()
+  snap=parse_snapshot('ARKX',dict(CONFIG,provider='ark'),raw)
+  by={p['name']:p['symbol'] for p in snap['positions']}
+  self.assertIsNone(by['THALES SA']);self.assertIsNone(by['AIRBUS SE']);self.assertEqual(by['KRATOS DEFENSE & SECURITY'],'KTOS')
  def test_price_currency_conversion_exact_dates_and_daily_cache(self):
   with tempfile.TemporaryDirectory() as tmp:
    db=db_open(Path(tmp));snap=parse_snapshot('ARKK',CONFIG,RAW)

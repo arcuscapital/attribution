@@ -82,7 +82,10 @@ def parse_snapshot(fund, config, raw, captured_at=None):
             t=r['ticker'].strip(); name=r['company']; cusip=r['cusip'].strip()
             cash=bool(re.search(r'CASH|MONEY MARKET|TREASURY',name,re.I))
             private=cusip.startswith('PP') or not t
-            symbol=None if cash or private else mapped_symbol(t)
+            # ARK gives US holdings a 9-character CUSIP and foreign ones a 7-character SEDOL beside the bare local
+            # ticker (THALES SA "HO", AIRBUS SE "AIR"): never read that ticker as a US listing (owner, 2026-11-25).
+            foreign=bool(re.fullmatch(r'[0-9A-Z]{7}',cusip)) and not re.search(r'\s',t)
+            symbol=None if cash or private or foreign else mapped_symbol(t)
             identifier='CASH:USD' if cash else (symbol or 'CUSIP:'+cusip if cusip else 'ARK:'+name)
             positions.append(dict(id=identifier,symbol=symbol,ticker=t,name=name,cusip=cusip,sector='Cash' if cash else 'Unclassified',
                 asset='Cash fund' if cash else 'Private/Unmapped' if private else 'Equity',currency='USD',weight=w/100,
