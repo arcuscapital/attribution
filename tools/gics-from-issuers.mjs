@@ -86,10 +86,14 @@ function keysFor(fund, i) {
   const {snap, alloc, members} = snaps.get(fund);
   const row = snap.positions[i], p = alloc.positions[i];
   if (row.symbol) return [row.symbol];
-  if (isNonListed(row)) return [];
+  // PA reads some company names as non-listed (OPTION CARE HEALTH = "option", CVR ENERGY = "CVR"); the issuer's own
+  // Equity label keeps them, but rights, escrows and private lines stay out.
+  const issuerEquity = p.asset === 'Equity' && !/\bCVR$|\bCVR\b.*\bRIGHTS?\b|\bCONTRA\b|\bPRVT\b|\bESCROW\b|\bVESTING\b|\bEARNOUT\b/i.test(p.name || '');
+  if (isNonListed(row) && !(issuerEquity && US_ONLY.has(fund))) return [];
   const keys = US_ONLY.has(fund) ? [] : [row.id];
   if (US_ONLY.has(fund)) {
-    if (/^[A-Z]{1,5}([ .\/][A-Z])?$/.test(p.ticker || '')) keys.push(p.ticker.replace(/[ .\/]/, '-'));
+    // Both forms: PA looks up the issuer ticker as given ("UHAL B") until the listing is verified as UHAL-B.
+    if (/^[A-Z]{1,5}([ .\/][A-Z])?$/.test(p.ticker || '')) keys.push(p.ticker.replace(/[ .\/]/, '-'), ...(/ /.test(p.ticker) ? [p.ticker] : []));
     const m = members.filter(m => (p.ticker ? m.rawSymbol === p.ticker : m.name === p.name));
     const cands = m.length === 1 ? (byId.get(m[0].id)?.candidates || m[0].candidates || []) : [];
     keys.push(...cands.filter(c => /^[A-Z]{1,5}(-[A-Z])?$/.test(c)));
