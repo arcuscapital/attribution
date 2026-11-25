@@ -81,7 +81,7 @@ test('compare wiring: getMany used by the J303 loader, generic prices PRICE_CONC
   assert.ok(online.includes('await Promise.all([...Array(PRICE_CONCURRENCY)].map('));
   assert.equal(PRICE_CONCURRENCY,16);
   assert.match(online,/j303-source\.mjs\?v=speed-20261120b/);
-  assert.match(app,/online\.mjs\?v=guard-20261125/);
+  assert.match(app,/online\.mjs\?v=fx-20261125/);
   assert.match(source,/if\(getMany\)return getMany\(/);
 });
 

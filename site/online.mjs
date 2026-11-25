@@ -293,7 +293,8 @@ export function createOnlineSource({fetcher=fetch,onUnauthorized=()=>{},onProgre
       if(!useCalendar && !downloaded.get('SPY')?.points.length)throw Error('Could not verify the trading dates. Please retry when prices are available.');
       const fxCurrencies=new Set();
       for(const data of downloaded.values())if(!data.symbol.endsWith('=X') && data.currency!=='USD')fxCurrencies.add(minorUnit(data.currency).currency);
-      const supported=new Set('TWD KRW JPY HKD EUR GBP CHF CAD AUD CNY SEK NOK DKK ILS INR SGD NZD BRL MXN ZAR'.split(' '));
+      // TRY ... HUF added 2026-11-25 (owner: Global X SHLD holds Aselsan, Istanbul): Yahoo has daily <CCY>USD=X rates for each.
+      const supported=new Set('TWD KRW JPY HKD EUR GBP CHF CAD AUD CNY SEK NOK DKK ILS INR SGD NZD BRL MXN ZAR TRY PLN THB IDR MYR PHP SAR CZK HUF'.split(' '));
       await batch([...fxCurrencies].filter(c=>supported.has(c)).map(c=>c+'USD=X'));
       const levels=[...reused.levels],priceNotes=[...sourceNotes];
       const valuationDates=useCalendar ? calendar : downloaded.get('SPY').points.map(([date])=>date);
