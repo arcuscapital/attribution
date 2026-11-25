@@ -229,3 +229,12 @@ npx --yes wrangler@4.129.0 kv key put gics:v1 --path C:\Users\Skrom\ArcusAttribu
 ## Currency follow-up: deployed and rolled back (owner: keep everything except the Global X work)
 
 At 13:25:40Z version 5c0e4753 (commit 06f0770) added TRY, PLN, THB, IDR, MYR, PHP, SAR, CZK and HUF to the page's FX list (for Aselsan in Global X SHLD). The owner did not want it: rolled back at **2026-11-25T13:27:39Z** to **8e6d3bc5** (`wrangler rollback`), commit reverted. `gics:v1` was put back to the 3,280 version (`gics-v1-20261125-final.json`) at 13:27:57Z; the 8 sectors added from the Global X refresh (3,288 version, `gics-v1-20261125-globalx.json`) are not live. Live state is as recorded in the third release above.
+
+## Final live state (owner: "git deploy until that part and test live")
+
+- Redeployed from git HEAD `c339363` at **2026-11-25T13:31:35Z**: version **e6ca1876-1526-4e09-8c3e-bc763a0957e4**, deployment 50ea31a2-5bfb-42a3-92ef-bf03122c157e. Same site as 8e6d3bc5 (only `tools/gics-from-issuers.mjs`, not served, differs); page loads `app.mjs?v=guard-20261125`. `gics:v1` = `gics-v1-20261125-final.json` (3,280), checked byte for byte. Rollback targets: 8e6d3bc5 (same code), c508e1f6 for all of today.
+- Live checks in the owner's Brave (One Day 24 Nov, GICS sector):
+  - IWV vs XLV: Unknown GICS 0.21 % / 0.16 %; footer names Bloomberg and the funds' own files.
+  - IGPT vs NITE: "No price" only Keppel DC REIT; Kioxia +9.90 %, NEXTDC +2.27 %, Nemetschek +2.64 %, Horizon −2.17 % under Information Technology; SpaceX −5.65 % under Communication Services.
+  - MDY vs XLV: Option Care −0.16 % under Health Care; "U.S. Dollar" 0.84 % in the Cash row.
+  - Owner's selection (Rise vs Swix, ZAR, Live) restored.
