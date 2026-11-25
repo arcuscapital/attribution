@@ -155,6 +155,15 @@ function showJ303Holdings(data){
   rows.append(fragment);
 }
 const portfolioOrder=id=>({'PORTFOLIO:MARLOW':'PORTFOLIO:M0','PORTFOLIO:J303':'PORTFOLIO:M1','PORTFOLIO:SWIX':'PORTFOLIO:M2'}[id]||id);
+// State Street sector SPDRs read sector first, as the Arcus Watchlist labels them (owner, 2026-11-25).
+const SECTOR_ETFS = Object.freeze({XLC:'Communication Services',XLY:'Consumer Discretionary',XLP:'Consumer Staples',XLE:'Energy',XLF:'Financials',
+  XLV:'Health Care',XLI:'Industrials',XLB:'Materials',XLRE:'Real Estate',XLK:'Technology',XLU:'Utilities'});
+function fundDisplayName(f) {
+  if (f.id.startsWith('PORTFOLIO:')) return f.name;
+  return SECTOR_ETFS[f.id] ? `${SECTOR_ETFS[f.id]} · ${f.id} · State Street sector ETF` : `${f.id} · ${f.name}`;
+}
+// Sector funds stay together after the group's other funds, in sector order.
+const fundSortKey = id => SECTOR_ETFS[id] ? '1 '+SECTOR_ETFS[id] : '0 '+portfolioOrder(id);
 function restoreSelection(m) {
   const saved = savedSelection();
   if (!saved) return false;
@@ -221,7 +230,7 @@ function setup(m) {
   for (const id of ["portfolio", "benchmark"]) {
     $(id).replaceChildren(
       ...fundsForRole(m.funds,id).map((f) => {
-        const o = text("option", f.id.startsWith('PORTFOLIO:') ? `${f.name} · My portfolio` : `${f.id} · ${f.name}`);
+        const o = text("option", f.id.startsWith('PORTFOLIO:') ? `${f.name} · My portfolio` : fundDisplayName(f));
         o.value = f.id;
         return o;
       }),
@@ -295,7 +304,8 @@ function createFundPicker(id) {
   let funds=[];
   const close=()=>{popup.hidden=true;trigger.setAttribute('aria-expanded','false');};
   function label(f) {
-    const name=text('span',f.id.startsWith('PORTFOLIO:')?f.name:`${f.id} · ${f.name}${id==='benchmark'&&f.id==='SOXX'?' · SOX ETF proxy':''}`,'fund-name');
+    const name=text('span',fundDisplayName(f)+(id==='benchmark'&&f.id==='SOXX'?' · SOX ETF proxy':''),'fund-name');
+    if(SECTOR_ETFS[f.id])name.title=f.id+' · '+f.name;
     if(f.id.startsWith('PORTFOLIO:'))return [name];
     const daily=arcusReturns.get(f.id), value=daily?.oneDayReturnPct;
     const ret=text('span',Number.isFinite(value)?`${value>0?'+':''}${value.toFixed(2)}%`:f.id.startsWith('PORTFOLIO:')?'':'—','fund-return');
@@ -307,7 +317,7 @@ function createFundPicker(id) {
   function draw(){
     list.replaceChildren();const query=search.value.trim().toLowerCase();
     for(const theme of [...FUND_THEMES.map(([name])=>name),'Other ETFs',...(id==='benchmark'?['Indices 2']:[])]){
-      const matches=funds.filter(f=>fundTheme(f,id)===theme && `${f.id} ${f.name} ${theme}`.toLowerCase().includes(query)).sort((a,b)=>portfolioOrder(a.id).localeCompare(portfolioOrder(b.id)));
+      const matches=funds.filter(f=>fundTheme(f,id)===theme && `${f.id} ${f.name} ${SECTOR_ETFS[f.id]||''} ${theme}`.toLowerCase().includes(query)).sort((a,b)=>fundSortKey(a.id).localeCompare(fundSortKey(b.id)));
       if(!matches.length)continue;
       const group=text('div','','fund-group');group.setAttribute('role','group');group.setAttribute('aria-label',theme);
       group.append(text('strong',theme,'fund-group-title'));
@@ -358,7 +368,7 @@ function renderArchiveInfo() {
     ...manifest.funds.filter(f=>[$('portfolio').value,$('benchmark').value].includes(f.id)).map((f) => {
       const card = text("article", "", "archive-card");
       card.append(
-        text("strong", f.id.startsWith('PORTFOLIO:') ? f.name : f.id),
+        text("strong", f.id.startsWith('PORTFOLIO:') ? f.name : SECTOR_ETFS[f.id] ? SECTOR_ETFS[f.id]+' · '+f.id : f.id),
         text(
           "p",
           f.dailyIndex ? 'Satrix STXCAP holdings · daily floating weights · ZAR' : f.dailyIndexComparator&&j303Selected() ? 'Saved SWIX allocation · daily floating weights · ZAR' : f.reportOnly ? 'Bloomberg report · 4–5 Nov 2026 · ZAR' : manifest.holdingsSource==='arcus' && !f.currentSource ? 'Current Arcus allocation checked when you compare.' : `${f.positions} positions · holdings ${f.latest || "not collected"} · ${f.currentSource || (onlineMode ? 'saved allocation' : f.dates.length+' saved dates')}`,

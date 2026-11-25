@@ -14,6 +14,18 @@ test('Indices 2 is last in the benchmark picker; IWV (Russell 3000) joined 2026-
  assert.equal(ctx.fundTheme({id:'QQQ'},'portfolio'),'Market benchmarks');
  assert(app.includes("'Other ETFs',...(id==='benchmark'?['Indices 2']:[])"));
 });
+test('sector SPDRs read sector first and sort together by sector; other funds keep ticker · name',()=>{
+ const app=fs.readFileSync('site/app.mjs','utf8');
+ const start=app.indexOf('const portfolioOrder'),end=app.indexOf('function restoreSelection',start);
+ const ctx=vm.createContext({});vm.runInContext(app.slice(start,end)+';this.fundDisplayName=fundDisplayName;this.fundSortKey=fundSortKey;',ctx);
+ assert.equal(ctx.fundDisplayName({id:'XLI',name:'State Street® Industrial Select Sector SPDR® ETF'}),'Industrials · XLI · State Street sector ETF');
+ assert.equal(ctx.fundDisplayName({id:'XLV',name:'State Street® Health Care Select Sector SPDR® ETF'}),'Health Care · XLV · State Street sector ETF');
+ assert.equal(ctx.fundDisplayName({id:'IWV',name:'iShares Russell 3000 ETF'}),'IWV · iShares Russell 3000 ETF');
+ assert.equal(ctx.fundDisplayName({id:'PORTFOLIO:MARLOW',name:'Marlow'}),'Marlow');
+ const order='IWV XLV QQQ XLC XLK IBIT XLU'.split(' ').sort((a,b)=>ctx.fundSortKey(a).localeCompare(ctx.fundSortKey(b)));
+ assert.deepEqual(order,'IBIT IWV QQQ XLC XLV XLK XLU'.split(' '));
+ assert(app.includes("${SECTOR_ETFS[f.id]||''}"),'searching a sector name finds its fund');
+});
 test('IBIT uses only its own reference price without holdings or constituent requests',async()=>{
  const calls=[],source=createOnlineSource({fetcher:async path=>{
   calls.push(path);if(path.includes('data/nav?'))return Response.json({status:'no-data',return:null});
