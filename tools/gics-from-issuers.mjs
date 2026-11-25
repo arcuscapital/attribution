@@ -9,7 +9,8 @@
 //   security.json         Arcus: same DB, "SELECT id,name,candidates,symbol,status FROM security"
 //   archive.json          wrangler kv bulk get <list of holdings:<latest catalog version>:* keys> (PA saved holdings)
 //   input/IWV_holdings.csv  iShares IWV holdings download (owner's file)
-//   ixus/IXUS.csv, ixus/IWC.csv, ixus/MCHI.csv  iShares .../latest-holdings.csv for IXUS (244048), IWC (239716), MCHI (239619)
+//   ixus/IXUS.csv, IWC.csv, MCHI.csv (+ optional CNYA, EEMS, ECNS, SCJ)  iShares .../latest-holdings.csv for IXUS (244048), IWC (239716),
+//   MCHI (239619), CNYA (273318), EEMS (239642), ECNS (239620), SCJ (239666)
 // Writes <data-dir>/gics-v1-new.json and <data-dir>/report.json. Upload with wrangler kv key put gics:v1 --path ... (no deploy).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -140,7 +141,7 @@ const nmBody = nmSrc.slice(nmSrc.indexOf('const clean ='), nmSrc.indexOf("const 
 const nameMatches = new Function(nmBody + '; return nameMatches;')();
 // Extra iShares files: IXUS (non-US, 23 Nov), IWC Micro-Cap (US small, 24 Nov), MCHI China incl. A-shares (23 Nov).
 const ixus = [];
-for (const file of ['IXUS.csv', 'IWC.csv', 'MCHI.csv']) {
+for (const file of ['IXUS.csv', 'IWC.csv', 'MCHI.csv', 'CNYA.csv', 'EEMS.csv', 'ECNS.csv', 'SCJ.csv'].filter(f => fs.existsSync(path.join(DIR, 'ixus', f)))) {
   const ixRows = parseCsv(fs.readFileSync(path.join(DIR, 'ixus', file), 'utf8'));
   const ixHead = ixRows.findIndex(r => r[0] === 'Ticker' && r.includes('Sector')), IH = ixRows[ixHead], ic = n => IH.indexOf(n);
   for (const r of ixRows.slice(ixHead + 1)) {
@@ -186,7 +187,10 @@ for (const fund of [...snaps.keys(), ...archiveOnly.map(a => a.fund)]) {
     const hit = r.symbol ? ixBySym.get(key) : null;
     if (hit) {
       if (nameMatches(r.name, hit.name) || nameMatches(hit.name, r.name) || r.name.split(/\s+/)[0].toUpperCase().replace(/[^A-Z0-9]/g, '') === hit.name.split(/\s+/)[0].toUpperCase().replace(/[^A-Z0-9]/g, '')) { for (const k of [key, extra]) propose(k, hit.sector, hit.file.replace('.csv', '') + ' symbol', r.name); ixLog.symbol.push(`${fund} ${key} ${r.name} = ${hit.name} -> ${hit.sector}`); }
-      else ixLog.symbolNameMismatch.push(`${fund} ${key} ${r.name} vs ${hit.name} (${hit.sector})`);
+      // An exchange-suffixed symbol names one listing, and the page prices that listing: its sector applies even when
+      // the issuer still uses an old name (AIS "IEIT Systems" = INSPUR ELECTRONIC INFORMATION, 000977.SZ).
+      else if (key.includes('.')) { propose(key, hit.sector, hit.file.replace('.csv', '') + ' symbol (renamed)', r.name); ixLog.symbolNameMismatch.push(`${fund} ${key} ${r.name} vs ${hit.name} (${hit.sector}) — kept, suffixed listing`); }
+      else ixLog.symbolNameMismatch.push(`${fund} ${key} ${r.name} vs ${hit.name} (${hit.sector}) — not keyed`);
       continue;
     }
     const byName = ixus.filter(x => nameMatches(r.name, x.name));
@@ -200,7 +204,7 @@ for (const [k, v] of Object.entries(ixLog)) { console.log('IXUS', k, v.length); 
 // ---- merge: Bloomberg (existing) always wins; issuer disagreements reported ----
 const sectors = {...current.sectors};
 const added = {}, conflictsWithBloomberg = [], issuerDisagree = [];
-const rank = s => s.startsWith('IWV csv') ? 0 : s.startsWith('IWV') ? 1 : /archive/.test(s) ? 3 : /^(IXUS|IWC|MCHI)/.test(s) ? 4 : 2;
+const rank = s => s.startsWith('IWV csv') ? 0 : s.startsWith('IWV') ? 1 : /archive/.test(s) ? 3 : /^(IXUS|IWC|MCHI|CNYA|EEMS|ECNS|SCJ)/.test(s) ? 4 : 2;
 for (const [key, list] of proposals) {
   const set = new Set(list.map(x => x.sector));
   const best = [...list].sort((a, b) => rank(a.source) - rank(b.source))[0];
@@ -251,6 +255,6 @@ for (const c of realCollisions) console.log('  ', c.fund, c.id, c.ticker, c.name
 console.log('all fallback rows whose key name is unknown (Bloomberg list):'); for (const c of collisions.filter(c => c.keyName === '(Bloomberg list)')) console.log('   B', c.fund, c.id, c.ticker, c.name, '->', c.sector);
 
 fs.writeFileSync(path.join(DIR, 'report.json'), JSON.stringify({report, collisions, conflictsWithBloomberg, issuerDisagree, added}, null, 1));
-const out = {asOf: new Date().toISOString().slice(0, 10), source: String(current.source || '').split('; plus issuer')[0] + '; plus issuer GICS sectors for shares not on the Bloomberg list: owner\'s iShares IWV file (24 Nov 2026), iShares/State Street/Tema/Fundstrat holdings stored by Arcus, sector SPDR membership, iShares IXUS/IWC/MCHI files', count: Object.keys(sectors).length, sectors};
+const out = {asOf: new Date().toISOString().slice(0, 10), source: String(current.source || '').split('; plus issuer')[0] + '; plus issuer GICS sectors for shares not on the Bloomberg list: owner\'s iShares IWV file (24 Nov 2026), iShares/State Street/Tema/Fundstrat holdings stored by Arcus, sector SPDR membership, iShares IXUS/IWC/MCHI/CNYA/EEMS/ECNS/SCJ files', count: Object.keys(sectors).length, sectors};
 fs.writeFileSync(path.join(DIR, 'gics-v1-new.json'), JSON.stringify(out));
 console.log('wrote gics-v1-new.json', out.count);
